@@ -1,0 +1,43 @@
+name: Build Windows packages
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: Portable
+            folder: portable
+          - profile: Lite
+            folder: lite
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 9.0.x
+      - name: Restore solution
+        run: dotnet restore CMakeDapLink.sln
+      - name: Build solution
+        run: dotnet build CMakeDapLink.sln -c Release --no-restore
+      - name: Publish ${{ matrix.profile }}
+        run: dotnet publish src/CMakeDapLink.App -p:PublishProfile=${{ matrix.profile }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: CMakeDapLink-${{ matrix.folder }}-win-x64
+          path: |
+            artifacts/publish/${{ matrix.folder }}/CMakeDapLink.exe
+            artifacts/publish/${{ matrix.folder }}/LICENSE
+          if-no-files-found: error
+          retention-days: 14
