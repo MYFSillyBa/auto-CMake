@@ -4,6 +4,11 @@ public sealed record ToolCommand(string Executable, IReadOnlyList<string> Argume
 
 public sealed record CMakeBuildPlan(ToolCommand Configure, ToolCommand Build)
 {
+    public string BuildDirectory { get; init; } = "";
+    public string BuildConfiguration { get; init; } = "Debug";
+
+    public void PrepareArtifactQuery() => CurrentFirmwareArtifacts.PrepareQuery(BuildDirectory);
+
     public static CMakeBuildPlan Create(SetupOptions options)
     {
         var root = Path.GetFullPath(options.Root);
@@ -27,16 +32,15 @@ public sealed record CMakeBuildPlan(ToolCommand Configure, ToolCommand Build)
             buildArgs.Add("--config");
             buildArgs.Add(options.BuildConfiguration);
         }
-        return new(new(options.CMake, configureArgs, root, pathPrefix), new(options.CMake, buildArgs, root, pathPrefix));
+        return new(new(options.CMake, configureArgs, root, pathPrefix), new(options.CMake, buildArgs, root, pathPrefix))
+        {
+            BuildDirectory = Path.GetFullPath(buildDirectory, root),
+            BuildConfiguration = options.BuildConfiguration
+        };
     }
 
-    public static IReadOnlyList<string> FindElfs(string buildDirectory)
-    {
-        if (!Directory.Exists(buildDirectory)) throw new InvalidOperationException("构建目录不存在：" + buildDirectory);
-        return Directory.EnumerateFiles(buildDirectory, "*", SearchOption.AllDirectories)
-            .Where(file => Path.GetExtension(file).Equals(".elf", StringComparison.OrdinalIgnoreCase))
-            .Select(Path.GetFullPath).Order(StringComparer.OrdinalIgnoreCase).ToArray();
-    }
+    public static IReadOnlyList<string> FindElfs(string buildDirectory, string configuration = "Debug") =>
+        CurrentFirmwareArtifacts.Find(buildDirectory, configuration);
 
     public static string FindSingleElf(string buildDirectory)
     {

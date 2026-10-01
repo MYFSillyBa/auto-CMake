@@ -79,12 +79,24 @@ internal static class SoftwareWorkflowChecks
             File.WriteAllText(Path.Combine(project, "CMakeLists.txt"), "cmake_minimum_required(VERSION 3.22)\nproject(probe C)\nadd_executable(probe main.c)\nset_target_properties(probe PROPERTIES SUFFIX .elf)\ntarget_compile_options(probe PRIVATE -mcpu=cortex-m4 -mthumb)\ntarget_link_options(probe PRIVATE -mcpu=cortex-m4 -mthumb -nostdlib -Wl,-e,main)\n");
             SourceFolderPlanner.Apply(SourceFolderPlanner.Preview(project, module, "probe"));
             var options = new SetupOptions(project, tools.CMake!, tools.Ninja!, tools.Compiler!, tools.OpenOcd ?? "", tools.Scripts ?? "", "target/stm32f4x.cfg", null, null, null, Path.Combine(project, "toolchain.cmake"));
-            var build = CMakeBuildPlan.Create(options); Run(build.Configure); Run(build.Build);
+            var build = CMakeBuildPlan.Create(options);
+            build.PrepareArtifactQuery();
+            Directory.CreateDirectory(build.BuildDirectory);
+            var stale = Path.Combine(build.BuildDirectory, "Chassis.elf");
+            File.WriteAllText(stale, "leftover firmware from an old target");
+            File.SetLastWriteTimeUtc(stale, new DateTime(2026, 6, 4, 0, 0, 0, DateTimeKind.Utc));
+            Run(build.Configure); Run(build.Build);
             var elf = CMakeBuildPlan.FindSingleElf(Path.Combine(project, "build", "daplink-debug"));
+            if (Path.GetFileName(elf) != "probe.elf" || !File.Exists(stale)) throw new Exception("selected or removed old firmware");
+            var timestamp = File.GetLastWriteTimeUtc(elf);
+            Run(build.Build);
+            if (CMakeBuildPlan.FindElfs(build.BuildDirectory).Single() != elf || File.GetLastWriteTimeUtc(elf) != timestamp)
+                throw new Exception("up-to-date build lost its valid firmware");
             var change = ConfigurationWriter.Preview(options with { FirmwareElfPath = elf });
             ChangeHistory.Apply(project, "配置任务", change);
             var taskText = File.ReadAllText(Path.Combine(project, ".vscode", "tasks.json"));
             if (!taskText.Contains("一键编译") || !taskText.Contains("一键烧录(DAPLINK)")) throw new Exception("missing tasks after real mixed-language build");
+            if (!taskText.Contains("probe.elf") || taskText.Contains("Chassis.elf")) throw new Exception("flash task points to old firmware");
             ChangeHistory.Restore(project, ChangeHistory.List(project).First(x => x.Label == "配置任务").Id);
             if (File.Exists(Path.Combine(project, ".vscode", "tasks.json"))) throw new Exception("new task file was not restored to absent state");
         });

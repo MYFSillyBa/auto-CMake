@@ -63,10 +63,6 @@ internal static class InspectionEnhancementChecks
 
             var output = Path.Combine(root, "outputs");
             Directory.CreateDirectory(Path.Combine(output, "secondary"));
-            File.WriteAllText(Path.Combine(output, "app.elf"), "ELF");
-            Assert(CMakeBuildPlan.FindSingleElf(output) == Path.Combine(output, "app.elf"), "single ELF compatibility");
-            File.WriteAllText(Path.Combine(output, "secondary", "loader.elf"), "ELF");
-            Assert(CMakeBuildPlan.FindElfs(output).Count == 2, "normal multi-target ELF discovery");
 
             var options = new SetupOptions(root, "cmake", "ninja", "gcc", "openocd", "scripts", "target/stm32h7x.cfg", null, null, output)
                 { BuildConfiguration = "Release" };

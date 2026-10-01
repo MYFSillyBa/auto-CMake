@@ -15,6 +15,7 @@ try
     if (args.Contains("--software-flow", StringComparer.Ordinal))
     {
         Check("preset and chip evidence inspection", InspectionEnhancementChecks.Run);
+        Check("current firmware targets isolate configurations and ignore leftover ELF files", FirmwareArtifactChecks.Run);
         ChangeHistoryChecks.Run(root, Check);
         SoftwareWorkflowChecks.Run(root, Check);
         ToolManagementChecks.Run(root, Check);
@@ -182,6 +183,7 @@ try
             if (!process.WaitForExit(120000)) { process.Kill(true); throw new Exception("build timeout"); }
             if (process.ExitCode != 0) throw new Exception("build failed: " + stdout.Result + stderr.Result);
         }
+        plan.PrepareArtifactQuery();
         Run(plan.Configure); Run(plan.Build);
         var elf = CMakeBuildPlan.FindSingleElf(Path.Combine(project, "build", "daplink-debug"));
         if (Path.GetFileName(elf) != "probe.elf") throw new Exception("wrong ELF selected");

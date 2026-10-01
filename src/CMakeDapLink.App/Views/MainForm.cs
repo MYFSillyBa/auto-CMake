@@ -669,8 +669,9 @@ public sealed partial class MainForm : Form
         try
         {
             var options = CreateOptions();
-            await RunBuildAsync(CMakeBuildPlan.Create(options));
-            var elf = ChooseFirmware(CMakeBuildPlan.FindElfs(options.BuildDirectory ?? Path.Combine(options.Root, "build", "daplink-debug")), options.Root);
+            var plan = CMakeBuildPlan.Create(options);
+            await RunBuildAsync(plan);
+            var elf = ChooseFirmware(CMakeBuildPlan.FindElfs(plan.BuildDirectory, plan.BuildConfiguration), options.Root);
             if (elf == null) { _stage.Text = "已取消固件选择，未写入任务。"; return; }
             _firmwareLabel.Text = "固件：" + Path.GetRelativePath(options.Root, elf);
             Append("已确认固件：" + elf);
@@ -709,6 +710,7 @@ public sealed partial class MainForm : Form
     private async Task RunBuildAsync(CMakeBuildPlan plan)
     {
         _buildProblems.Clear(); _buildOutput.Clear();
+        plan.PrepareArtifactQuery();
         void Capture(string line) { _buildOutput.Enqueue(line); Append(line); }
         _buildOutput.Enqueue("=== CMake 配置 ===");
         SetBusy(true, "CMake 正在配置工程…", 40);
