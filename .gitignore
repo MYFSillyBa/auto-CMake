@@ -1,0 +1,30 @@
+# .NET / IDE outputs
+**/bin/
+**/obj/
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.pubxml.user
+
+# Local publish outputs, screenshots and migration archive
+/artifacts/
+/dist/
+/dist-lite/
+TestResults/
+*.log
+*.tmp
+
+# Machine-local settings and operating system files
+.env
+.env.*
+!.env.example
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Generated screenshots from optional UI checks
+normal-flow.png
+live-buttons.png
