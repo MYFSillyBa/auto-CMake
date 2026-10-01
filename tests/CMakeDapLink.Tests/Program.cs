@@ -12,6 +12,15 @@ var root = Path.Combine(Path.GetTempPath(), "CMakeDapLinkTests-" + Guid.NewGuid(
 Directory.CreateDirectory(root);
 try
 {
+    if (args.Contains("--software-flow", StringComparer.Ordinal))
+    {
+        Check("preset and chip evidence inspection", InspectionEnhancementChecks.Run);
+        ChangeHistoryChecks.Run(root, Check);
+        SoftwareWorkflowChecks.Run(root, Check);
+        ToolManagementChecks.Run(root, Check);
+        foreach (var failure in failures) Console.Error.WriteLine(failure);
+        return failures.Count == 0 ? 0 : 1;
+    }
     FileWorkflowTests.Run(root, Check);
     Check("detects CMake project and STM32H7 target", () =>
     {
@@ -75,7 +84,7 @@ try
     Check("preserves unrelated VS Code tasks and generates two named tasks", () =>
     {
         var vscode = Path.Combine(root, ".vscode"); Directory.CreateDirectory(vscode);
-        File.WriteAllText(Path.Combine(vscode, "tasks.json"), "{\"version\":\"2.0.0\",\"tasks\":[{\"label\":\"keep me\",\"type\":\"shell\",\"command\":\"echo hi\"},{\"label\":\"一键启动（DAPLINK）\",\"type\":\"process\",\"command\":\"old\"}]}");
+        File.WriteAllText(Path.Combine(vscode, "tasks.json"), "{\"version\":\"2.0.0\",\"tasks\":[{\"label\":\"keep me\",\"type\":\"shell\",\"command\":\"echo hi\"},{\"label\":\"一键启动（DAPLINK）\",\"type\":\"process\",\"command\":\"powershell.exe\",\"args\":[\"-NoProfile\",\"-ExecutionPolicy\",\"Bypass\",\"-File\",\"${workspaceFolder}/.vscode/cmake-daplink.ps1\",\"-Action\",\"flash\"]}]}");
         File.WriteAllText(Path.Combine(vscode, "cmake-daplink.ps1"), "param([ValidateSet('build','flash')][string]$Action = 'build')");
         File.WriteAllText(Path.Combine(vscode, "cmake-daplink.json"), "{\"cmake\":\"old\",\"openocd\":\"old\"}");
         var elf = Path.Combine(root, "build", "daplink-debug", "app.elf");

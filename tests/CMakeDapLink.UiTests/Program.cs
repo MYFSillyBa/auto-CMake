@@ -12,6 +12,7 @@ internal static class Program
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
+        if (args.FirstOrDefault() == "--software-ui") return SoftwareUiFlow.Run(args.Skip(1).ToArray());
         if (args.FirstOrDefault() == "--published-buttons") return PublishedButtons.Run(args.Skip(1).ToArray());
         if (args.FirstOrDefault() == "--live-buttons") return LiveButtons.Run(args.Skip(1).ToArray());
         if (args.FirstOrDefault() == "--normal-flow") return NormalFlow.Run(args.Skip(1).ToArray());
