@@ -18,8 +18,8 @@ Windows 图形工具，用于检测嵌入式 CMake 工程的构建环境，配�
 
 前往 [GitHub Releases](https://github.com/MYFSillyBa/auto-CMake/releases/latest) 下载：
 
-- **轻量版**：`CMakeDapLink-portable-win-x64.zip`，解压后直接运行，自带 .NET。
-- **极致轻量版**：`CMakeDapLink-lite-win-x64.zip`，需要电脑已安装 .NET 9 Desktop Runtime。
+- **轻量版**：[CMakeDapLink-portable-win-x64.exe](https://github.com/MYFSillyBa/auto-CMake/releases/latest/download/CMakeDapLink-portable-win-x64.exe)，下载后直接运行，自带 .NET。
+- **极致轻量版**：[CMakeDapLink-lite-win-x64.exe](https://github.com/MYFSillyBa/auto-CMake/releases/latest/download/CMakeDapLink-lite-win-x64.exe)，需要电脑已安装 .NET 9 Desktop Runtime。
 
 | 版本 | 本地发布路径 | 大小 | 运行要求 |
 | --- | --- | --- | --- |
