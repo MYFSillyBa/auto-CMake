@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Resources/chip.ico</ApplicationIcon>
+    <AssemblyName>CMakeDapLink</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources/chip.ico" LogicalName="CMakeDapLink.ChipIcon" />
+    <Content Include="$(RepositoryRoot)LICENSE" Link="LICENSE" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <ProjectReference Include="../CMakeDapLink.Core/CMakeDapLink.Core.csproj" />
+  </ItemGroup>
+</Project>
