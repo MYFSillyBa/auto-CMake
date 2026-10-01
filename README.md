@@ -24,7 +24,7 @@ Windows 图形工具，用于检测嵌入式 CMake 工程的构建环境，配�
 | 版本 | 本地发布路径 | 大小 | 运行要求 |
 | --- | --- | --- | --- |
 | 轻量版 | `artifacts/publish/portable/CMakeDapLink.exe` | 约 48 MB | Windows x64，自带 .NET |
-| 极致轻量版 | `artifacts/publish/lite/CMakeDapLink.exe` | 约 0.4 MB | Windows x64，.NET 9 Desktop Runtime |
+| 极致轻量版 | `artifacts/publish/lite/CMakeDapLink.exe` | 约 0.6 MB | Windows x64，.NET 9 Desktop Runtime |
 
 两个版本功能相同。本地发布文件已保留；Git 仓库只保存源码和文档，克隆后可以自行构建。GitHub Actions 构建成功后会生成两个版本的下载产物。
 
