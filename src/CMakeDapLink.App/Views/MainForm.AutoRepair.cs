@@ -57,7 +57,7 @@ public sealed partial class MainForm
         catch (Exception ex)
         {
             _stage.Text = "自动修复未完成：" + ex.Message; Append(_stage.Text);
-            using var dialog = new CompletionDialog([new("Repair", "自动修复未完成", ex.Message + "\n请检查 D:\\CMake_Tools 是否可写以及当前网络连接。可以在“镜像源”调整地址，或者通过“手动指定路径”补齐工具。")], _previewScale);
+            using var dialog = new CompletionDialog([new("Repair", "自动修复未完成", ex.Message + $"\n请检查 {ManagedTools.Root} 是否可写以及当前网络连接。可以在“镜像源”调整地址，或者通过“手动指定路径”补齐工具。")], _previewScale);
             dialog.ShowDialog(this);
         }
         finally
@@ -98,7 +98,7 @@ public sealed partial class MainForm
         private readonly Label _subtitle = Label("优先官方源，备用源可随时更换。", 9, Muted);
         private readonly Label _heading = Label("GitHub 加速镜像", 10, Ink, bold: true);
         private readonly Label _hint = Label("地址中用 {url} 代表完整的 GitHub 下载地址；留空可关闭加速镜像。", 9, Muted);
-        private readonly Label _note = Label("备用来源还包括 SourceForge 发布镜像与 xPack 发行版；索引备用使用国内 npmmirror。xPack 与官方最新版本可能不同，实际版本会显示在日志中。\n\n下载后校验 SHA-256，再解压到 D:\\CMake_Tools。镜像可用性受网络和服务状态影响。", 9, Muted);
+        private readonly Label _note = Label($"备用来源还包括 SourceForge 发布镜像与 xPack 发行版；索引备用使用国内 npmmirror。xPack 与官方最新版本可能不同，实际版本会显示在日志中。\n\n下载后校验 SHA-256，再解压到 {ManagedTools.Root}。镜像可用性受网络和服务状态影响。", 9, Muted);
         private readonly RoundedPanel _card = new();
         private int Sc(float value) => Math.Max(1, (int)Math.Round(value * DeviceDpi / 96f));
 

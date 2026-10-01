@@ -9,6 +9,8 @@ internal sealed class RoundedTextField : UserControl
     public override string Text { get => _input.Text; set => _input.Text = value ?? ""; }
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public string PlaceholderText { get => _input.PlaceholderText; set => _input.PlaceholderText = value; }
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public bool ReadOnly { get => _input.ReadOnly; set => _input.ReadOnly = value; }
     public int PreferredHeight => _input.PreferredHeight + 18 * DeviceDpi / 96;
     public RoundedTextField()
     {
@@ -25,6 +27,7 @@ internal sealed class RoundedTextField : UserControl
         Arrange();
     }
     public void SelectAll() => _input.SelectAll();
+    public void Clear() => _input.Clear();
     private void Arrange()
     {
         var inset = 12 * DeviceDpi / 96;

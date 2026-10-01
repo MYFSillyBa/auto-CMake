@@ -70,6 +70,13 @@ internal class SoftButton : Button
     protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
     protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
     public override void NotifyDefault(bool value) => base.NotifyDefault(false);
+    public override Size GetPreferredSize(Size proposedSize)
+    {
+        var scale = DeviceDpi / 96f;
+        var text = TextRenderer.MeasureText(Text, Font, Size.Empty, TextFormatFlags.SingleLine);
+        return new(text.Width + Padding.Horizontal + (int)Math.Ceiling((IconKind == 0 ? 24 : 51) * scale),
+            Math.Max(text.Height + Padding.Vertical + (int)Math.Ceiling(14 * scale), (int)Math.Ceiling(36 * scale)));
+    }
     protected override void OnPaintBackground(PaintEventArgs e)
         => e.Graphics.Clear(Parent?.BackColor ?? Color.White);
     protected override void OnPaint(PaintEventArgs e)

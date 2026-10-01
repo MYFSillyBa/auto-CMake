@@ -21,7 +21,7 @@ public static class EnvironmentReport
         })
         {
             if (path == null || !File.Exists(path))
-                issues.Add(new(key, name + " 未找到", $"点击“自动修复”，程序会下载完整工具包到 D:\\CMake_Tools 并补齐路径。也可{install}，然后在配置详情的 {name} 行点“选择”，指定 {executable}。"));
+                issues.Add(new(key, name + " 未找到", $"点击“自动修复”，程序会下载完整工具包到 {ManagedTools.Root} 并补齐路径。可在“工具管理”更换安装目录。也可{install}，然后在配置详情的 {name} 行点“选择”，指定 {executable}。"));
             else if (runFailures.TryGetValue(key, out var failure))
                 issues.Add(new(key, name + " 无法运行", $"当前文件：{path}\n检测结果：{failure}\n点击“自动修复”安装完整工具包，或手动选择可正常运行 --version 的 {executable}。"));
         }

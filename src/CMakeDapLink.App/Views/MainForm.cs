@@ -54,7 +54,7 @@ public sealed partial class MainForm : Form
     private readonly Dictionary<string, ToolTile> _toolTiles = [];
     private readonly Label _sourceProject = Label("先在“工程配置”中选择工程", 9, Muted);
     private readonly Label _sourceFolder = Label("尚未选择文件夹", 9, Muted);
-    private readonly Label _sourceCount = Label("选择文件夹后预览 .c / .h 文件", 9, Muted);
+    private readonly Label _sourceCount = Label("选择文件夹后预览源文件和头文件", 9, Muted);
     private readonly FileSelectionList _sourcePreview = new();
     private readonly Button _selectAllSources = Button("全选", false);
     private readonly Button _selectNoSources = Button("全不选", false);
@@ -63,7 +63,7 @@ public sealed partial class MainForm : Form
     private readonly Button _chooseSource = Button("选择工程内文件夹", true);
     private readonly Button _applySource = Button("添加到 CMake 并验证", true);
     private readonly Label _sourceStatus = Label("仅修改工程根目录的 CMakeLists.txt；写入前会生成备份。", 9, Muted);
-    private readonly Label _sourceFolderHint = Label("在右侧勾选需要添加的 .c / .h。头文件目录随勾选更新；工程原有 CMake 配置保留。", 9, Muted);
+    private readonly Label _sourceFolderHint = Label("在右侧勾选需要添加的 C/C++、汇编和头文件。头文件目录随勾选更新；工程原有 CMake 配置保留。", 9, Muted);
     private readonly ProgressStrip _sourceProgress = new();
     private readonly RichTextBox _sourceLog = new() { ReadOnly = true, BorderStyle = BorderStyle.None,
         BackColor = Color.FromArgb(24, 32, 45), ForeColor = Color.FromArgb(205, 216, 231), Font = new Font("Consolas", 9), ScrollBars = RichTextBoxScrollBars.Vertical };
@@ -131,20 +131,24 @@ public sealed partial class MainForm : Form
 
     private void BuildSidebar()
     {
-        foreach (var item in new Control[] { _brandIcon, _sideBrand, _sideHint, _navSetup, _navSources, _navImport, _sideFoot, _sideDivider }) _sidebar.Controls.Add(item);
+        foreach (var item in new Control[] { _brandIcon, _sideBrand, _sideHint, _navSetup, _navSources, _navImport, _navTools, _sideFoot, _sideDivider }) _sidebar.Controls.Add(item);
         _navSetup.Name = "NavSetup"; _navSources.Name = "NavSources";
         _navSetup.TextAlign = _navSources.TextAlign = ContentAlignment.MiddleLeft;
         ((SoftButton)_navSetup).IconKind = 1;
         ((SoftButton)_navSources).IconKind = 2;
         ((SoftButton)_navImport).IconKind = 3;
         _navImport.Name = "NavImport"; _navImport.AccessibleName = "加入文件";
+        _navTools.Name = "NavTools"; _navTools.AccessibleName = "工具管理";
+        ((SoftButton)_navTools).IconKind = 1;
+        _navTools.ForeColor = Muted; _navTools.BackColor = _sidebar.BackColor;
+        _navTools.Click += async (_, _) => await ShowToolsAsync();
         _navImport.FlatAppearance.BorderSize = 0;
         _navSetup.FlatAppearance.BorderSize = _navSources.FlatAppearance.BorderSize = 0;
         _navSetup.AccessibleName = "工程配置"; _navSources.AccessibleName = "添加源文件";
         _navSetup.Click += (_, _) => ShowPage(false);
         _navSources.Click += (_, _) => ShowPage(true);
         _navImport.Click += (_, _) => ShowWorkspacePage(2);
-        foreach (var button in new[] { _navSetup, _navSources, _navImport }) _navTips.SetToolTip(button, button.AccessibleName);
+        foreach (var button in new[] { _navSetup, _navSources, _navImport, _navTools }) _navTips.SetToolTip(button, button.AccessibleName);
         ShowPage(false);
     }
 
@@ -179,10 +183,12 @@ public sealed partial class MainForm : Form
         _navSetup.SetBounds(Px(10), Px(114), sideWidth - Px(20), ButtonHeight(_navSetup, 39));
         _navSources.SetBounds(Px(10), _navSetup.Bottom + Px(7), sideWidth - Px(20), ButtonHeight(_navSources, 39));
         _navImport.SetBounds(Px(10), _navSources.Bottom + Px(7), sideWidth - Px(20), ButtonHeight(_navImport, 39));
+        _navTools.SetBounds(Px(10), _navImport.Bottom + Px(7), sideWidth - Px(20), ButtonHeight(_navTools, 39));
         _navSetup.Text = compact ? "" : "工程配置";
         _navSources.Text = compact ? "" : "添加源文件";
         _navImport.Text = compact ? "" : "加入文件";
-        foreach (var button in new[] { _navSetup, _navSources, _navImport })
+        _navTools.Text = compact ? "" : "工具管理";
+        foreach (var button in new[] { _navSetup, _navSources, _navImport, _navTools })
         {
             ((SoftButton)button).IconOnly = compact;
             button.TextAlign = compact ? ContentAlignment.MiddleCenter : ContentAlignment.MiddleLeft;
@@ -233,6 +239,7 @@ public sealed partial class MainForm : Form
             child.DragEnter += OnDragEnter; child.DragDrop += OnDragDrop;
         }
         Add(_drop);
+        BuildProjectOptions();
 
         _summary = new RoundedPanel { Height = 196 };
         _summary.Controls.Add(Label("环境检查", 11, Ink, new Point(24, 19), new Size(250, 31), bold: true));
@@ -293,6 +300,9 @@ public sealed partial class MainForm : Form
 
         _output = new RoundedPanel { Height = 250 };
         _output.Controls.Add(Label("构建输出", 11, Ink, new Point(24, 16), new Size(220, 31), bold: true));
+        _output.Controls.AddRange([_restoreChanges, _showProblems]);
+        _restoreChanges.Click += (_, _) => ShowChangeHistory();
+        _showProblems.Click += (_, _) => ShowBuildProblems();
         _stage.Location = new Point(24, 53); _stage.Height = 24; _output.Controls.Add(_stage);
         _progress.Location = new Point(24, 85); _progress.Height = 8; _output.Controls.Add(_progress);
         _log.Location = new Point(24, 108); _log.Height = 119; _output.Controls.Add(_log);
@@ -305,7 +315,7 @@ public sealed partial class MainForm : Form
     {
         _sourceHero = new RoundedPanel(hero: true) { Height = 138 };
         _sourceHero.Controls.Add(Label("源文件管理", 18, Ink, new Point(26, 23), new Size(700, 45), bold: true));
-        _sourceHero.Controls.Add(Label("将工程内的 .c / .h 文件添加到 CMake 构建目标。", 9,
+        _sourceHero.Controls.Add(Label("勾选 C/C++、汇编和头文件，预览后添加到 CMake 构建目标。", 9,
             Muted, new Point(28, 80), new Size(700, 30)));
         AddSource(_sourceHero);
 
@@ -331,6 +341,7 @@ public sealed partial class MainForm : Form
         _selectNoSources.Click += (_, _) => _sourcePreview.SetAll(false);
         _sourceFiles.Controls.Add(_selectAllSources); _sourceFiles.Controls.Add(_selectNoSources);
         _sourceFiles.Controls.Add(_sourceIncludes);
+        BuildSourceFilters();
         AddSource(_sourceFiles);
 
         _sourceAction = new RoundedPanel { Height = 300 };
@@ -344,6 +355,9 @@ public sealed partial class MainForm : Form
         _sourceAction.Controls.Add(_sourceProgress);
         _sourceLog.Location = new Point(24, 180); _sourceLog.Height = 96;
         _sourceAction.Controls.Add(_sourceLog);
+        _sourceAction.Controls.AddRange([_sourceProblems, _sourceRestore]);
+        _sourceProblems.Click += (_, _) => ShowBuildProblems();
+        _sourceRestore.Click += (_, _) => ShowChangeHistory();
         AddSource(_sourceAction);
         LayoutSourcePage();
     }
@@ -357,7 +371,7 @@ public sealed partial class MainForm : Form
             _sourceStatus.Text = "请先切换到工程配置并选择 CMake 工程。";
             LayoutSourcePage(); return;
         }
-        using var dialog = new FolderBrowserDialog { Description = "选择当前工程内要添加的 .c / .h 文件夹",
+        using var dialog = new FolderBrowserDialog { Description = "选择当前工程内的 C/C++、汇编或头文件文件夹",
             UseDescriptionForTitle = true, InitialDirectory = _project.Root };
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
         _sourceFolder.Text = dialog.SelectedPath;
@@ -375,6 +389,7 @@ public sealed partial class MainForm : Form
                 ? _sourcePreview.CheckedPaths : null;
             _sourcePlan = SourceFolderPlanner.Preview(_project.Root, _sourceFolder.Text, _sourceTarget.SelectedItem?.ToString());
             _sourcePreview.SetFiles(_sourcePlan.CandidateFiles.Select(x => (x, x)), selected ?? _sourcePlan.SourceFiles.Concat(_sourcePlan.HeaderFiles));
+            _sourcePreview.SetRegisteredPaths(_sourcePlan.AlreadyRegisteredFiles);
             _sourcePreviewFolder = _sourceFolder.Text;
             UpdateSourceSelection();
         }
@@ -393,7 +408,7 @@ public sealed partial class MainForm : Form
         _sourcePlan = null;
         var selected = _sourcePreview.CheckedPaths;
         _sourceCount.Text = $"找到 {_sourcePreview.Count} 个文件 · 已勾选 {selected.Count}";
-        _sourceIncludes.Text = "勾选 .h 文件后自动添加其所在目录。";
+        _sourceIncludes.Text = "头文件补充 include 目录；C++/汇编按需启用对应编译语言。";
         if (selected.Count == 0) _sourceStatus.Text = "请至少勾选一个文件后再写入 CMakeLists.txt。";
         else if (_project != null)
         {
@@ -404,7 +419,8 @@ public sealed partial class MainForm : Form
                     $"头文件目录 {_sourcePlan.IncludeDirectories.Count} 个：" + string.Join("、", _sourcePlan.IncludeDirectories.Take(2)) +
                     (_sourcePlan.IncludeDirectories.Count > 2 ? " 等" : "");
                 _sourceStatus.Text = _sourcePlan.OriginalText == _sourcePlan.UpdatedText ? "所选文件已写入，可重新验证编译。" :
-                    $"将写入 {_sourcePlan.SourceFiles.Count} 个 .c、{_sourcePlan.HeaderFiles.Count} 个 .h，写入前备份 CMakeLists.txt。";
+                    $"已选 {_sourcePlan.SourceFiles.Count} 个源文件、{_sourcePlan.HeaderFiles.Count} 个头文件；明确已引用 {_sourcePlan.AlreadyRegisteredFiles.Count} 个。写入前可预览差异。";
+                if (_sourcePlan.Notes.Count > 0) _sourceStatus.Text += "\n" + string.Join("；", _sourcePlan.Notes);
             }
             catch (Exception ex) { _sourceStatus.Text = ex.Message; }
         }
@@ -420,9 +436,15 @@ public sealed partial class MainForm : Form
         {
             if (ShowBuildIssues()) return;
             var options = CreateOptions(requireOpenOcd: false);
+            var changes = SourceFolderPlanner.Changes(plan);
+            if (changes.Count > 0)
+            {
+                using var preview = new ChangePreviewDialog(plan.Root, "添加源文件：" + plan.Target, changes);
+                if (preview.ShowDialog(this) != DialogResult.OK) return;
+            }
             _sourceStatus.Text = "正在写入 CMakeLists.txt…"; _sourceProgress.Value = 15; LayoutSourcePage();
-            var changed = await Task.Run(() => SourceFolderPlanner.Apply(plan));
-            Append(changed ? "已更新 CMakeLists.txt；原文件已备份。" : "CMakeLists.txt 已包含所选文件。" );
+            var changed = await Task.Run(() => ChangeHistory.Apply(plan.Root, "更新 CMake 源文件：" + plan.Target, changes) != null);
+            Append(changed ? "已更新 CMakeLists.txt；可通过“恢复修改”撤回本次操作。" : "CMakeLists.txt 已包含所选文件。" );
             _sourceStatus.Text = "正在实际配置并编译工程…";
             var build = CMakeBuildPlan.Create(options);
             await RunBuildAsync(build);
@@ -437,6 +459,7 @@ public sealed partial class MainForm : Form
             _sourceStatus.Text = "写入或编译未通过：" + ex.Message;
             _sourceProgress.Value = 0;
             Append("添加源文件：" + ex);
+            if (_buildProblems.Count > 0) ShowBuildProblems();
         }
         finally { _busy = false; UpdateActions(); LayoutSourcePage(); }
     }
@@ -531,6 +554,9 @@ public sealed partial class MainForm : Form
         try
         {
             _project = await Task.Run(() => ProjectInspector.Inspect(path));
+            _confirmedChip = null; _defaultConfiguration = "Debug";
+            _firmwareLabel.Text = "构建后确认固件；多个 ELF 时可选择目标。";
+            RefreshProjectOptions();
             _folder.Text = _project.Root;
             _dropTitle.Text = Path.GetFileName(_project.Root.TrimEnd(Path.DirectorySeparatorChar));
             _browseProject.Text = "更换工程";
@@ -543,10 +569,11 @@ public sealed partial class MainForm : Form
             _sourceTarget.Items.Clear();
             foreach (var target in SourceFolderPlanner.FindTargets(_project.Root)) _sourceTarget.Items.Add(target);
             if (_sourceTarget.Items.Count > 0) _sourceTarget.SelectedIndex = 0;
-            _sourceCount.Text = "选择文件夹后预览 .c / .h 文件";
+            _sourceCount.Text = "选择文件夹后预览 C/C++、汇编和头文件";
             _sourceIncludes.Text = "勾选 .h 文件后自动添加其所在目录。";
             _sourceStatus.Text = "选择工程内文件夹，并勾选要写入的文件。";
             _sourcePreview.SetFiles([]);
+            _sourceSearch.Clear(); _sourceFilter.SelectedIndex = 0;
             ResetImportProject();
             LayoutSourcePage();
             Append("已选择工程：" + _project.Root);
@@ -643,20 +670,29 @@ public sealed partial class MainForm : Form
         {
             var options = CreateOptions();
             await RunBuildAsync(CMakeBuildPlan.Create(options));
-            var elf = CMakeBuildPlan.FindSingleElf(options.BuildDirectory ?? Path.Combine(options.Root, "build", "daplink-debug"));
+            var elf = ChooseFirmware(CMakeBuildPlan.FindElfs(options.BuildDirectory ?? Path.Combine(options.Root, "build", "daplink-debug")), options.Root);
+            if (elf == null) { _stage.Text = "已取消固件选择，未写入任务。"; return; }
+            _firmwareLabel.Text = "固件：" + Path.GetRelativePath(options.Root, elf);
             Append("已确认固件：" + elf);
             SetBusy(true, "检查 OpenOCD 脚本解析…", 88);
             var openocd = await ProcessTools.RunAsync(_tools.OpenOcd, ["-s", _tools.Scripts, "-f", "interface/cmsis-dap.cfg", "-c", "transport select swd",
                 "-f", target, "-c", "shutdown"], _project.Root, TimeSpan.FromSeconds(20), Append);
             if (openocd.ExitCode != 0) throw new InvalidOperationException("编译通过，但 OpenOCD 配置检查失败，退出码 " + openocd.ExitCode + "。");
             SetBusy(true, "正在写入 VS Code 任务…", 95);
-            ConfigurationWriter.Write(options with { FirmwareElfPath = elf });
-            Append("已写入 .vscode/tasks.json；原文件按需备份，旧版生成的辅助脚本已清理。");
+            var configuredOptions = options with { FirmwareElfPath = elf };
+            var changes = ConfigurationWriter.Preview(configuredOptions);
+            if (changes.Count > 0)
+            {
+                using var preview = new ChangePreviewDialog(options.Root, "配置 VS Code 编译与烧录任务", changes);
+                if (preview.ShowDialog(this) != DialogResult.OK) { _stage.Text = "已取消写入任务。"; return; }
+                ChangeHistory.Apply(options.Root, "配置 VS Code 编译与烧录任务", changes);
+            }
+            Append("VS Code 任务已配置；本次变更可通过“恢复修改”撤回。");
             SetBusy(true, "配置完成：编译与 OpenOCD 配置检查通过。", 100);
             Append("验证通过。VS Code 中可运行“一键编译”和“一键烧录(DAPLINK)”；烧录任务会编译、下载、校验并复位。未执行硬件烧录。");
         }
-        catch (Exception ex) { _stage.Text = "验证未通过：" + ex.Message; Append("错误：" + ex); }
-        finally { _busy = false; UpdateActions(); }
+        catch (Exception ex) { _stage.Text = "验证未通过：" + ex.Message; Append("错误：" + ex); if (_buildProblems.Count > 0) ShowBuildProblems(); }
+        finally { _busy = false; UpdateActions(); LayoutPage(); }
     }
 
     private SetupOptions CreateOptions(bool requireOpenOcd = true)
@@ -666,18 +702,25 @@ public sealed partial class MainForm : Form
             throw new InvalidOperationException("请先选择工程，并确认 CMake、Ninja 和 ARM GCC 环境。");
         return new(_project.Root, _tools.CMake, _tools.Ninja, _tools.Compiler, _tools.OpenOcd ?? "",
             _tools.Scripts ?? "", _target.Text.Trim().Replace('\\', '/'), _project.ConfigurePreset,
-            _project.BuildPreset, _project.BuildDirectory, _project.ToolchainFile);
+            _project.BuildPreset, _project.BuildDirectory, _project.ToolchainFile)
+        { BuildConfiguration = SelectedFixedConfiguration() ?? _defaultConfiguration };
     }
 
     private async Task RunBuildAsync(CMakeBuildPlan plan)
     {
+        _buildProblems.Clear(); _buildOutput.Clear();
+        void Capture(string line) { _buildOutput.Enqueue(line); Append(line); }
+        _buildOutput.Enqueue("=== CMake 配置 ===");
         SetBusy(true, "CMake 正在配置工程…", 40);
         var configure = await ProcessTools.RunAsync(plan.Configure.Executable, plan.Configure.Arguments,
-            plan.Configure.WorkingDirectory, TimeSpan.FromMinutes(5), Append, plan.Configure.PathPrefix);
+            plan.Configure.WorkingDirectory, TimeSpan.FromMinutes(5), Capture, plan.Configure.PathPrefix);
+        _buildProblems.AddRange(BuildDiagnostics.Parse(configure.Output, plan.Configure.WorkingDirectory, "CMake 配置"));
         if (configure.ExitCode != 0) throw new InvalidOperationException("CMake 配置失败，退出码 " + configure.ExitCode + "。请查看执行日志。");
         SetBusy(true, "正在实际编译工程…", 68);
+        _buildOutput.Enqueue("=== 编译与链接 ===");
         var build = await ProcessTools.RunAsync(plan.Build.Executable, plan.Build.Arguments,
-            plan.Build.WorkingDirectory, TimeSpan.FromMinutes(15), Append, plan.Build.PathPrefix);
+            plan.Build.WorkingDirectory, TimeSpan.FromMinutes(15), Capture, plan.Build.PathPrefix);
+        _buildProblems.AddRange(BuildDiagnostics.Parse(build.Output, plan.Build.WorkingDirectory, "源码编译"));
         if (build.ExitCode != 0) throw new InvalidOperationException("实际编译失败，退出码 " + build.ExitCode + "。请查看执行日志。");
         SetBusy(true, "CMake 编译已通过。", 82);
     }
@@ -705,6 +748,15 @@ public sealed partial class MainForm : Form
         _sourcePreview.Enabled = !_busy;
         _selectAllSources.Enabled = _selectNoSources.Enabled = !_busy && _sourcePreview.Count > 0;
         _environmentHelp.Enabled = !_busy;
+        _navTools.Enabled = !_busy;
+        _presetPicker.Enabled = !_busy && _project?.IsCMakeProject == true;
+        _configurationPicker.Enabled = !_busy && SelectedFixedConfiguration() == null;
+        _buildPresetPicker.Enabled = !_busy && _project?.IsCMakeProject == true;
+        _identificationDetails.Enabled = !_busy && _project != null;
+        _restoreChanges.Enabled = _sourceRestore.Enabled = !_busy && _project != null;
+        _showProblems.Enabled = _sourceProblems.Enabled = !_busy;
+        _sourceSearch.Enabled = _sourceFilter.Enabled = !_busy;
+        _expandSources.Enabled = _collapseSources.Enabled = !_busy && _sourcePreview.Count > 0;
         var issues = CurrentIssues();
         _readiness.Text = _project == null ? "选择工程后显示环境状态" : issues.Count == 0 ? "环境已就绪，可以配置" : $"有 {issues.Count} 项需要补全，查看具体步骤";
         _readiness.ForeColor = issues.Count == 0 ? Color.FromArgb(35, 139, 101) : Color.FromArgb(162, 106, 33);

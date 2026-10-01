@@ -66,6 +66,7 @@ public sealed partial class MainForm
                 : new Point(textLeft, _folder.Bottom + Px(9));
             _folderIcon.SetBounds(Px(20), Px(26), Px(28), Px(28));
             _drop.Height = Math.Max(_folder.Bottom, _browseProject.Bottom) + Px(17);
+            LayoutProjectOptions(width, inset);
 
             var summaryWidth = columns ? (int)((width - gap) * .62) : width;
             _summary.Width = summaryWidth;
@@ -103,7 +104,8 @@ public sealed partial class MainForm
 
             var outputTitle = _output.Controls.OfType<Label>().First();
             Fit(outputTitle, inset, Px(16), inner);
-            Fit(_stage, inset, outputTitle.Bottom + Px(5), inner);
+            var outputButtons = ButtonRow(width, inset, outputTitle.Bottom + Px(9), _showProblems, _restoreChanges);
+            Fit(_stage, inset, outputButtons + Px(8), inner);
             _progress.SetBounds(inset, _stage.Bottom + Px(10), inner, Px(3));
             _log.SetBounds(inset, _progress.Bottom + Px(12), inner, Px(126));
             _output.Height = _log.Bottom + Px(18);
@@ -111,6 +113,7 @@ public sealed partial class MainForm
             var top = Px(18);
             _hero.Location = new Point(left, top); top = _hero.Bottom + Px(12);
             _drop.Location = new Point(left, top); top = _drop.Bottom + gap;
+            _projectOptionsCard.Location = new Point(left, top); top = _projectOptionsCard.Bottom + gap;
             _summary.Location = new Point(left, top);
             if (columns)
             {
@@ -168,7 +171,11 @@ public sealed partial class MainForm
             Fit(filesTitle, inset, Px(18), fileInner);
             Fit(_sourceCount, inset, filesTitle.Bottom + Px(10), fileInner);
             var selectBottom = ButtonRow(_sourceFiles.Width, inset, _sourceCount.Bottom + Px(8), _selectAllSources, _selectNoSources);
-            var previewTop = selectBottom + Px(12);
+            var treeButtons = ButtonRow(_sourceFiles.Width, inset, selectBottom + Px(8), _expandSources, _collapseSources);
+            var searchTop = treeButtons + Px(10);
+            _sourceFilter.SetBounds(inset + (int)(fileInner * .58) + Px(8), searchTop, (int)(fileInner * .42) - Px(8), ButtonHeight(_sourceFilter, 34));
+            _sourceSearch.SetBounds(inset, searchTop + Math.Max(0, (_sourceFilter.Height - _sourceSearch.PreferredHeight) / 2), (int)(fileInner * .58), _sourceSearch.PreferredHeight);
+            var previewTop = _sourceFilter.Bottom + Px(12);
             Fit(_sourceIncludes, inset, 0, fileInner);
             _sourceFiles.Height = Math.Max(previewTop + Px(210) + _sourceIncludes.Height + Px(30), columns ? _sourcePick.Height : 0);
             if (columns) _sourcePick.Height = _sourceFiles.Height;
@@ -180,7 +187,8 @@ public sealed partial class MainForm
             var actionTitle = _sourceAction.Controls.OfType<Label>().First();
             var actionHeader = HeaderRow(actionTitle, _applySource, width, inset, Px(16));
             Fit(_sourceStatus, inset, actionHeader + Px(8), inner);
-            _sourceProgress.SetBounds(inset, _sourceStatus.Bottom + Px(10), inner, Px(3));
+            var sourceButtons = ButtonRow(width, inset, _sourceStatus.Bottom + Px(9), _sourceProblems, _sourceRestore);
+            _sourceProgress.SetBounds(inset, sourceButtons + Px(10), inner, Px(3));
             _sourceLog.SetBounds(inset, _sourceProgress.Bottom + Px(12), inner, Px(110));
             _sourceAction.Height = _sourceLog.Bottom + Px(18);
 
