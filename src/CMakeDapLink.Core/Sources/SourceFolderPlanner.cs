@@ -8,6 +8,9 @@ public sealed record SourceFolderPlan(string Root, string Target, IReadOnlyList<
     string OriginalText, string UpdatedText)
 {
     public IReadOnlyList<string> CandidateFiles { get; init; } = [];
+    public IReadOnlyList<string> AlreadyRegisteredFiles { get; init; } = [];
+    public IReadOnlyList<string> Notes { get; init; } = [];
+    public byte[]? OriginalBytes { get; init; }
 }
 
 public static class SourceFolderPlanner
@@ -36,7 +39,9 @@ public static class SourceFolderPlanner
             throw new ArgumentException("所选文件夹必须位于当前工程目录内。", nameof(selectedFolder));
         if ((File.GetAttributes(selectedFolder) & FileAttributes.ReparsePoint) != 0)
             throw new ArgumentException("不能选择符号链接或联接目录。", nameof(selectedFolder));
-        var original = File.ReadAllText(path);
+        var originalBytes = File.ReadAllBytes(path);
+        using var originalReader = new StreamReader(new MemoryStream(originalBytes), Encoding.UTF8, true);
+        var original = originalReader.ReadToEnd();
         var targets = FindTargets(root);
         if (target == null && targets.Count == 1) target = targets[0];
         if (target == null || !targets.Contains(target, StringComparer.OrdinalIgnoreCase))
@@ -46,7 +51,10 @@ public static class SourceFolderPlanner
 
         var selectedRelative = Relative(root, selectedFolder);
         var previousFolders = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
-        var existing = ManagedBlock.Match(original);
+        var existing = ManagedBlock.Matches(original).FirstOrDefault(x =>
+            Regex.Match(x.Value, @"(?m)^# target: (.+)$").Groups[1].Value.Trim() == target ||
+            !x.Value.Contains("# target:", StringComparison.Ordinal) &&
+            Regex.IsMatch(x.Value, @"target_sources\s*\(\s*" + Regex.Escape(target) + @"\s")) ?? Match.Empty;
         if (existing.Success)
             foreach (Match match in Regex.Matches(existing.Value, @"(?m)^# folder: (.+)$"))
                 previousFolders.Add(match.Groups[1].Value.Trim());
@@ -62,12 +70,12 @@ public static class SourceFolderPlanner
             foreach (var file in EnumerateSafe(root, absolute))
             {
                 var relative = Relative(root, file);
-                if (Path.GetExtension(file).Equals(".c", StringComparison.OrdinalIgnoreCase)) cFiles.Add(relative);
-                else if (Path.GetExtension(file).Equals(".h", StringComparison.OrdinalIgnoreCase)) hFiles.Add(relative);
+                if (SourceFileTypes.IsHeader(file)) hFiles.Add(relative);
+                else cFiles.Add(relative);
             }
         }
         if (cFiles.Count == 0 && hFiles.Count == 0)
-            throw new InvalidOperationException("所选文件夹及已有托管文件夹中没有 .c 或 .h 文件。");
+            throw new InvalidOperationException("所选文件夹中没有支持的 C/C++、汇编源文件或头文件。");
         var candidates = cFiles.Concat(hFiles).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
         HashSet<string> chosen;
         if (selectedFiles != null)
@@ -90,43 +98,69 @@ public static class SourceFolderPlanner
         hFiles.RemoveWhere(x => !chosen.Contains(x));
         if (cFiles.Count + hFiles.Count == 0)
         {
-            if (selectedFiles != null) throw new InvalidOperationException("请至少勾选一个 .c 或 .h 文件。");
+            if (selectedFiles != null) throw new InvalidOperationException("请至少勾选一个源文件或头文件。");
             // Keep the checklist usable when all previously selected files were deleted.
-            return new(root, target, activeFolders, [], [], [], original, original) { CandidateFiles = candidates };
+            return new(root, target, activeFolders, [], [], [], original, original) { CandidateFiles = candidates, OriginalBytes = originalBytes };
         }
         var includeDirs = hFiles.Select(x => Path.GetDirectoryName(x.Replace('/', Path.DirectorySeparatorChar))?.Replace('\\', '/') ?? ".")
             .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray();
         var newline = original.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-        var block = BuildBlock(target, activeFolders, cFiles, hFiles, includeDirs, newline);
-        var updated = existing.Success ? original.Replace(existing.Value, block) : original.TrimEnd('\r', '\n') + newline + newline + block + newline;
-        return new(root, target, activeFolders, cFiles.ToArray(), hFiles.ToArray(), includeDirs, original, updated) { CandidateFiles = candidates };
+        var registration = CMakeSourceIndex.Inspect(root, target, original);
+        var already = candidates.Where(registration.ExistingFiles.Contains).ToArray();
+        var newSources = cFiles.Where(x => !registration.ExistingFiles.Contains(x)).ToArray();
+        var newHeaders = hFiles.Where(x => !registration.ExistingFiles.Contains(x)).ToArray();
+        var block = BuildBlock(target, activeFolders, cFiles, hFiles, newSources, newHeaders, includeDirs, newline);
+        var updated = existing.Success ? original[..existing.Index] + block + original[(existing.Index + existing.Length)..] : original.TrimEnd('\r', '\n') + newline + newline + block + newline;
+        return new(root, target, activeFolders, cFiles.ToArray(), hFiles.ToArray(), includeDirs, original, updated)
+        {
+            CandidateFiles = candidates, AlreadyRegisteredFiles = already, OriginalBytes = originalBytes,
+            Notes = registration.HasUnresolvedExpressions ? ["存在变量或生成表达式，部分现有文件是否已加入构建需要人工核对。"] : []
+        };
     }
 
     public static bool Apply(SourceFolderPlan plan)
     {
+        return ChangeHistory.Apply(plan.Root, "更新 CMake 源文件：" + plan.Target, Changes(plan)) != null;
+    }
+
+    public static IReadOnlyList<FileChange> Changes(SourceFolderPlan plan)
+    {
         var path = Path.Combine(plan.Root, "CMakeLists.txt");
-        if (File.ReadAllText(path) != plan.OriginalText)
+        if (plan.OriginalText == plan.UpdatedText) return [];
+        var before = File.ReadAllBytes(path);
+        using var reader = new StreamReader(new MemoryStream(before), Encoding.UTF8, true);
+        var currentText = reader.ReadToEnd();
+        if (plan.OriginalBytes != null ? !before.AsSpan().SequenceEqual(plan.OriginalBytes) : currentText != plan.OriginalText)
             throw new IOException("CMakeLists.txt 在预览后发生变化，请重新预览再写入。");
-        if (plan.OriginalText == plan.UpdatedText) return false;
-        File.Copy(path, path + ".bak-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff"), false);
-        var bytes = File.ReadAllBytes(path);
-        var bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
-        var temp = path + ".tmp-" + Guid.NewGuid().ToString("N");
-        File.WriteAllText(temp, plan.UpdatedText, new UTF8Encoding(bom));
-        File.Move(temp, path, true);
-        return true;
+        var encoding = reader.CurrentEncoding;
+        var preamble = encoding.GetPreamble();
+        var prefix = preamble.Length > 0 && before.AsSpan().StartsWith(preamble) ? preamble : [];
+        var after = prefix.Concat(encoding.GetBytes(plan.UpdatedText)).ToArray();
+        return [new(path, before, after)];
     }
 
     private static string BuildBlock(string target, IReadOnlyList<string> folders, IEnumerable<string> sources,
-        IEnumerable<string> headers, IEnumerable<string> includes, string newline)
+        IEnumerable<string> headers, IReadOnlyList<string> newSources, IReadOnlyList<string> newHeaders,
+        IEnumerable<string> includes, string newline)
     {
-        var lines = new List<string> { Begin };
+        var lines = new List<string> { Begin, "# target: " + target };
         lines.AddRange(folders.Select(x => "# folder: " + x));
         lines.Add("# selection: explicit");
         lines.AddRange(sources.Concat(headers).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).Select(x => "# selected-file: " + x));
-        lines.Add($"target_sources({target} PRIVATE");
-        lines.AddRange(sources.Concat(headers).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).Select(x => "    \"${CMAKE_CURRENT_SOURCE_DIR}/" + Escape(x) + "\""));
-        lines.Add(")");
+        foreach (var language in new[] { (Name: "CXX", Needed: newSources.Any(SourceFileTypes.IsCxx)), (Name: "ASM", Needed: newSources.Any(SourceFileTypes.IsAssembly)) })
+            if (language.Needed)
+            {
+                lines.Add("get_property(_cmake_daplink_languages GLOBAL PROPERTY ENABLED_LANGUAGES)");
+                lines.Add($"if(NOT \"{language.Name}\" IN_LIST _cmake_daplink_languages)");
+                lines.Add($"    enable_language({language.Name})");
+                lines.Add("endif()");
+            }
+        if (newSources.Count + newHeaders.Count > 0)
+        {
+            lines.Add($"target_sources({target} PRIVATE");
+            lines.AddRange(newSources.Concat(newHeaders).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).Select(x => "    \"${CMAKE_CURRENT_SOURCE_DIR}/" + Escape(x) + "\""));
+            lines.Add(")");
+        }
         var includeArray = includes.ToArray();
         if (includeArray.Length > 0)
         {
@@ -146,12 +180,12 @@ public static class SourceFolderPlanner
             var current = stack.Pop();
             foreach (var file in Directory.EnumerateFiles(current))
                 if (Inside(root, file) && (File.GetAttributes(file) & FileAttributes.ReparsePoint) == 0 &&
-                    (Path.GetExtension(file).Equals(".c", StringComparison.OrdinalIgnoreCase) ||
-                     Path.GetExtension(file).Equals(".h", StringComparison.OrdinalIgnoreCase))) yield return file;
+                    SourceFileTypes.IsSupported(file)) yield return file;
             foreach (var directory in Directory.EnumerateDirectories(current))
             {
                 var name = Path.GetFileName(directory);
-                if (name is ".git" or ".vscode" or "build" || (File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) continue;
+                if (name is ".git" or ".vscode" or "build" or "bin" or "obj" || name.StartsWith("build-", StringComparison.OrdinalIgnoreCase) ||
+                    (File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) continue;
                 if (Inside(root, directory)) stack.Push(directory);
             }
         }
