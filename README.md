@@ -23,7 +23,7 @@
 
 - 选择或拖入 CMake 工程，显示 STM32 型号的识别依据及冲突，选择构建预设和 Debug/Release 配置；多个 ELF 时自行选择固件。
 - 检查 CMake、Ninja、ARM GCC、OpenOCD、CMSIS-DAP 脚本，提示待补全项，可展开具体处理说明。
-- 识别 STM32 后自动匹配 OpenOCD Target，优先查找本机完整工具包；脚本或依赖缺失时自动下载配套包、验证并回填路径，保留手动指定的 Target。
+- EXE 内置完整 OpenOCD Target 及配套脚本，识别 STM32 后自动选择配置并验证，无需查找或下载 Target；保留手动指定的 Target。
 - 自动下载缺失工具，校验 SHA-256 后安装；支持自选安装目录、镜像源、离线 ZIP、版本切换和旧版本清理。
 - 修改前显示文件差异，确认后写入 `.vscode/tasks.json` 或 `CMakeLists.txt`，保存可恢复的修改记录，保留用户任务和 JSONC 注释。
 - 显示 CMake、编译和链接问题的位置与处理建议，可复制或导出完整日志。
@@ -43,8 +43,8 @@
 
 | 版本 | 本地发布路径 | 大小 | 运行要求 |
 | --- | --- | --- | --- |
-| 轻量版 | `artifacts/publish/portable/STM32ProjectHelper.exe` | 约 48 MB | Windows x64，自带 .NET |
-| 极致轻量版 | `artifacts/publish/lite/STM32ProjectHelper.exe` | 约 0.8 MB | Windows x64，.NET 9 Desktop Runtime |
+| 轻量版 | `artifacts/publish/portable/STM32ProjectHelper.exe` | 约 49 MB | Windows x64，自带 .NET |
+| 极致轻量版 | `artifacts/publish/lite/STM32ProjectHelper.exe` | 约 1.6 MB | Windows x64，.NET 9 Desktop Runtime |
 
 两个版本功能相同，Release 附件直接提供 EXE。应用原名“CMake · DAPLink 配置助手”；新版本继续读取已有工具设置和修改记录，并识别旧版生成的 VS Code 任务。仓库名保留 `auto-CMake`，Git 仓库保存源码和文档，克隆后可以自行构建。GitHub Actions 构建成功后会生成两个版本的下载产物。
 
@@ -64,7 +64,7 @@ Related terms: **STM32CubeMX · Keil uVision / MDK-ARM / MDK5 · uvprojx · CMak
 ## 使用
 
 1. 打开程序，在“工程配置”选择含 `CMakeLists.txt` 的工程根目录，也可以拖入文件夹。
-2. 查看检测摘要。识别到支持的芯片后自动补全 Target：先检测本机，找不到可用脚本时自动下载安装配套 OpenOCD。其他工具缺失时点击“自动修复”；已有安装可使用“手动指定路径”。“镜像源”可以修改备用下载地址，“展开配置详情”可核对工具路径和 Target。
+2. 查看检测摘要。识别到支持的芯片后直接使用 EXE 内置 Target 及依赖脚本。构建工具或 OpenOCD 可执行程序缺失时点击“自动修复”；已有安装可使用“手动指定路径”。“镜像源”可以修改工具包的备用下载地址，“展开配置详情”可核对工具路径、内置脚本位置和 Target。
 3. 查看“识别详情”，确认芯片型号及 Target，选择配置预设及对应编译预设；预设未固定构建类型时可另选 Debug/Release，也可选择直接构建目录。点击“配置并验证”，程序实际配置、编译并解析 OpenOCD 脚本；多个 ELF 时选择固件，核对差异后确认写入 VS Code 任务。
 4. 在 VS Code 的“终端 → 运行任务”中选择“一键编译”或“一键烧录(DAPLINK)”。烧录任务先编译，再通过 CMSIS-DAP/SWD 下载 ELF、校验和复位。
 
@@ -92,9 +92,9 @@ Related terms: **STM32CubeMX · Keil uVision / MDK-ARM / MDK5 · uvprojx · CMak
 
 点击“自动修复”仅补齐缺失或无法运行的工具，保留已有可用工具。默认安装到 `D:\CMake_Tools`，可在“工具管理”更换目录。安装使用 Windows x64 ZIP 完整包，下载前查询最新稳定发行版，下载后核对摘要，解压、检查版本，再编译临时 ARM ELF 并解析 DAP 配置。工具验证工程在安装目录内创建并清理，不写入用户工程。
 
-**Target 自动补全**：选择工程后根据芯片系列匹配 `target/*.cfg`，检查当前 OpenOCD、PATH、工具管理目录和常见安装位置。找到可解析的配套包时直接使用；找不到时只下载 OpenOCD 完整包，保留其中的 `interface`、`target` 和 Tcl 依赖，验证成功后补齐 OpenOCD 与脚本目录。此流程不下载其他构建工具，不连接硬件；支持停止下载，未完成时可点击“自动修复”重试或手动指定完整包。
+**内置 Target**：EXE 包含完整的 OpenOCD `target` 目录（含子目录共 361 个文件），以及 `interface` 和共享 Tcl 等依赖。识别芯片后直接选用对应配置，不查找本机脚本，也不为 Target 下载工具包。首次使用时自动解压到 `%LOCALAPPDATA%\CMakeDapLink\OpenOcdScripts` 下按内容版本区分的缓存，后续检查缓存完整性。VS Code 任务直接使用该路径，不往用户工程中复制脚本。“内置脚本 → 打开”可以查看这些文件。
 
-常见 STM32 C0、F0/F1/F2/F3/F4/F7、G0/G4、H7、L0/L1/L4/L5、U0/U3/U5、WB/WL 具有系列映射；H7R/S 和 WBA2/5/6 使用专门的系列脚本。具体可用性以发行包内容及软件解析结果为准：如果完整包仍不支持对应芯片，会列出待补全原因，不能使用其他系列脚本代替。用户手动填写的 Target 不会在重新检测或切换预设时被自动覆盖。
+常见 STM32 C0、F0/F1/F2/F3/F4/F7、G0/G4、H7、L0/L1/L4/L5、U0/U3/U5、WB/WL 具有系列映射，WBA5 使用内置的 `stm32wbax.cfg`。H7R/S、WBA2/6 所需专用脚本不在本次内置库中，会显示具体原因；不会套用其他系列，也不会为了缺少 cfg 自动下载。用户手动填写的 Target 不会在重新检测、切换预设或确认芯片时被自动覆盖。
 
 安装目录选择、工具路径和镜像设置保存在 `%LOCALAPPDATA%\CMakeDapLink`；旧版安装目录中的配置会兼容读取。下载中显示大小和速度，可点击“停止下载”；已完成的安装保留。芯片型号、缺失源码和错误构建预设需要按弹窗说明处理。
 
@@ -144,7 +144,7 @@ dotnet publish src/CMakeDapLink.App -p:PublishProfile=Lite
 
 转换正常流程：`dotnet run --project tests/CMakeDapLink.Tests -c Release -- --conversion-flow`；转换普通窗口流程：`dotnet run --project tests/CMakeDapLink.UiTests -c Release -- --conversion-ui`。
 
-Target 本机发现、依赖检查与脚本解析：`dotnet run --project tests/CMakeDapLink.Tests -c Release -- --target-scripts-flow`；官方完整 OpenOCD 包下载校验：同一命令追加 `--download-official`，安装在临时目录且不切换用户当前工具。
+内置 Target 资源完整性、解压缓存、依赖检查与脚本解析：`dotnet run --project tests/CMakeDapLink.Tests -c Release -- --target-scripts-flow`。可选工具下载检查可追加 `--download-official`，安装在临时目录且不切换用户当前工具；日常使用内置 Target 无需下载。
 
 ## 项目结构
 
@@ -168,4 +168,4 @@ auto-CMake/
 
 ## 参与贡献与许可证
 
-欢迎通过 Issue 反馈问题或提交 Pull Request，见 [贡献说明](CONTRIBUTING.md)。本项目使用 [MIT License](LICENSE)，运行时下载的第三方工具遵循各自的许可证。
+欢迎通过 Issue 反馈问题或提交 Pull Request，见 [贡献说明](CONTRIBUTING.md)。应用源码使用 [MIT License](LICENSE)。内置 OpenOCD 脚本保留原始版权与 SPDX 声明，原始 OpenOCD 许可证随脚本资源保留；该第三方资源和运行时下载的工具遵循各自的许可证。
