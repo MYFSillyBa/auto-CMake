@@ -43,7 +43,7 @@
 | 版本 | 本地发布路径 | 大小 | 运行要求 |
 | --- | --- | --- | --- |
 | 轻量版 | `artifacts/publish/portable/STM32ProjectHelper.exe` | 约 48 MB | Windows x64，自带 .NET |
-| 极致轻量版 | `artifacts/publish/lite/STM32ProjectHelper.exe` | 约 0.7 MB | Windows x64，.NET 9 Desktop Runtime |
+| 极致轻量版 | `artifacts/publish/lite/STM32ProjectHelper.exe` | 约 0.8 MB | Windows x64，.NET 9 Desktop Runtime |
 
 两个版本功能相同，Release 附件直接提供 EXE。应用原名“CMake · DAPLink 配置助手”；新版本继续读取已有工具设置和修改记录，并识别旧版生成的 VS Code 任务。仓库名保留 `auto-CMake`，Git 仓库保存源码和文档，克隆后可以自行构建。GitHub Actions 构建成功后会生成两个版本的下载产物。
 
