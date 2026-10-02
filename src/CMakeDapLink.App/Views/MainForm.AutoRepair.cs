@@ -17,9 +17,9 @@ public sealed partial class MainForm
         }
         if (_busy) return;
         using var cancellation = new CancellationTokenSource();
-        BeginFeedback("repair", _autoRepair, openOcdOnly ? "补全 Target 中…" : "自动修复中…");
+        BeginFeedback("repair", _autoRepair, openOcdOnly ? "检查内置 Target…" : "自动修复中…");
         _repairCancellation = cancellation;
-        _workflowSteps.Reset(openOcdOnly ? "检测 Target 脚本" : "检测缺失工具", "下载安装", openOcdOnly ? "验证配套脚本" : "验证环境"); _workflowSteps.SetStep(0, StepState.Running);
+        _workflowSteps.Reset(openOcdOnly ? "检查内置脚本" : "检测缺失工具", openOcdOnly ? "检查 OpenOCD" : "下载安装", openOcdOnly ? "验证软件配置" : "验证环境"); _workflowSteps.SetStep(0, StepState.Running);
         SetBusy(true, "检测缺失工具…", 0);
         var savedBeforeRepair = ManagedTools.LoadPaths();
         try
@@ -46,11 +46,11 @@ public sealed partial class MainForm
                 _project != null || x.Key != "Project" && x.Key != "Target").ToList();
             foreach (var problem in result.Problems)
                 remaining.Add(new("Repair", "自动修复需要继续处理", problem + "\n查看构建输出中的下载源与检测结果。可在“镜像源”更换备用地址后重试，也可使用“手动指定路径”选择完整安装包中的工具。"));
-            _stage.Text = remaining.Count == 0 ? openOcdOnly ? "Target 已自动补齐，配套脚本解析通过" : "环境已补齐，工具验证通过" :
+            _stage.Text = remaining.Count == 0 ? openOcdOnly ? "内置 Target 已就绪，配置解析通过" : "环境已补齐，工具验证通过" :
                 openOcdOnly ? "Target 补全结束，还有待处理项" : "自动修复结束，还有待补全项";
             Append(_stage.Text);
             _workflowSteps.SetStep(2, remaining.Count == 0 ? StepState.Complete : StepState.Attention);
-            Notify(remaining.Count == 0 ? openOcdOnly ? "Target 已自动补齐，OpenOCD 软件配置验证通过。" : "环境已补齐，工具验证通过。可以继续配置与编译。" :
+            Notify(remaining.Count == 0 ? openOcdOnly ? "内置 Target 已就绪，OpenOCD 软件配置验证通过。" : "环境已补齐，工具验证通过。可以继续配置与编译。" :
                 $"{(openOcdOnly ? "Target 补全" : "自动修复")}结束，还有 {remaining.Count} 项待处理。" + string.Join("；", remaining.Select(x => x.Title)),
                 remaining.Count > 0, remaining.Count > 0 ? "查看补全说明" : "查看配置详情",
                 remaining.Count > 0 ? () => ShowEnvironmentHelp(remaining) : ShowDetails);

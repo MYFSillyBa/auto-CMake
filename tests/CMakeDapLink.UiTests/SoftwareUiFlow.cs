@@ -49,11 +49,13 @@ internal static class SoftwareUiFlow
             Await(Invoke(form, "LoadProjectAsync", root));
             Require(Field<TextBox>(form, "_target").Text == "target/stm32h7x.cfg", "芯片和软件 Target 自动识别");
             Require(Field<OpenOcdScriptResolution>(form, "_targetScriptResolution").Ready &&
-                Field<Label>(form, "_result").Text.Contains("Target 配置已验证"), "Target 与配套依赖通过 OpenOCD 软件解析");
+                Field<Label>(form, "_result").Text.Contains("内置 Target 配置已验证"), "内置 Target 与配套依赖通过 OpenOCD 软件解析");
+            var embeddedScripts = Task.Run(() => BundledOpenOcdScripts.GetDirectoryAsync()).GetAwaiter().GetResult();
+            Require(Field<ToolPaths>(form, "_tools").Scripts == embeddedScripts, "使用 EXE 内置脚本目录");
             var existingTools = Field<ToolPaths>(form, "_tools");
             Await(Invoke(form, "AutoRepairAsync", true));
             Require(Field<ToolPaths>(form, "_tools") == existingTools &&
-                Field<Label>(form, "_stage").Text.Contains("Target 已自动补齐"), "Target 专项补全使用本机完整包并保留其他工具路径");
+                Field<Label>(form, "_stage").Text.Contains("内置 Target 已就绪"), "Target 专项检查使用内置脚本并保留其他工具路径");
             Field<TextBox>(form, "_target").Text = "target/stm32h7x_dual_bank.cfg";
             Await(Invoke(form, "RescanAsync", false));
             Require(Field<TextBox>(form, "_target").Text == "target/stm32h7x_dual_bank.cfg" &&
@@ -61,7 +63,7 @@ internal static class SoftwareUiFlow
             Field<TextBox>(form, "_target").Clear();
             Await(Invoke(form, "RescanAsync", false));
             Require(Field<TextBox>(form, "_target").Text == "target/stm32h7x.cfg" &&
-                Field<OpenOcdScriptResolution>(form, "_targetScriptResolution").Ready, "Target 留空后按芯片自动补全本机脚本");
+                Field<OpenOcdScriptResolution>(form, "_targetScriptResolution").Ready, "Target 留空后按芯片自动选择内置脚本");
             var picker = Field<Control>(form, "_presetPicker");
             picker.GetType().GetProperty("SelectedIndex")!.SetValue(picker, 1);
             Until(() => !Field<bool>(form, "_busy"));

@@ -270,17 +270,17 @@ public sealed partial class MainForm : Form
 
         _details = new RoundedPanel { Height = 72 };
         _details.Controls.Add(Label("工具路径与烧录设置", 11, Ink, new Point(24, 12), new Size(260, 28), bold: true));
-        _detailsHint = Label("检查或替换工具路径，调整 OpenOCD 目标。", 9, Muted, new Point(24, 44), new Size(480, 22));
+        _detailsHint = Label("检查工具路径；Target 与依赖脚本由应用内置提供。", 9, Muted, new Point(24, 44), new Size(480, 22));
         _details.Controls.Add(_detailsHint);
         _toggle.Size = new Size(140, 32); _toggle.Top = 19;
         _toggle.Click += (_, _) => ToggleDetails();
         _details.Controls.Add(_toggle);
-        var rows = new[] { ("CMake", "CMake"), ("Ninja", "Ninja"), ("ARM GCC", "Compiler"), ("OpenOCD", "OpenOcd"), ("脚本目录", "Scripts") };
+        var rows = new[] { ("CMake", "CMake"), ("Ninja", "Ninja"), ("ARM GCC", "Compiler"), ("OpenOCD", "OpenOcd"), ("内置脚本", "Scripts") };
         foreach (var (name, key) in rows)
         {
             var label = Label(name, 9, Muted, bounds: new Size(100, 26));
             var box = Input(true);
-            var browse = Button("选择", false);
+            var browse = Button(key == "Scripts" ? "打开" : "选择", false);
             browse.Size = new Size(80, 30);
             browse.Click += async (_, _) => await BrowseToolAsync(key);
             _toolLabels[key] = label; _toolBoxes[key] = box; _toolButtons[key] = browse;
@@ -585,7 +585,6 @@ public sealed partial class MainForm : Form
     private async Task LoadProjectAsync(string path)
     {
         if (_busy) return;
-        var completeTarget = false;
         BeginFeedback("load", _browseProject, "检查工程中…");
         _completionShown = _sourceCompletionShown = false;
         _lastTaskChanges = _lastSourceChanges = []; _completedFirmware = null;
@@ -617,16 +616,16 @@ public sealed partial class MainForm : Form
             LayoutSourcePage();
             Append("已选择工程：" + _project.Root);
             await RefreshEnvironmentAsync(showIssues: true);
-            completeTarget = ShouldCompleteTargetAutomatically();
         }
         catch (Exception ex) { _result.Text = "工程检查失败：" + ex.Message; Append(_result.Text); Notify(_result.Text, true, "选择工程", BrowseProject); }
         finally { SetBusy(false, "工程检查结束，请选择下一步操作", 0); EndFeedback(); _browseProject.Text = _project == null ? "选择工程" : "更换工程"; }
-        if (completeTarget) await AutoRepairAsync(openOcdOnly: true);
     }
 
     private async Task RefreshEnvironmentAsync(bool showIssues = false)
     {
-        _tools = EnvironmentScanner.Scan(_tools);
+        _stage.Text = "准备内置 OpenOCD 脚本…";
+        var bundledScripts = await Task.Run(() => BundledOpenOcdScripts.GetDirectoryAsync(_repairCancellation?.Token ?? CancellationToken.None));
+        _tools = EnvironmentScanner.Scan(_tools with { Scripts = bundledScripts });
         _toolBoxes["CMake"].Text = _tools.CMake ?? "未找到";
         _toolBoxes["Ninja"].Text = _tools.Ninja ?? "未找到";
         _toolBoxes["Compiler"].Text = _tools.Compiler ?? "未找到";
@@ -654,10 +653,10 @@ public sealed partial class MainForm : Form
         _toolBoxes["Scripts"].Text = _tools.Scripts ?? "未找到";
         var projectStatus = _project == null ? "尚未选择工程" : _project.IsCMakeProject ?
             $"{_project.Chip ?? "芯片待确认"}  ·  {_project.ConfigurePreset ?? "默认构建"}" : "不是有效 CMake 根目录";
-        var targetStatus = _targetScriptResolution?.Ready == true ? "Target 配置已验证：" + Path.GetFileName(_target.Text) :
-            !string.IsNullOrWhiteSpace(_target.Text) ? "Target 脚本待补全：" + Path.GetFileName(_target.Text) : "Target 待确认";
+        var targetStatus = _targetScriptResolution?.Ready == true ? "内置 Target 配置已验证：" + Path.GetFileName(_target.Text) :
+            !string.IsNullOrWhiteSpace(_target.Text) ? "内置 Target 待验证：" + Path.GetFileName(_target.Text) : "Target 待确认";
         _result.Text = _project == null ? "工具检测结果如下。选择工程后识别芯片、构建预设和烧录配置。" : projectStatus + Environment.NewLine +
-            (_tools.Scripts == null ? "CMSIS-DAP 配置缺失" : "CMSIS-DAP 配置已找到") + "  ·  " + targetStatus +
+            (_tools.Scripts == null ? "内置 CMSIS-DAP 配置待准备" : "CMSIS-DAP 配置已内置") + "  ·  " + targetStatus +
             (_project?.Notes.Count > 0 ? Environment.NewLine + string.Join("；", _project.Notes) : "");
         UpdateActions(); LayoutPage();
         if (showIssues && _project != null)
@@ -674,10 +673,8 @@ public sealed partial class MainForm : Form
     {
         if (key == "Scripts")
         {
-            using var folder = new FolderBrowserDialog { Description = "选择含 interface 和 target 的 OpenOCD scripts 目录" };
-            if (folder.ShowDialog(this) != DialogResult.OK) return;
-            if (!EnvironmentScanner.IsScripts(folder.SelectedPath)) { Notify("该目录不含 interface/cmsis-dap.cfg 或 target。请选择完整的 OpenOCD scripts 目录。", true, "指定脚本目录", () => _ = BrowseToolAsync("Scripts")); return; }
-            _tools = _tools with { Scripts = folder.SelectedPath };
+            if (_tools.Scripts != null) OpenLocation(_tools.Scripts);
+            return;
         }
         else
         {
@@ -714,7 +711,7 @@ public sealed partial class MainForm : Form
         if (OpenOcdScripts.MissingFiles(_tools.Scripts, target).Count > 0)
         {
             if (!_expanded) ToggleDetails();
-            Notify("Target 或依赖脚本尚未补齐。请自动修复，或指定完整的配套 OpenOCD。", true, "自动修复", () => _ = AutoRepairAsync(openOcdOnly: true));
+            Notify("内置脚本不包含当前 Target 或依赖，请核对芯片和 Target 型号。", true, "查看补全说明", () => ShowEnvironmentHelp());
             return;
         }
         if (_tools.CMake == null || _tools.Ninja == null || _tools.Compiler == null || _tools.OpenOcd == null || _tools.Scripts == null) return;

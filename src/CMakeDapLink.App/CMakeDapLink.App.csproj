@@ -10,7 +10,7 @@
     <ApplicationIcon>Resources/chip.ico</ApplicationIcon>
     <AssemblyName>STM32ProjectHelper</AssemblyName>
     <Title>STM32 工程助手 · CMake / Keil MDK / DAPLink</Title>
-    <Description>STM32CubeMX 工程转换、CMake 环境配置、VS Code 编译与 DAPLink 烧录任务、源文件管理。</Description>
+    <Description>STM32CubeMX 工程转换、CMake 环境配置、内置 OpenOCD Target、VS Code 编译与 DAPLink 烧录任务、源文件管理。</Description>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resources/chip.ico" LogicalName="CMakeDapLink.ChipIcon" />

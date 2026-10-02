@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text.Json;
 using CMakeDapLink.Core;
 
 internal static class OpenOcdScriptChecks
@@ -43,35 +45,57 @@ internal static class OpenOcdScriptChecks
             File.WriteAllText(Path.Combine(scripts, "memory.tcl"), "# complete leaf\n");
             if (OpenOcdScripts.MissingFiles(scripts, "target/stm32h7x.cfg").Count != 0) throw new Exception("complete dependency tree reported missing files");
         });
-        check("discovers and parses a complete local paired package outside PATH, preserving other tools and manual targets", () =>
+        check("extracts the complete bundled scripts and original notices with byte-identical source inventory", () =>
+        {
+            var scripts = BundledOpenOcdScripts.GetDirectoryAsync().GetAwaiter().GetResult();
+            var files = Directory.EnumerateFiles(scripts, "*", SearchOption.AllDirectories).ToArray();
+            var targets = Directory.EnumerateFiles(Path.Combine(scripts, "target"), "*", SearchOption.AllDirectories).ToArray();
+            if (files.Length != 1033 || targets.Length != 361) throw new Exception("bundled scripts inventory incomplete");
+            var bundleRoot = Path.GetDirectoryName(scripts)!;
+            using var manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(bundleRoot, "bundle-manifest.json")));
+            foreach (var file in manifest.RootElement.GetProperty("files").EnumerateArray())
+            {
+                var path = Path.Combine(bundleRoot, file.GetProperty("path").GetString()!);
+                var expected = file.GetProperty("sha256").GetString()!;
+                using var input = File.OpenRead(path);
+                if (!Convert.ToHexString(SHA256.HashData(input)).Equals(expected, StringComparison.OrdinalIgnoreCase))
+                    throw new Exception("bundled file differs from retained source inventory: " + path);
+            }
+            var source = @"D:\OpenOCD\openocd\scripts";
+            if (Directory.Exists(source))
+            {
+                var original = Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories).ToArray();
+                if (original.Length != files.Length) throw new Exception("bundled scripts differ from supplied source inventory");
+                foreach (var file in original)
+                    if (!File.ReadAllBytes(file).AsSpan().SequenceEqual(File.ReadAllBytes(Path.Combine(scripts, Path.GetRelativePath(source, file)))))
+                        throw new Exception("original script bytes were changed: " + file);
+            }
+            if (!File.Exists(Path.Combine(bundleRoot, "licenses", "openocd-0.12.0", "preferred", "GPL-2.0")))
+                throw new Exception("original OpenOCD license missing");
+            Console.WriteLine("Bundled scripts: " + scripts + "; files " + files.Length + "; targets " + targets.Length);
+        });
+        check("reuses verified bundled resources safely across concurrent provider calls", () =>
+        {
+            var directories = Task.WhenAll(Enumerable.Range(0, 3).Select(_ => BundledOpenOcdScripts.GetDirectoryAsync())).GetAwaiter().GetResult();
+            if (directories.Distinct(StringComparer.OrdinalIgnoreCase).Count() != 1 ||
+                OpenOcdScripts.MissingFiles(directories[0], "target/stm32h7x.cfg").Count != 0)
+                throw new Exception("repeated extraction changed the content-keyed scripts path");
+        });
+        check("parses bundled H7 and exact manual target variant with the current executable and automatic WBA5 alias", () =>
         {
             var local = EnvironmentScanner.Scan();
-            if (local.OpenOcd == null || local.Scripts == null) throw new Exception("normal local OpenOCD installation required");
-            OpenOcdScripts.ValidateAsync(local, "target/stm32h7x.cfg").GetAwaiter().GetResult();
-            var executableDirectory = Path.GetDirectoryName(local.OpenOcd)!;
-            var installation = new DirectoryInfo(executableDirectory);
-            while (installation.Parent != null && !Path.GetFullPath(local.Scripts).StartsWith(installation.FullName + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) installation = installation.Parent;
-            if (installation.Parent == null) throw new Exception("expected paired local installation");
-            var copy = Path.Combine(root, "paired discovery", "openocd-local");
-            CopyDirectory(installation.FullName, copy);
-            var before = new ToolPaths("cmake preserved", "ninja preserved", "compiler preserved", null, null);
-            var resolved = OpenOcdScripts.ResolveAsync(before, "STM32H723VGT6", searchRoots: [Path.GetDirectoryName(copy)!]).GetAwaiter().GetResult();
-            if (!resolved.Ready || resolved.Target != "target/stm32h7x.cfg" || resolved.Tools.OpenOcd == null ||
-                !resolved.Tools.OpenOcd.StartsWith(copy, StringComparison.OrdinalIgnoreCase) || resolved.Tools.CMake != before.CMake ||
-                resolved.Tools.Ninja != before.Ninja || resolved.Tools.Compiler != before.Compiler) throw new Exception("paired discovery changed unrelated tools or did not parse selected target: " + resolved.Details);
-            var manual = OpenOcdScripts.ResolveAsync(resolved.Tools, "STM32H723VGT6", "target/stm32f4x.cfg", searchRoots: []).GetAwaiter().GetResult();
-            if (!manual.Ready || manual.Target != "target/stm32f4x.cfg") throw new Exception("manual target was not preserved: " + manual.Details);
-            var wba = OpenOcdScripts.ResolveAsync(resolved.Tools, "STM32WBA55CG", searchRoots: []).GetAwaiter().GetResult();
-            var expectedWba = File.Exists(Path.Combine(resolved.Tools.Scripts!, "target", "stm32wba5x.cfg")) ? "target/stm32wba5x.cfg" : "target/stm32wbax.cfg";
-            if (!wba.Ready || wba.Target != expectedWba) throw new Exception("confirmed WBA5 alias did not parse: " + wba.Details);
-            var requestedWba = OpenOcdScripts.ResolveAsync(before, "STM32WBA55CG", "target/stm32wba5x.cfg",
-                searchRoots: [Path.GetDirectoryName(copy)!], allowTargetAlias: true).GetAwaiter().GetResult();
-            if (!requestedWba.Ready || requestedWba.Target != expectedWba || requestedWba.Tools.OpenOcd != resolved.Tools.OpenOcd)
-                throw new Exception("explicitly allowed automatic WBA5 alias did not resolve the complete discovered package: " + requestedWba.Details);
-            var canonical = Path.Combine(resolved.Tools.Scripts!, "target", "stm32wba5x.cfg");
-            if (!File.Exists(canonical)) File.Copy(Path.Combine(resolved.Tools.Scripts!, "target", "stm32wbax.cfg"), canonical);
-            var manualWba = OpenOcdScripts.ResolveAsync(resolved.Tools, "STM32WBA55CG", "target/stm32wba5x.cfg", searchRoots: []).GetAwaiter().GetResult();
-            if (!manualWba.Ready || manualWba.Target != "target/stm32wba5x.cfg") throw new Exception("manual canonical WBA5 target was changed: " + manualWba.Details);
+            if (local.OpenOcd == null) throw new Exception("normal OpenOCD executable required for software parser check");
+            var before = local;
+            var scripts = BundledOpenOcdScripts.GetDirectoryAsync().GetAwaiter().GetResult();
+            var tools = local with { Scripts = scripts };
+            OpenOcdScripts.ValidateAsync(tools, "target/stm32h7x.cfg").GetAwaiter().GetResult();
+            const string manualTarget = "target/stm32h7x_dual_bank.cfg";
+            OpenOcdScripts.ValidateAsync(tools, manualTarget).GetAwaiter().GetResult();
+            var target = OpenOcdScripts.AvailableTarget(scripts, OpenOcdScripts.TargetForChip("STM32WBA55CG")!);
+            if (target != "target/stm32wbax.cfg") throw new Exception("embedded WBA5 legacy target was not selected");
+            OpenOcdScripts.ValidateAsync(tools, target).GetAwaiter().GetResult();
+            if (tools.CMake != before.CMake || tools.Ninja != before.Ninja || tools.Compiler != before.Compiler || tools.OpenOcd != before.OpenOcd)
+                throw new Exception("bundled scripts changed an executable tool path");
         });
         if (download) check("downloads SHA-verified official paired OpenOCD package into Temp and parses STM32H7 without activation", () =>
         {
@@ -90,14 +114,4 @@ internal static class OpenOcdScriptChecks
         });
     }
 
-    private static void CopyDirectory(string source, string destination)
-    {
-        Directory.CreateDirectory(destination);
-        foreach (var file in Directory.EnumerateFiles(source)) File.Copy(file, Path.Combine(destination, Path.GetFileName(file)));
-        foreach (var directory in Directory.EnumerateDirectories(source))
-        {
-            if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0) throw new IOException("local package contains links");
-            CopyDirectory(directory, Path.Combine(destination, Path.GetFileName(directory)));
-        }
-    }
 }
