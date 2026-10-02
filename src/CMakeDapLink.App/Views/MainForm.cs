@@ -114,6 +114,8 @@ public sealed partial class MainForm : Form
         BuildContent();
         BuildSourcePage();
         BuildImportPage();
+        _sourcePreview.ShowRegistrationStatus = true;
+        BuildFeedback();
         if (previewScale.HasValue)
         {
             var ratio = previewScale.Value / (DeviceDpi / 96f);
@@ -126,7 +128,7 @@ public sealed partial class MainForm : Form
         Resize += (_, _) => LayoutShell();
         DpiChanged += (_, _) => BeginInvoke(LayoutShell);
         LayoutShell();
-        Shown += async (_, _) => await RefreshEnvironmentAsync();
+        Shown += async (_, _) => await RescanAsync(showIssues: false);
     }
 
     private void BuildSidebar()
@@ -209,7 +211,8 @@ public sealed partial class MainForm : Form
     private int ButtonHeight(Button button, int minimum = 36) => Math.Max(Px(minimum),
         TextRenderer.MeasureText(button.Text, button.Font, new Size(10000, 10000), TextFormatFlags.SingleLine).Height + Px(16));
     private int ButtonWidth(Button button, int minimum = 100) => Math.Max(Px(minimum),
-        TextRenderer.MeasureText(button.Text, button.Font, new Size(10000, 10000), TextFormatFlags.SingleLine).Width + Px(30));
+        TextRenderer.MeasureText(button.Text, button.Font, new Size(10000, 10000), TextFormatFlags.SingleLine).Width +
+        Px(button is SoftButton { IsBusy: true } ? 55 : 30));
     private static IEnumerable<Control> AllControls(Control parent)
     {
         foreach (Control child in parent.Controls)
@@ -244,7 +247,7 @@ public sealed partial class MainForm : Form
         _summary = new RoundedPanel { Height = 196 };
         _summary.Controls.Add(Label("环境检查", 11, Ink, new Point(24, 19), new Size(250, 31), bold: true));
         _rescan.Size = new Size(112, 32); _rescan.Top = 18;
-        _rescan.Click += async (_, _) => await RefreshEnvironmentAsync(showIssues: true);
+        _rescan.Click += async (_, _) => await RescanAsync();
         _summary.Controls.Add(_rescan);
         _result.Location = new Point(24, 65); _result.Height = 108;
         _summary.Controls.Add(_result);
@@ -278,7 +281,7 @@ public sealed partial class MainForm : Form
         targetLabel.Name = "TargetLabel";
         _details.Controls.Add(targetLabel);
         _details.Controls.Add(_target);
-        _target.TextChanged += (_, _) => { if (_action != null) { UpdateActions(); LayoutPage(); } };
+        _target.TextChanged += (_, _) => { if (_action != null) { if (!_busy) InvalidateCompletion(); UpdateActions(); LayoutPage(); } };
         SetDetailChildrenVisible(false);
         Add(_details);
 
@@ -389,7 +392,7 @@ public sealed partial class MainForm : Form
                 ? _sourcePreview.CheckedPaths : null;
             _sourcePlan = SourceFolderPlanner.Preview(_project.Root, _sourceFolder.Text, _sourceTarget.SelectedItem?.ToString());
             _sourcePreview.SetFiles(_sourcePlan.CandidateFiles.Select(x => (x, x)), selected ?? _sourcePlan.SourceFiles.Concat(_sourcePlan.HeaderFiles));
-            _sourcePreview.SetRegisteredPaths(_sourcePlan.AlreadyRegisteredFiles);
+            _sourcePreview.SetRegisteredPaths(_sourcePlan.AlreadyRegisteredFiles.Concat(ManagedSelections(_sourcePlan)));
             _sourcePreviewFolder = _sourceFolder.Text;
             UpdateSourceSelection();
         }
@@ -407,7 +410,7 @@ public sealed partial class MainForm : Form
     {
         _sourcePlan = null;
         var selected = _sourcePreview.CheckedPaths;
-        _sourceCount.Text = $"找到 {_sourcePreview.Count} 个文件 · 已勾选 {selected.Count}";
+        UpdateSelectionSummary();
         _sourceIncludes.Text = "头文件补充 include 目录；C++/汇编按需启用对应编译语言。";
         if (selected.Count == 0) _sourceStatus.Text = "请至少勾选一个文件后再写入 CMakeLists.txt。";
         else if (_project != null)
@@ -431,19 +434,31 @@ public sealed partial class MainForm : Form
     {
         if (_busy || _sourcePlan == null || _project == null) return;
         var plan = _sourcePlan;
+        BeginFeedback("source", _applySource, "编译验证中…");
+        _lastSourceChanges = [];
         _busy = true; UpdateActions();
         try
         {
             if (ShowBuildIssues()) return;
+            FeedbackStep(0, StepState.Complete);
+            FeedbackStep(1, StepState.Running);
             var options = CreateOptions(requireOpenOcd: false);
             var changes = SourceFolderPlanner.Changes(plan);
             if (changes.Count > 0)
             {
                 using var preview = new ChangePreviewDialog(plan.Root, "添加源文件：" + plan.Target, changes);
-                if (preview.ShowDialog(this) != DialogResult.OK) return;
+                if (preview.ShowDialog(this) != DialogResult.OK)
+                {
+                    FinishActiveSteps(StepState.Cancelled);
+                    _sourceStatus.Text = "已取消，未写入 CMakeLists.txt。";
+                    Notify(_sourceStatus.Text, page: 1); return;
+                }
             }
             _sourceStatus.Text = "正在写入 CMakeLists.txt…"; _sourceProgress.Value = 15; LayoutSourcePage();
             var changed = await Task.Run(() => ChangeHistory.Apply(plan.Root, "更新 CMake 源文件：" + plan.Target, changes) != null);
+            if (changed) InvalidateCompletion();
+            _lastSourceChanges = changes;
+            FeedbackStep(1, StepState.Complete);
             Append(changed ? "已更新 CMakeLists.txt；可通过“恢复修改”撤回本次操作。" : "CMakeLists.txt 已包含所选文件。" );
             _sourceStatus.Text = "正在实际配置并编译工程…";
             var build = CMakeBuildPlan.Create(options);
@@ -453,15 +468,21 @@ public sealed partial class MainForm : Form
             _sourceStatus.Text = "验证通过：CMake 配置和编译成功。";
             _sourceProgress.Value = 100;
             Append(_sourceStatus.Text);
+            var outputs = CMakeBuildPlan.FindElfs(build.BuildDirectory, build.BuildConfiguration);
+            ShowSourceCompletion("源文件配置完成", $"CMake 配置和编译已通过。目标：{plan.Target}\n" +
+                (outputs.Count == 1 ? FirmwareSummary(outputs[0], build.BuildConfiguration) : $"当前配置有 {outputs.Count} 个有效 ELF 产物。") +
+                "\n下一步：回到工程配置，生成 VS Code 编译和烧录任务。");
         }
         catch (Exception ex)
         {
             _sourceStatus.Text = "写入或编译未通过：" + ex.Message;
             _sourceProgress.Value = 0;
             Append("添加源文件：" + ex);
-            if (_buildProblems.Count > 0) ShowBuildProblems();
+            FinishActiveSteps(StepState.Attention);
+            ShowSourceCompletion("源文件操作需要处理", ex.Message + "\n已写入的修改可在“恢复修改”中撤回。", attention: true);
+            Notify(_sourceStatus.Text, true, "查看问题与日志", ShowBuildProblems, page: 1);
         }
-        finally { _busy = false; UpdateActions(); LayoutSourcePage(); }
+        finally { _busy = false; EndFeedback(); }
     }
 
     private void Add(Control card) { _cards.Add(card); _flow.Canvas.Controls.Add(card); _flow.AttachCard(card); }
@@ -544,12 +565,17 @@ public sealed partial class MainForm : Form
     }
     private async void BrowseProject()
     {
+        if (_busy) return;
         using var dialog = new FolderBrowserDialog { Description = "选择包含 CMakeLists.txt 的工程根目录", UseDescriptionForTitle = true };
         if (dialog.ShowDialog(this) == DialogResult.OK) await LoadProjectAsync(dialog.SelectedPath);
     }
     private async Task LoadProjectAsync(string path)
     {
         if (_busy) return;
+        BeginFeedback("load", _browseProject, "检查工程中…");
+        _completionShown = _sourceCompletionShown = false;
+        _lastTaskChanges = _lastSourceChanges = []; _completedFirmware = null;
+        _notice.Visible = _sourceNotice.Visible = _importNotice.Visible = false;
         SetBusy(true, "正在检查工程结构…", 8);
         try
         {
@@ -559,7 +585,6 @@ public sealed partial class MainForm : Form
             RefreshProjectOptions();
             _folder.Text = _project.Root;
             _dropTitle.Text = Path.GetFileName(_project.Root.TrimEnd(Path.DirectorySeparatorChar));
-            _browseProject.Text = "更换工程";
             _target.Text = _project.TargetScript ?? "";
             _sourceProject.Text = "当前工程  ·  " + _project.Root;
             _sourceFolder.Text = "尚未选择文件夹";
@@ -579,8 +604,8 @@ public sealed partial class MainForm : Form
             Append("已选择工程：" + _project.Root);
             await RefreshEnvironmentAsync(showIssues: true);
         }
-        catch (Exception ex) { _result.Text = "工程检查失败：" + ex.Message; Append(_result.Text); }
-        finally { SetBusy(false, "等待用户决定下一步", 0); }
+        catch (Exception ex) { _result.Text = "工程检查失败：" + ex.Message; Append(_result.Text); Notify(_result.Text, true, "选择工程", BrowseProject); }
+        finally { SetBusy(false, "工程检查结束，请选择下一步操作", 0); EndFeedback(); _browseProject.Text = _project == null ? "选择工程" : "更换工程"; }
     }
 
     private async Task RefreshEnvironmentAsync(bool showIssues = false)
@@ -612,11 +637,18 @@ public sealed partial class MainForm : Form
             $"{_project.Chip ?? "芯片待确认"}  ·  {_project.ConfigurePreset ?? "默认构建"}" : "不是有效 CMake 根目录";
         var targetStatus = _project != null && !string.IsNullOrWhiteSpace(_target.Text) && _tools.Scripts != null &&
             File.Exists(Path.Combine(_tools.Scripts, _target.Text)) ? Path.GetFileName(_target.Text) : "Target 待确认";
-        _result.Text = projectStatus + Environment.NewLine +
+        _result.Text = _project == null ? "工具检测结果如下。选择工程后识别芯片、构建预设和烧录配置。" : projectStatus + Environment.NewLine +
             (_tools.Scripts == null ? "CMSIS-DAP 配置缺失" : "CMSIS-DAP 配置已找到") + "  ·  " + targetStatus +
             (_project?.Notes.Count > 0 ? Environment.NewLine + string.Join("；", _project.Notes) : "");
         UpdateActions(); LayoutPage();
-        if (showIssues && _project != null && CurrentIssues().Count > 0) ShowEnvironmentHelp();
+        if (showIssues && _project != null)
+        {
+            var issues = CurrentIssues();
+            Notify(issues.Count == 0 ? "环境检测已完成，工具和脚本已就绪。可以进行配置与编译验证。" :
+                $"工程已识别，还有 {issues.Count} 项需要补全。查看说明可以了解具体处理步骤。",
+                issues.Count > 0, issues.Count > 0 ? "查看补全说明" : null,
+                issues.Count > 0 ? () => ShowEnvironmentHelp() : null);
+        }
     }
 
     private async Task BrowseToolAsync(string key)
@@ -625,7 +657,7 @@ public sealed partial class MainForm : Form
         {
             using var folder = new FolderBrowserDialog { Description = "选择含 interface 和 target 的 OpenOCD scripts 目录" };
             if (folder.ShowDialog(this) != DialogResult.OK) return;
-            if (!EnvironmentScanner.IsScripts(folder.SelectedPath)) { MessageBox.Show(this, "该目录不含 interface/cmsis-dap.cfg 或 target。", "脚本目录不正确"); return; }
+            if (!EnvironmentScanner.IsScripts(folder.SelectedPath)) { Notify("该目录不含 interface/cmsis-dap.cfg 或 target。请选择完整的 OpenOCD scripts 目录。", true, "指定脚本目录", () => _ = BrowseToolAsync("Scripts")); return; }
             _tools = _tools with { Scripts = folder.SelectedPath };
         }
         else
@@ -634,7 +666,7 @@ public sealed partial class MainForm : Form
             using var file = new OpenFileDialog { Title = "选择 " + expected, Filter = "可执行文件 (*.exe)|*.exe", FileName = expected };
             if (file.ShowDialog(this) != DialogResult.OK) return;
             if (!string.Equals(Path.GetFileName(file.FileName), expected, StringComparison.OrdinalIgnoreCase))
-            { MessageBox.Show(this, "请选择 " + expected, "文件不匹配"); return; }
+            { Notify("文件不匹配，请选择 " + expected + "。", true, "重新选择", () => _ = BrowseToolAsync(key)); return; }
             _tools = key switch
             {
                 "CMake" => _tools with { CMake = file.FileName }, "Ninja" => _tools with { Ninja = file.FileName },
@@ -642,7 +674,9 @@ public sealed partial class MainForm : Form
             };
         }
         Append("已更新 " + key + " 路径。");
+        InvalidateCompletion();
         await RefreshEnvironmentAsync();
+        Notify("工具路径已更新并重新检测。", actionText: "查看配置详情", action: ShowDetails);
     }
     private async Task RepairAsync()
     {
@@ -656,44 +690,61 @@ public sealed partial class MainForm : Form
     private async Task ConfigureAsync()
     {
         if (_busy || _project?.IsCMakeProject != true) return;
-        if (CurrentIssues().Any(x => x.BlocksConfiguration)) { ShowEnvironmentHelp(); return; }
+        if (CurrentIssues().Any(x => x.BlocksConfiguration)) { Notify("配置尚未补齐，请处理待补全项后再进行编译验证。", true, "查看补全说明", () => ShowEnvironmentHelp()); return; }
         var target = _target.Text.Trim().Replace('\\', '/');
         if (_tools.Scripts == null || !File.Exists(Path.Combine(_tools.Scripts, target)))
         {
             if (!_expanded) ToggleDetails();
-            MessageBox.Show(this, "请填写 OpenOCD scripts 目录中存在的 target/*.cfg 文件。", "Target 待确认");
+            Notify("Target 待确认，请填写 OpenOCD scripts 目录中存在的 target/*.cfg 文件。", true, "展开配置", ShowDetails);
             return;
         }
         if (_tools.CMake == null || _tools.Ninja == null || _tools.Compiler == null || _tools.OpenOcd == null) return;
+        BeginFeedback("configure", _configure, "配置验证中…"); _lastTaskChanges = [];
         SetBusy(true, "准备配置工程…", 15);
         try
         {
             var options = CreateOptions();
+            FeedbackStep(0, StepState.Complete);
             var plan = CMakeBuildPlan.Create(options);
             await RunBuildAsync(plan);
             var elf = ChooseFirmware(CMakeBuildPlan.FindElfs(plan.BuildDirectory, plan.BuildConfiguration), options.Root);
-            if (elf == null) { _stage.Text = "已取消固件选择，未写入任务。"; return; }
+            if (elf == null) { _stage.Text = "已取消固件选择，未写入任务。"; FeedbackStep(3, StepState.Cancelled); Notify(_stage.Text); return; }
             _firmwareLabel.Text = "固件：" + Path.GetRelativePath(options.Root, elf);
             Append("已确认固件：" + elf);
             SetBusy(true, "检查 OpenOCD 脚本解析…", 88);
+            FeedbackStep(3, StepState.Running);
             var openocd = await ProcessTools.RunAsync(_tools.OpenOcd, ["-s", _tools.Scripts, "-f", "interface/cmsis-dap.cfg", "-c", "transport select swd",
                 "-f", target, "-c", "shutdown"], _project.Root, TimeSpan.FromSeconds(20), Append);
             if (openocd.ExitCode != 0) throw new InvalidOperationException("编译通过，但 OpenOCD 配置检查失败，退出码 " + openocd.ExitCode + "。");
+            FeedbackStep(3, StepState.Complete);
+            FeedbackStep(4, StepState.Running);
             SetBusy(true, "正在写入 VS Code 任务…", 95);
             var configuredOptions = options with { FirmwareElfPath = elf };
             var changes = ConfigurationWriter.Preview(configuredOptions);
             if (changes.Count > 0)
             {
                 using var preview = new ChangePreviewDialog(options.Root, "配置 VS Code 编译与烧录任务", changes);
-                if (preview.ShowDialog(this) != DialogResult.OK) { _stage.Text = "已取消写入任务。"; return; }
+                _stage.Text = "等待确认任务修改，确认后写入。";
+                if (preview.ShowDialog(this) != DialogResult.OK)
+                {
+                    _stage.Text = "已取消写入任务。"; FeedbackStep(4, StepState.Cancelled);
+                    ShowCompletion("编译通过，已取消写入任务", FirmwareSummary(elf, options.BuildConfiguration), elf); return;
+                }
                 ChangeHistory.Apply(options.Root, "配置 VS Code 编译与烧录任务", changes);
             }
+            _lastTaskChanges = changes; FeedbackStep(4, StepState.Complete);
             Append("VS Code 任务已配置；本次变更可通过“恢复修改”撤回。");
             SetBusy(true, "配置完成：编译与 OpenOCD 配置检查通过。", 100);
             Append("验证通过。VS Code 中可运行“一键编译”和“一键烧录(DAPLINK)”；烧录任务会编译、下载、校验并复位。未执行硬件烧录。");
+            ShowCompletion("配置完成，编译和脚本检查通过", FirmwareSummary(elf, options.BuildConfiguration) +
+                "\nVS Code 编译与烧录任务已就绪。本次未执行硬件烧录。", elf, tasksReady: true);
         }
-        catch (Exception ex) { _stage.Text = "验证未通过：" + ex.Message; Append("错误：" + ex); if (_buildProblems.Count > 0) ShowBuildProblems(); }
-        finally { _busy = false; UpdateActions(); LayoutPage(); }
+        catch (Exception ex)
+        {
+            _stage.Text = "验证未通过：" + ex.Message; Append("错误：" + ex); FinishActiveSteps(StepState.Attention);
+            ShowCompletion("配置需要处理", ex.Message + "\n查看问题与日志了解具体位置和处理建议。", attention: true);
+        }
+        finally { _busy = false; EndFeedback(); }
     }
 
     private SetupOptions CreateOptions(bool requireOpenOcd = true)
@@ -714,16 +765,20 @@ public sealed partial class MainForm : Form
         void Capture(string line) { _buildOutput.Enqueue(line); Append(line); }
         _buildOutput.Enqueue("=== CMake 配置 ===");
         SetBusy(true, "CMake 正在配置工程…", 40);
+        FeedbackStep(_operation == "source" ? 2 : 1, StepState.Running);
         var configure = await ProcessTools.RunAsync(plan.Configure.Executable, plan.Configure.Arguments,
             plan.Configure.WorkingDirectory, TimeSpan.FromMinutes(5), Capture, plan.Configure.PathPrefix);
         _buildProblems.AddRange(BuildDiagnostics.Parse(configure.Output, plan.Configure.WorkingDirectory, "CMake 配置"));
         if (configure.ExitCode != 0) throw new InvalidOperationException("CMake 配置失败，退出码 " + configure.ExitCode + "。请查看执行日志。");
+        FeedbackStep(_operation == "source" ? 2 : 1, StepState.Complete);
         SetBusy(true, "正在实际编译工程…", 68);
+        FeedbackStep(_operation == "source" ? 3 : 2, StepState.Running);
         _buildOutput.Enqueue("=== 编译与链接 ===");
         var build = await ProcessTools.RunAsync(plan.Build.Executable, plan.Build.Arguments,
             plan.Build.WorkingDirectory, TimeSpan.FromMinutes(15), Capture, plan.Build.PathPrefix);
         _buildProblems.AddRange(BuildDiagnostics.Parse(build.Output, plan.Build.WorkingDirectory, "源码编译"));
         if (build.ExitCode != 0) throw new InvalidOperationException("实际编译失败，退出码 " + build.ExitCode + "。请查看执行日志。");
+        FeedbackStep(_operation == "source" ? 3 : 2, StepState.Complete);
         SetBusy(true, "CMake 编译已通过。", 82);
     }
 
@@ -739,7 +794,7 @@ public sealed partial class MainForm : Form
         _configure.Enabled = !_busy && _project?.IsCMakeProject == true && _tools.CMake != null && _tools.Ninja != null &&
             _tools.Compiler != null && _tools.OpenOcd != null && _tools.Scripts != null && _toolFailures.Count == 0;
         _repair.Enabled = !_busy; _rescan.Enabled = !_busy; _toggle.Enabled = !_busy;
-        _autoRepair.Enabled = !_busy || _repairCancellation != null;
+        _autoRepair.Enabled = !_busy;
         _mirrorSource.Enabled = !_busy;
         _browseProject.Enabled = !_busy;
         _target.Enabled = !_busy;
@@ -760,16 +815,33 @@ public sealed partial class MainForm : Form
         _sourceSearch.Enabled = _sourceFilter.Enabled = !_busy;
         _expandSources.Enabled = _collapseSources.Enabled = !_busy && _sourcePreview.Count > 0;
         var issues = CurrentIssues();
-        _readiness.Text = _project == null ? "选择工程后显示环境状态" : issues.Count == 0 ? "环境已就绪，可以配置" : $"有 {issues.Count} 项需要补全，查看具体步骤";
+        var buildIssues = issues.Where(x => x.Key is "Project" or "CMake" or "Ninja" or "Compiler" or "Preset").ToArray();
+        _applySource.Enabled = _applySource.Enabled && buildIssues.Length == 0;
+        if (!_busy && _sourcePlan != null && buildIssues.Length > 0)
+            _sourceStatus.Text = "需先补全构建环境：" + string.Join("、", buildIssues.Select(x => x.Title)) + "。可回到工程配置查看补全说明。";
+        _configure.Enabled = _configure.Enabled && !issues.Any(x => x.BlocksConfiguration);
+        _readiness.Text = _busy ? "正在执行操作，完成后可继续。" : _project == null ? "请先选择工程，才能配置任务。" :
+            _project.IsCMakeProject == false ? "所选文件夹不包含 CMakeLists.txt，请更换工程。" : issues.Count == 0 ? "环境已就绪，可以配置" : $"有 {issues.Count} 项需要补全，查看具体步骤";
         _readiness.ForeColor = issues.Count == 0 ? Color.FromArgb(35, 139, 101) : Color.FromArgb(162, 106, 33);
         UpdateImportActions();
         foreach (var button in new[] { _configure, _chooseSource, _applySource })
-            button.BackColor = button.Enabled ? Accent : Color.FromArgb(226, 234, 242);
+            button.BackColor = button.Enabled || button is SoftButton { IsBusy: true } ? Accent : Color.FromArgb(226, 234, 242);
+        if (_completionCard != null)
+        {
+            _navSetup.Enabled = _navSources.Enabled = _navImport.Enabled = !_busy;
+            _sideFoot.Text = _busy ? "操作进行中\n完成后可切换页面" : _project == null ? "本地工作区" : "当前工程\n" + Path.GetFileName(_project.Root.TrimEnd(Path.DirectorySeparatorChar));
+            _stopRepair.Visible = _repairCancellation != null;
+            _stopRepair.Enabled = _repairCancellation != null && !_repairCancellation.IsCancellationRequested;
+            RefreshEmptyStates();
+            foreach (var button in new[] { _openProject, _openFirmware, _viewLastChanges, _completionHelp, _sourceNext, _viewSourceChanges, _sourceChooseProject, _importChooseProject }) button.Enabled = !_busy;
+            _navTips.SetToolTip(_configure, _configure.Enabled ? "实际编译并生成 VS Code 任务" : _readiness.Text);
+            _navTips.SetToolTip(_applySource, _applySource.Enabled ? "预览修改，再写入并编译" : _sourcePreview.Count == 0 ? "先选择文件夹" : "请至少勾选一个文件，并确认可用构建目标和工具");
+        }
     }
     private static string ToolKey(string name) => name == "ARM GCC" ? "Compiler" : name == "OpenOCD" ? "OpenOcd" : name;
     protected override void Dispose(bool disposing)
     {
-        if (disposing) _navTips.Dispose();
+        if (disposing) { _navTips.Dispose(); _feedbackTimer.Dispose(); }
         base.Dispose(disposing);
     }
     private void Append(string text)

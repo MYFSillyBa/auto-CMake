@@ -36,6 +36,7 @@ public sealed partial class MainForm
         _buildPresetPicker.SelectedIndexChanged += (_, _) =>
         {
             if (_updatingProjectOptions || _busy || _project == null) return;
+            InvalidateCompletion();
             var info = SelectedConfigurePreset();
             _project = _project with { BuildPreset = _buildPresetPicker.SelectedIndex <= 0 ? null : info?.BuildPresets[_buildPresetPicker.SelectedIndex - 1].Name };
             RefreshProjectOptions(); UpdateActions();
@@ -44,17 +45,19 @@ public sealed partial class MainForm
         _configurationPicker.SelectedIndexChanged += (_, _) =>
         {
             if (_updatingProjectOptions || _busy) return;
+            InvalidateCompletion();
             _defaultConfiguration = _configurationPicker.SelectedItem ?? "Debug";
         };
         _identificationDetails.Click += (_, _) => ShowIdentificationDetails();
         _presetPicker.SelectedIndexChanged += async (_, _) =>
         {
             if (_updatingProjectOptions || _busy || _project == null) return;
+            InvalidateCompletion();
             if (_project.ConfigurePresets.Count == 0)
             {
                 _defaultConfiguration = _presetPicker.SelectedIndex == 1 ? "Release" : "Debug";
                 _project = _project with { BuildDirectory = Path.Combine(_project.Root, "build", "daplink-" + _defaultConfiguration.ToLowerInvariant()) };
-                await RefreshEnvironmentAsync(); return;
+                await RescanAsync(showIssues: false); return;
             }
             var name = _project.ConfigurePresets.FirstOrDefault(x => PresetLabel(x) == _presetPicker.SelectedItem)?.Name;
             var root = _project.Root;
@@ -67,7 +70,7 @@ public sealed partial class MainForm
                 _firmwareLabel.Text = "构建后确认固件；多个 ELF 时可选择目标。";
                 RefreshProjectOptions(); await RefreshEnvironmentAsync();
             }
-            catch (Exception ex) { Append("预设读取：" + ex.Message); }
+            catch (Exception ex) { Append("预设读取：" + ex); Notify("预设读取未完成：" + ex.Message, true, "查看问题与日志", ShowBuildProblems); }
             finally { SetBusy(false, "构建预设已更新，请核对识别信息。", 0); }
         };
         Add(_projectOptionsCard);
@@ -138,18 +141,21 @@ public sealed partial class MainForm
         using var dialog = new ProjectIdentificationDialog(_project);
         if (dialog.ShowDialog(this) == DialogResult.OK && dialog.ConfirmedChip != null)
         {
+            InvalidateCompletion();
             _confirmedChip = dialog.ConfirmedChip; ApplyConfirmedChip();
             _target.Text = _project!.TargetScript ?? _target.Text; RefreshProjectOptions();
-            _ = RefreshEnvironmentAsync();
+            _ = RescanAsync(showIssues: false);
         }
     }
     private void ShowChangeHistory()
     {
         if (_busy || _project == null) return;
+        var before = ProjectConfigurationFingerprint();
         using var dialog = new RestoreHistoryDialog(_project.Root);
         dialog.ShowDialog(this);
+        if (before != ProjectConfigurationFingerprint()) InvalidateCompletion();
         _project = ProjectInspector.Inspect(_project.Root, _project.ConfigurePreset); ApplyConfirmedChip();
-        RefreshProjectOptions(); RefreshSourcePreview(); _ = RefreshEnvironmentAsync();
+        RefreshProjectOptions(); RefreshSourcePreview(); _ = RescanAsync(showIssues: false);
     }
     private void ShowBuildProblems()
     {
@@ -160,8 +166,10 @@ public sealed partial class MainForm
     {
         if (_busy) return;
         using var dialog = new ToolManagementDialog(_tools);
+        var before = _tools;
         dialog.ShowDialog(this); _tools = dialog.Tools;
-        await RefreshEnvironmentAsync();
+        if (_tools != before) InvalidateCompletion();
+        await RescanAsync(showIssues: false);
     }
     private void BuildSourceFilters()
     {
@@ -177,7 +185,8 @@ public sealed partial class MainForm
     private void FilterSources()
     {
         _sourcePreview.SetFilter(_sourceSearch.Text, Math.Max(0, _sourceFilter.SelectedIndex));
-        _sourceCount.Text = $"找到 {_sourcePreview.Count} 个文件 · 当前显示 {_sourcePreview.VisibleFileCount} 个 · 已勾选 {_sourcePreview.CheckedPaths.Count}";
+        UpdateSelectionSummary();
+        LayoutSourcePage();
     }
     private string? ChooseFirmware(IReadOnlyList<string> files, string root)
     {

@@ -17,13 +17,15 @@ public sealed partial class MainForm
         }
         if (_busy) return;
         using var cancellation = new CancellationTokenSource();
+        BeginFeedback("repair", _autoRepair, "自动修复中…");
         _repairCancellation = cancellation;
-        _autoRepair.Text = "停止下载";
+        _workflowSteps.Reset("检测缺失工具", "下载安装", "验证环境"); _workflowSteps.SetStep(0, StepState.Running);
         SetBusy(true, "检测缺失工具…", 0);
         try
         {
             Directory.CreateDirectory(ManagedTools.Root);
             await RefreshEnvironmentAsync();
+            _workflowSteps.SetStep(0, StepState.Complete); _workflowSteps.SetStep(1, StepState.Running);
             using var installer = new ToolRepairInstaller();
             var progress = new Progress<ToolRepairProgress>(item =>
             {
@@ -35,35 +37,37 @@ public sealed partial class MainForm
             var current = _tools; var broken = _toolFailures.Keys.ToArray(); var target = _target.Text.Trim().Replace('\\', '/');
             var result = await Task.Run(() => installer.RepairAsync(current, broken, target, progress, cancellation.Token), cancellation.Token);
             _tools = result.Tools;
+            _workflowSteps.SetStep(1, StepState.Complete); _workflowSteps.SetStep(2, StepState.Running);
             await RefreshEnvironmentAsync();
             var remaining = CurrentIssues().Where(x => _project != null || x.Key != "Project" && x.Key != "Target").ToList();
             foreach (var problem in result.Problems)
                 remaining.Add(new("Repair", "自动修复需要继续处理", problem + "\n查看构建输出中的下载源与检测结果。可在“镜像源”更换备用地址后重试，也可使用“手动指定路径”选择完整安装包中的工具。"));
             _stage.Text = remaining.Count == 0 ? "环境已补齐，工具验证通过" : "自动修复结束，还有待补全项";
             Append(_stage.Text);
-            using var dialog = new CompletionDialog(remaining, _previewScale);
-            if (dialog.ShowDialog(this) == DialogResult.OK)
-            {
-                if (!_expanded) ToggleDetails();
-                _flow.ScrollTo(_details.Top - Px(14));
-            }
+            _workflowSteps.SetStep(2, remaining.Count == 0 ? StepState.Complete : StepState.Attention);
+            Notify(remaining.Count == 0 ? "环境已补齐，工具验证通过。可以继续配置与编译。" :
+                $"自动修复结束，还有 {remaining.Count} 项待处理。" + string.Join("；", remaining.Select(x => x.Title)),
+                remaining.Count > 0, remaining.Count > 0 ? "查看补全说明" : "查看配置详情",
+                remaining.Count > 0 ? () => ShowEnvironmentHelp(remaining) : ShowDetails);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
             _tools = ManagedTools.LoadPaths();
             await RefreshEnvironmentAsync();
             _stage.Text = "已停止下载，已安装的工具和路径已保留。"; Append(_stage.Text);
+            for (var i = 0; i < _workflowSteps.States.Count; i++) if (_workflowSteps.States[i] == StepState.Running) _workflowSteps.SetStep(i, StepState.Cancelled);
+            Notify(_stage.Text);
         }
         catch (Exception ex)
         {
             _stage.Text = "自动修复未完成：" + ex.Message; Append(_stage.Text);
-            using var dialog = new CompletionDialog([new("Repair", "自动修复未完成", ex.Message + $"\n请检查 {ManagedTools.Root} 是否可写以及当前网络连接。可以在“镜像源”调整地址，或者通过“手动指定路径”补齐工具。")], _previewScale);
-            dialog.ShowDialog(this);
+            for (var i = 0; i < _workflowSteps.States.Count; i++) if (_workflowSteps.States[i] == StepState.Running) _workflowSteps.SetStep(i, StepState.Attention);
+            Notify(_stage.Text, true, "指定工具路径", () => _ = RepairAsync());
         }
         finally
         {
-            _repairCancellation = null; _autoRepair.Text = "自动修复"; _busy = false;
-            if (!IsDisposed && !Disposing) { UpdateActions(); LayoutPage(); }
+            _repairCancellation = null; _busy = false;
+            if (!IsDisposed && !Disposing) EndFeedback();
         }
     }
 
@@ -72,9 +76,9 @@ public sealed partial class MainForm
         try
         {
             using var dialog = new MirrorSettingsDialog(ManagedTools.LoadSettings());
-            if (dialog.ShowDialog(this) == DialogResult.OK) Append("镜像源设置已保存：" + ManagedTools.SettingsPath);
+            if (dialog.ShowDialog(this) == DialogResult.OK) { Append("镜像源设置已保存：" + ManagedTools.SettingsPath); Notify("镜像源设置已保存，下次下载时使用。", actionText: "查看配置详情", action: ShowDetails); }
         }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "镜像源设置"); }
+        catch (Exception ex) { Notify("镜像源设置：" + ex.Message, true); }
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -84,6 +88,14 @@ public sealed partial class MainForm
         {
             e.Cancel = true; _repairCancellation.Cancel();
             _stage.Text = "正在停止下载，请稍后关闭窗口。";
+        }
+        else if (_busy)
+        {
+            e.Cancel = true;
+            _stage.Text = "正在完成当前操作，请结束后再关闭窗口。";
+            if (_operation == "source") _sourceStatus.Text = _stage.Text;
+            if (_operation == "import") _importStatus.Text = _stage.Text;
+            LayoutPage(); LayoutSourcePage(); LayoutImportPage();
         }
         base.OnFormClosing(e);
     }

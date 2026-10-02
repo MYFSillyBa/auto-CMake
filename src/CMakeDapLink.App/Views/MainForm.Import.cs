@@ -70,11 +70,7 @@ public sealed partial class MainForm
         _importResult.Controls.Add(_importStatus);
         _copyFiles.Click += async (_, _) => await CopyImportFilesAsync();
         _importResult.Controls.Add(_copyFiles);
-        _openImported.Click += (_, _) =>
-        {
-            if (_lastImportedFolder == null || _project == null) return;
-            ShowWorkspacePage(1); _sourceFolder.Text = _lastImportedFolder; RefreshSourcePreview();
-        };
+        _openImported.Click += (_, _) => ContinueWithImportedFiles();
         _importResult.Controls.Add(_openImported); _importResult.Controls.Add(_importLog); _importResult.Controls.Add(_importProgress);
         AddImport(_importResult);
         UpdateImportActions();
@@ -84,6 +80,7 @@ public sealed partial class MainForm
     private void ResetImportProject()
     {
         _incomingFiles.Clear(); _importList.SetFiles([]); _importPlan = null; _lastImportedFolder = null;
+        _lastImportedFiles = [];
         _importProject.Text = "当前工程 · " + _project?.Root;
         _importName.Text = ""; _importLog.Clear(); RefreshImportPreview();
     }
@@ -107,7 +104,7 @@ public sealed partial class MainForm
         _importPlan = null;
         if (_importDetails == null) return;
         var selected = _importList.CheckedPaths;
-        _importCount.Text = $"已选择 {_incomingFiles.Count} 个 · 将加入 {selected.Count} 个";
+        _importCount.Text = $"清单共 {_incomingFiles.Count} 个 · 已选 {selected.Count} 个 · 将复制 {selected.Count} 个";
         _importDestination.Text = "目标位置将在输入文件夹名称后显示。";
         _importStatus.Text = "输入文件夹名称并勾选文件后，即可加入当前工程。";
         if (_project?.IsCMakeProject == true && _importName.Text.Length > 0 && selected.Count > 0)
@@ -142,6 +139,7 @@ public sealed partial class MainForm
             confirmed = true;
         }
         _busy = true; UpdateActions();
+        BeginFeedback("import", _copyFiles, "复制校验中…");
         try
         {
             _importStatus.Text = "正在创建文件夹并复制文件…"; _importProgress.Value = 10; LayoutImportPage();
@@ -152,14 +150,22 @@ public sealed partial class MainForm
                 LayoutImportPage();
             })));
             _lastImportedFolder = plan.FolderPath;
+            _lastImportedFiles = copied.ToArray();
             foreach (var file in copied) _importLog.AppendText("已加入 " + Path.GetRelativePath(plan.Root, file) + Environment.NewLine);
             _incomingFiles.Clear(); _importList.SetFiles([]); _importPlan = null;
-            _importCount.Text = "文件已加入工程";
+            _importCount.Text = $"已完成：{copied.Count} 个文件已加入工程";
             _importProgress.Value = 100;
             _importStatus.Text = $"已完成：{copied.Count} 个文件已复制到“{Path.GetFileName(plan.FolderPath)}”。可继续选择文件，或前往“添加源文件”。";
+            _importSteps.SetStep(1, StepState.Complete); _importSteps.SetStep(2, StepState.Complete);
+            Notify($"已加入 {copied.Count} 个文件。下一步可以选择哪些文件参与 CMake 构建。", actionText: "选择参与构建的文件", action: ContinueWithImportedFiles, page: 2);
         }
-        catch (Exception ex) { _importProgress.Value = 0; _importStatus.Text = "加入未完成：" + ex.Message; _importLog.AppendText(ex.Message + Environment.NewLine); _importPlan = null; }
-        finally { _busy = false; UpdateActions(); LayoutImportPage(); }
+        catch (Exception ex)
+        {
+            _importProgress.Value = 0; _importStatus.Text = "加入未完成：" + ex.Message; _importLog.AppendText(ex.Message + Environment.NewLine); _importPlan = null;
+            _importSteps.SetStep(1, StepState.Attention);
+            Notify(_importStatus.Text, true, "展开复制记录", () => { _importLogExpanded = true; _toggleImportLog.Text = "收起复制记录"; LayoutImportPage(); }, page: 2);
+        }
+        finally { _busy = false; EndFeedback(); }
     }
     private void UpdateImportActions()
     {
@@ -168,6 +174,7 @@ public sealed partial class MainForm
         _clearImport.Enabled = !_busy && _incomingFiles.Count > 0;
         _copyFiles.Enabled = !_busy && _importPlan != null;
         _importList.Enabled = !_busy; _importName.Enabled = !_busy;
+        _importNote.Text = _project?.IsCMakeProject == true ? "输入名称并选择文件。复制前可核对清单，同名文件夹需要确认；复制后可直接选择参与构建的文件。" : "请先选择工程。";
         _openImported.Enabled = !_busy && _lastImportedFolder != null;
     }
 }

@@ -10,7 +10,9 @@ public sealed partial class MainForm
     {
         var issues = CurrentIssues().Where(x => x.Key is "Project" or "CMake" or "Ninja" or "Compiler" or "Preset").ToArray();
         if (issues.Length == 0) return false;
-        ShowEnvironmentHelp(issues); return true;
+        FeedbackStep(0, StepState.Attention);
+        Notify($"当前有 {issues.Length} 项构建配置需要补全。请查看说明后继续。", true, "查看补全说明", () => ShowEnvironmentHelp(issues), page: 1);
+        return true;
     }
 
     private bool ShowEnvironmentHelp(IReadOnlyList<SetupIssue>? issues = null)

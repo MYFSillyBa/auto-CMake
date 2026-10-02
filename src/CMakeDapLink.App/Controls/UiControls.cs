@@ -55,26 +55,83 @@ internal class SoftButton : Button
     public bool IconOnly { get; set; }
     private bool _hover;
     private bool _pressed;
+    private bool _spacePressed;
+    private bool _isBusy;
+    private int _spinnerAngle;
+    private readonly System.Windows.Forms.Timer _busyTimer = new() { Interval = 40 };
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+    public bool IsBusy
+    {
+        get => _isBusy;
+        set
+        {
+            if (_isBusy == value) return;
+            _isBusy = value;
+            _pressed = _spacePressed = false;
+            UpdateBusyTimer();
+            Parent?.PerformLayout();
+            Invalidate();
+        }
+    }
     public SoftButton()
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
         FlatStyle = FlatStyle.Flat;
         FlatAppearance.BorderSize = 0;
         UseVisualStyleBackColor = false;
+        _busyTimer.Tick += (_, _) => { _spinnerAngle = (_spinnerAngle + 12) % 360; Invalidate(); };
     }
     protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
     protected override void OnMouseLeave(EventArgs e) { _hover = false; _pressed = false; Invalidate(); base.OnMouseLeave(e); }
-    protected override void OnMouseDown(MouseEventArgs e) { _pressed = true; Invalidate(); base.OnMouseDown(e); }
+    protected override void OnMouseDown(MouseEventArgs e) { _pressed = Enabled && !IsBusy && e.Button == MouseButtons.Left; Invalidate(); base.OnMouseDown(e); }
     protected override void OnMouseUp(MouseEventArgs e) { _pressed = false; Invalidate(); base.OnMouseUp(e); }
-    protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        _pressed = Enabled && !IsBusy && Capture && (e.Button & MouseButtons.Left) != 0 && ClientRectangle.Contains(e.Location);
+        Invalidate(); base.OnMouseMove(e);
+    }
+    protected override void OnMouseCaptureChanged(EventArgs e) { _pressed = false; Invalidate(); base.OnMouseCaptureChanged(e); }
+    protected override void OnEnabledChanged(EventArgs e) { _pressed = _spacePressed = false; Invalidate(); base.OnEnabledChanged(e); }
     protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
-    protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+    protected override void OnChangeUICues(UICuesEventArgs e) { base.OnChangeUICues(e); Invalidate(); }
+    protected override void OnLostFocus(EventArgs e) { _pressed = _spacePressed = false; Invalidate(); base.OnLostFocus(e); }
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (IsBusy && e.KeyCode is Keys.Space or Keys.Enter) { e.SuppressKeyPress = true; return; }
+        if (e.KeyCode == Keys.Space) { _spacePressed = true; Invalidate(); }
+        base.OnKeyDown(e);
+    }
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        _spacePressed = false; Invalidate();
+        if (IsBusy && e.KeyCode is Keys.Space or Keys.Enter) { e.SuppressKeyPress = true; return; }
+        base.OnKeyUp(e);
+    }
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (IsBusy && (keyData & Keys.KeyCode) is Keys.Space or Keys.Enter) return true;
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+    protected override void OnClick(EventArgs e) { if (!IsBusy) base.OnClick(e); }
+    protected override void OnVisibleChanged(EventArgs e) { base.OnVisibleChanged(e); UpdateBusyTimer(); }
+    protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); UpdateBusyTimer(); }
+    protected override void OnHandleDestroyed(EventArgs e) { _busyTimer.Stop(); base.OnHandleDestroyed(e); }
+    private void UpdateBusyTimer()
+    {
+        if (IsBusy && Visible && IsHandleCreated && !IsDisposed) _busyTimer.Start();
+        else _busyTimer.Stop();
+    }
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) { _busyTimer.Stop(); _busyTimer.Dispose(); }
+        base.Dispose(disposing);
+    }
     public override void NotifyDefault(bool value) => base.NotifyDefault(false);
     public override Size GetPreferredSize(Size proposedSize)
     {
         var scale = DeviceDpi / 96f;
         var text = TextRenderer.MeasureText(Text, Font, Size.Empty, TextFormatFlags.SingleLine);
-        return new(text.Width + Padding.Horizontal + (int)Math.Ceiling((IconKind == 0 ? 24 : 51) * scale),
+        return new(text.Width + Padding.Horizontal + (int)Math.Ceiling((IsBusy && !IconOnly ? 49 : IconKind == 0 ? 24 : 51) * scale),
             Math.Max(text.Height + Padding.Vertical + (int)Math.Ceiling(14 * scale), (int)Math.Ceiling(36 * scale)));
     }
     protected override void OnPaintBackground(PaintEventArgs e)
@@ -88,15 +145,31 @@ internal class SoftButton : Button
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         var background = BackColor.A == 0 ? Parent?.BackColor ?? Color.White : BackColor;
         var dark = background.GetBrightness() < .55;
-        var fill = Enabled ? background : Color.FromArgb(235, 239, 245);
-        if (Enabled && (_hover || _pressed || Focused)) fill = Mix(fill, dark ? Color.White : Color.FromArgb(66, 101, 210), _pressed ? .16f : .07f);
+        var fill = Enabled || IsBusy ? background : Color.FromArgb(235, 239, 245);
+        if (IsBusy) fill = Mix(fill, dark ? Color.White : Color.FromArgb(66, 101, 210), .12f);
+        else if (Enabled && (_hover || _pressed || _spacePressed)) fill = Mix(fill, dark ? Color.White : Color.FromArgb(66, 101, 210), _pressed || _spacePressed ? .26f : .13f);
         using var shape = UiShape.Round(new RectangleF(1, 1, Width - 2, Height - 2), 6 * DeviceDpi / 96f);
         using var brush = new SolidBrush(fill);
         e.Graphics.FillPath(brush, shape);
-        var color = Enabled ? ForeColor : Color.FromArgb(134, 147, 166);
-        var textRect = new Rectangle(12 * DeviceDpi / 96 + Padding.Left, 0,
-            Math.Max(1, Width - 24 * DeviceDpi / 96 - Padding.Horizontal), Height);
-        if (IconKind != 0)
+        if (Focused && ShowFocusCues && Enabled && Width > 4 && Height > 4)
+        {
+            using var focusPen = new Pen(Color.FromArgb(126, 163, 239), 1.5f * DeviceDpi / 96f);
+            using var focusShape = UiShape.Round(new RectangleF(2, 2, Width - 4, Height - 4), 5 * DeviceDpi / 96f);
+            e.Graphics.DrawPath(focusPen, focusShape);
+        }
+        var color = Enabled || IsBusy ? ForeColor : Color.FromArgb(134, 147, 166);
+        var textRect = new Rectangle(12 * DeviceDpi / 96 + Padding.Left, Padding.Top,
+            Math.Max(1, Width - 24 * DeviceDpi / 96 - Padding.Horizontal), Math.Max(1, Height - Padding.Vertical));
+        if (IsBusy)
+        {
+            var size = 16 * DeviceDpi / 96f;
+            var x = IconOnly ? (Width - size) / 2 : textRect.Left;
+            using var spinnerPen = new Pen(color, 2 * DeviceDpi / 96f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+            e.Graphics.DrawArc(spinnerPen, x, (Height - size) / 2, size, size, _spinnerAngle, 265);
+            var reserve = 25 * DeviceDpi / 96;
+            textRect.X += reserve; textRect.Width = Math.Max(1, textRect.Width - reserve);
+        }
+        else if (IconKind != 0)
         {
             var size = 18 * DeviceDpi / 96f;
             UiShape.Icon(e.Graphics, new RectangleF(IconOnly ? (Width - size) / 2 : 12 * DeviceDpi / 96f,
@@ -152,10 +225,10 @@ internal sealed class TargetPicker : SoftButton
         using var pen = new Pen(Color.FromArgb(91, 109, 147), 1.6f * scale) { StartCap = LineCap.Round, EndCap = LineCap.Round };
         e.Graphics.DrawLines(pen, [new PointF(x - 4 * scale, y - 2 * scale), new PointF(x, y + 2 * scale), new PointF(x + 4 * scale, y - 2 * scale)]);
     }
-    protected override void OnClick(EventArgs e) { base.OnClick(e); OpenPopup(); }
+    protected override void OnClick(EventArgs e) { if (IsBusy) return; base.OnClick(e); OpenPopup(); }
     internal void OpenPopup()
     {
-        if (Items.Count == 0 || _popup?.Visible == true) return;
+        if (IsBusy || !Enabled || Items.Count == 0 || _popup?.Visible == true) return;
         _popup?.Dispose();
         var itemHeight = Math.Max(Font.Height + 16 * DeviceDpi / 96, 34 * DeviceDpi / 96);
         var list = new ListBox { BorderStyle = BorderStyle.None, DrawMode = DrawMode.OwnerDrawFixed,
@@ -188,6 +261,7 @@ internal sealed class TargetPicker : SoftButton
     }
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
+        if (IsBusy) return base.ProcessCmdKey(ref msg, keyData);
         if (keyData is Keys.Down or Keys.Up && Items.Count > 0)
         {
             SelectedIndex = Math.Clamp(SelectedIndex + (keyData == Keys.Down ? 1 : -1), 0, Items.Count - 1); return true;

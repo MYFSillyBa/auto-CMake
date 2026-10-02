@@ -90,7 +90,8 @@ public sealed partial class MainForm
             Fit(_actionNote, inset, actionTitle.Bottom + Px(13), actionInner);
             _configure.Size = new Size(columns ? actionInner : Math.Min(actionInner, ButtonWidth(_configure, 146)), ButtonHeight(_configure, 36));
             _configure.Location = new Point(inset, _actionNote.Bottom + Px(20));
-            var repairBottom = ButtonRow(_action.Width, inset, _configure.Bottom + Px(9), _autoRepair, _mirrorSource);
+            var repairBottom = _repairCancellation != null ? ButtonRow(_action.Width, inset, _configure.Bottom + Px(9), _autoRepair, _stopRepair, _mirrorSource) :
+                ButtonRow(_action.Width, inset, _configure.Bottom + Px(9), _autoRepair, _mirrorSource);
             Fit(_readiness, inset, repairBottom + Px(14), actionInner);
             var helpBottom = ButtonRow(_action.Width, inset, _readiness.Bottom + Px(8), _repair, _environmentHelp);
             _action.Height = helpBottom + Px(18);
@@ -104,16 +105,22 @@ public sealed partial class MainForm
 
             var outputTitle = _output.Controls.OfType<Label>().First();
             Fit(outputTitle, inset, Px(16), inner);
-            var outputButtons = ButtonRow(width, inset, outputTitle.Bottom + Px(9), _showProblems, _restoreChanges);
-            Fit(_stage, inset, outputButtons + Px(8), inner);
-            _progress.SetBounds(inset, _stage.Bottom + Px(10), inner, Px(3));
+            var outputButtons = ButtonRow(width, inset, outputTitle.Bottom + Px(9), _showProblems, _restoreChanges, _toggleLog);
+            _workflowSteps.Arrange(inner, _previewScale ?? DeviceDpi / 96f);
+            _workflowSteps.Location = new Point(inset, outputButtons + Px(8));
+            Fit(_stage, inset, _workflowSteps.Bottom + Px(8), inner);
+            Fit(_elapsed, inset, _stage.Bottom + Px(3), inner);
+            _progress.SetBounds(inset, _elapsed.Bottom + Px(10), inner, Px(3));
             _log.SetBounds(inset, _progress.Bottom + Px(12), inner, Px(126));
-            _output.Height = _log.Bottom + Px(18);
+            _log.Visible = _logExpanded;
+            _output.Height = (_logExpanded ? _log.Bottom : _progress.Bottom) + Px(18);
+            LayoutCompletion(_completionCard, _completionTitle, _completionBody, width, _openProject, _openFirmware, _viewLastChanges, _completionHelp);
 
             var top = Px(18);
             _hero.Location = new Point(left, top); top = _hero.Bottom + Px(12);
+            if (_notice.Visible) { _notice.Arrange(width, _previewScale ?? DeviceDpi / 96f); _notice.Location = new Point(left, top); top = _notice.Bottom + gap; }
             _drop.Location = new Point(left, top); top = _drop.Bottom + gap;
-            _projectOptionsCard.Location = new Point(left, top); top = _projectOptionsCard.Bottom + gap;
+            if (_projectOptionsCard.Visible) { _projectOptionsCard.Location = new Point(left, top); top = _projectOptionsCard.Bottom + gap; }
             _summary.Location = new Point(left, top);
             if (columns)
             {
@@ -125,9 +132,10 @@ public sealed partial class MainForm
                 _action.Location = new Point(left, _summary.Bottom + gap);
                 top = _action.Bottom + gap;
             }
-            _details.Location = new Point(left, top);
-            _output.Location = new Point(left, _details.Bottom + gap);
-            _flow.SetContentHeight(_output.Bottom + Px(20));
+            if (_details.Visible) { _details.Location = new Point(left, top); top = _details.Bottom + gap; }
+            if (_output.Visible) { _output.Location = new Point(left, top); top = _output.Bottom + gap; }
+            if (_completionShown) { _completionCard.Location = new Point(left, top); top = _completionCard.Bottom + gap; }
+            _flow.SetContentHeight(top + Px(6));
         }
         finally { _flow.Canvas.ResumeLayout(); _layingOut = false; }
     }
@@ -149,6 +157,14 @@ public sealed partial class MainForm
             Fit(title, Px(2), Px(3), width - Px(4));
             Fit(subtitle, Px(2), title.Bottom + Px(5), width - Px(4));
             _sourceHero.Height = subtitle.Bottom + Px(5);
+            if (_project?.IsCMakeProject != true)
+            {
+                _sourceChooseProject.Size = new Size(ButtonWidth(_sourceChooseProject, 140), ButtonHeight(_sourceChooseProject, 38));
+                _sourceChooseProject.Location = new Point(Px(2), subtitle.Bottom + Px(20));
+                _sourceHero.Height = _sourceChooseProject.Bottom + Px(25);
+                _sourceHero.Location = new Point(left, Px(24));
+                _sources.SetContentHeight(_sourceHero.Bottom + Px(24)); return;
+            }
 
             var pickWidth = columns ? (int)((width - gap) * .43) : width;
             var pickInner = pickWidth - inset * 2;
@@ -187,17 +203,25 @@ public sealed partial class MainForm
             var actionTitle = _sourceAction.Controls.OfType<Label>().First();
             var actionHeader = HeaderRow(actionTitle, _applySource, width, inset, Px(16));
             Fit(_sourceStatus, inset, actionHeader + Px(8), inner);
-            var sourceButtons = ButtonRow(width, inset, _sourceStatus.Bottom + Px(9), _sourceProblems, _sourceRestore);
-            _sourceProgress.SetBounds(inset, sourceButtons + Px(10), inner, Px(3));
+            var sourceButtons = ButtonRow(width, inset, _sourceStatus.Bottom + Px(9), _sourceProblems, _sourceRestore, _toggleSourceLog);
+            _sourceSteps.Arrange(inner, _previewScale ?? DeviceDpi / 96f);
+            _sourceSteps.Location = new Point(inset, sourceButtons + Px(8));
+            Fit(_sourceElapsed, inset, _sourceSteps.Bottom + Px(3), inner);
+            _sourceProgress.SetBounds(inset, _sourceElapsed.Bottom + Px(10), inner, Px(3));
             _sourceLog.SetBounds(inset, _sourceProgress.Bottom + Px(12), inner, Px(110));
-            _sourceAction.Height = _sourceLog.Bottom + Px(18);
+            _sourceLog.Visible = _sourceLogExpanded;
+            _sourceAction.Height = (_sourceLogExpanded ? _sourceLog.Bottom : _sourceProgress.Bottom) + Px(18);
+            LayoutCompletion(_sourceCompletionCard, _sourceCompletionTitle, _sourceCompletionBody, width, _sourceNext, _viewSourceChanges);
 
             _sourceHero.Location = new Point(left, Px(18));
             var top = _sourceHero.Bottom + Px(12);
+            if (_sourceNotice.Visible) { _sourceNotice.Arrange(width, _previewScale ?? DeviceDpi / 96f); _sourceNotice.Location = new Point(left, top); top = _sourceNotice.Bottom + gap; }
             _sourcePick.Location = new Point(left, top);
             _sourceFiles.Location = columns ? new Point(_sourcePick.Right + gap, top) : new Point(left, _sourcePick.Bottom + gap);
             _sourceAction.Location = new Point(left, _sourceFiles.Bottom + gap);
-            _sources.SetContentHeight(_sourceAction.Bottom + Px(20));
+            top = _sourceAction.Bottom + gap;
+            if (_sourceCompletionShown) { _sourceCompletionCard.Location = new Point(left, top); top = _sourceCompletionCard.Bottom + gap; }
+            _sources.SetContentHeight(top + Px(6));
         }
         finally { _sources.Canvas.ResumeLayout(); _layingOutSources = false; }
     }
@@ -216,6 +240,14 @@ public sealed partial class MainForm
             Fit(title, Px(2), Px(3), width - Px(4));
             Fit(subtitle, Px(2), title.Bottom + Px(5), width - Px(4));
             _importHero.Height = subtitle.Bottom + Px(5);
+            if (_project?.IsCMakeProject != true)
+            {
+                _importChooseProject.Size = new Size(ButtonWidth(_importChooseProject, 140), ButtonHeight(_importChooseProject, 38));
+                _importChooseProject.Location = new Point(Px(2), subtitle.Bottom + Px(20));
+                _importHero.Height = _importChooseProject.Bottom + Px(25);
+                _importHero.Location = new Point(left, Px(24));
+                _imports.SetContentHeight(_importHero.Bottom + Px(24)); return;
+            }
 
             var pickWidth = columns ? (int)((width - gap) * .43) : width;
             _importDetails.Width = pickWidth;
@@ -246,18 +278,31 @@ public sealed partial class MainForm
             var resultTitle = _importResult.Controls.OfType<Label>().First();
             Fit(resultTitle, inset, Px(18), inner);
             Fit(_importStatus, inset, resultTitle.Bottom + Px(9), inner);
-            var resultButtons = ButtonRow(width, inset, _importStatus.Bottom + Px(13), _copyFiles, _openImported);
-            _importProgress.SetBounds(inset, resultButtons + Px(14), inner, Px(3));
+            var resultButtons = ButtonRow(width, inset, _importStatus.Bottom + Px(13), _copyFiles, _openImported, _toggleImportLog);
+            _importSteps.Arrange(inner, _previewScale ?? DeviceDpi / 96f);
+            _importSteps.Location = new Point(inset, resultButtons + Px(10));
+            Fit(_importElapsed, inset, _importSteps.Bottom + Px(3), inner);
+            _importProgress.SetBounds(inset, _importElapsed.Bottom + Px(10), inner, Px(3));
             _importLog.SetBounds(inset, _importProgress.Bottom + Px(12), inner, Px(90));
-            _importResult.Height = _importLog.Bottom + Px(18);
+            _importLog.Visible = _importLogExpanded;
+            _importResult.Height = (_importLogExpanded ? _importLog.Bottom : _importProgress.Bottom) + Px(18);
 
             _importHero.Location = new Point(left, Px(18));
             var top = _importHero.Bottom + Px(12);
+            if (_importNotice.Visible) { _importNotice.Arrange(width, _previewScale ?? DeviceDpi / 96f); _importNotice.Location = new Point(left, top); top = _importNotice.Bottom + gap; }
             _importDetails.Location = new Point(left, top);
             _importFiles.Location = columns ? new Point(_importDetails.Right + gap, top) : new Point(left, _importDetails.Bottom + gap);
             _importResult.Location = new Point(left, _importFiles.Bottom + gap);
             _imports.SetContentHeight(_importResult.Bottom + Px(20));
         }
         finally { _imports.Canvas.ResumeLayout(); _layingOutImports = false; }
+    }
+
+    private void LayoutCompletion(RoundedPanel card, Label title, Label body, int width, params Button[] buttons)
+    {
+        if (card == null) return;
+        card.Width = width; var inset = Px(20); var inner = Math.Max(1, width - inset * 2);
+        Fit(title, inset, Px(16), inner); Fit(body, inset, title.Bottom + Px(10), inner);
+        card.Height = ButtonRow(width, inset, body.Bottom + Px(14), buttons.Where(x => x.Visible).ToArray()) + Px(18);
     }
 }
