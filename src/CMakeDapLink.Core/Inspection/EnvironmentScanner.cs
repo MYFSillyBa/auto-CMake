@@ -18,13 +18,20 @@ public static class EnvironmentScanner
     {
         if (IsScripts(preferred)) return Path.GetFullPath(preferred!);
         if (openocd == null) return null;
-        var dir = new DirectoryInfo(Path.GetDirectoryName(openocd)!);
+        return PairedScriptDirectories(openocd).FirstOrDefault(IsScripts);
+    }
+
+    internal static IEnumerable<string> PairedScriptDirectories(string openocd)
+    {
+        var dir = new DirectoryInfo(Path.GetDirectoryName(Path.GetFullPath(openocd))!);
         for (var i = 0; dir != null && i < 4; i++, dir = dir.Parent)
         {
+            if (dir.Parent == null) yield break;
+            var found = false;
             foreach (var candidate in new[] { Path.Combine(dir.FullName, "scripts"), Path.Combine(dir.FullName, "openocd", "scripts"), Path.Combine(dir.FullName, "share", "openocd", "scripts") })
-                if (IsScripts(candidate)) return candidate;
+                if (Directory.Exists(candidate)) { found = true; yield return candidate; }
+            if (found) yield break;
         }
-        return null;
     }
 
     public static bool IsScripts(string? path) => path != null &&

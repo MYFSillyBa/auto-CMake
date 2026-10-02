@@ -14,16 +14,7 @@ public sealed record ProjectInfo(string Root, bool IsCMakeProject, string? Chip,
 
 public static class ProjectInspector
 {
-    private const string ChipPattern = @"\bSTM32[A-Z]{1,2}[0-9][A-Z0-9]{2,12}\b";
-    private static readonly (string Prefix, string Script)[] Targets =
-    [
-        ("STM32H7", "target/stm32h7x.cfg"), ("STM32F7", "target/stm32f7x.cfg"),
-        ("STM32F4", "target/stm32f4x.cfg"), ("STM32F3", "target/stm32f3x.cfg"),
-        ("STM32F2", "target/stm32f2x.cfg"), ("STM32F1", "target/stm32f1x.cfg"),
-        ("STM32F0", "target/stm32f0x.cfg"), ("STM32G4", "target/stm32g4x.cfg"),
-        ("STM32G0", "target/stm32g0x.cfg"), ("STM32L4", "target/stm32l4x.cfg"),
-        ("STM32L0", "target/stm32l0.cfg"), ("STM32U5", "target/stm32u5x.cfg")
-    ];
+    private const string ChipPattern = @"\bSTM32(?:WBA|[A-Z]{1,2})[0-9][A-Z0-9]{2,12}\b";
     private static readonly HashSet<string> SkippedDirectories = new(StringComparer.OrdinalIgnoreCase)
         { ".git", ".vs", ".vscode", "build", "bin", "obj", "Drivers", "CMSIS", "Middlewares", "third_party", "node_modules" };
 
@@ -112,8 +103,7 @@ public static class ProjectInspector
         };
     }
 
-    public static string? TargetForChip(string chip) => Targets
-        .FirstOrDefault(x => chip.Trim().StartsWith(x.Prefix, StringComparison.OrdinalIgnoreCase)).Script;
+    public static string? TargetForChip(string chip) => OpenOcdScripts.TargetForChip(chip);
 
     private static bool Compatible(string first, string second)
     {
@@ -152,7 +142,7 @@ public static class ProjectInspector
                 if (command == null && item.TryGetProperty("arguments", out var arguments) && arguments.ValueKind == JsonValueKind.Array)
                     command = string.Join(" ", arguments.EnumerateArray().Where(a => a.ValueKind == JsonValueKind.String).Select(a => a.GetString()));
                 if (command == null) continue;
-                foreach (Match macro in Regex.Matches(command, @"(?:-D|/D)\s*[""']?(STM32[A-Z]{1,2}[0-9][A-Z0-9]{2,12})\b", RegexOptions.IgnoreCase))
+                foreach (Match macro in Regex.Matches(command, @"(?:-D|/D)\s*[""']?(STM32(?:WBA|[A-Z]{1,2})[0-9][A-Z0-9]{2,12})\b", RegexOptions.IgnoreCase))
                     add(macro.Groups[1].Value, Path.GetRelativePath(root, path) + " / 实际编译宏");
             }
         }

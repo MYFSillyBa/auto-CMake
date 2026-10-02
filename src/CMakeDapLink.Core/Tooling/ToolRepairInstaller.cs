@@ -28,8 +28,12 @@ public sealed class ToolRepairInstaller : IDisposable
     }
 
     public async Task<ToolRepairResult> RepairAsync(ToolPaths current, IReadOnlyCollection<string> brokenKeys,
-        string? target, IProgress<ToolRepairProgress>? progress = null, CancellationToken cancellation = default)
+        string? target, IProgress<ToolRepairProgress>? progress = null, CancellationToken cancellation = default,
+        bool openOcdOnly = false, bool allowTargetAlias = false)
     {
+        target = string.IsNullOrWhiteSpace(target) ? null : target.Trim().Replace('\\', '/');
+        if (openOcdOnly && (target == null || !OpenOcdScripts.ValidTarget(target)))
+            return new(current, [], ["请先选择匹配芯片的有效 target/*.cfg，再补全 OpenOCD 脚本。"]);
         Directory.CreateDirectory(_root);
         ToolVersionManager.EnsureOrdinaryPath(_root);
         if ((File.GetAttributes(_root) & FileAttributes.ReparsePoint) != 0)
@@ -37,13 +41,38 @@ public sealed class ToolRepairInstaller : IDisposable
         var settings = ManagedTools.LoadSettings();
         if (!File.Exists(ManagedTools.SettingsPath)) ManagedTools.SaveSettings(settings);
         var percent = 0;
-        void Log(string message) => progress?.Report(new(percent, "自动修复构建环境", message));
+        void Log(string message) => progress?.Report(new(percent, openOcdOnly ? "自动补全 OpenOCD Target 脚本" : "自动修复构建环境", message));
         var catalog = new ToolDownloadCatalog(_http, settings, Log);
         var installed = new List<string>(); var problems = new List<string>();
-        var missing = new[] { "CMake", "Ninja", "Compiler", "OpenOcd" }.Where(key =>
-            !File.Exists(GetPath(current, key)) || brokenKeys.Contains(key) || key == "OpenOcd" && !EnvironmentScanner.IsScripts(current.Scripts)).ToArray();
+        var keys = openOcdOnly ? new[] { "OpenOcd" } : new[] { "CMake", "Ninja", "Compiler", "OpenOcd" };
+        var localReady = false; var localPairChanged = false;
+        if (target != null)
+        {
+            Log("先查找并解析本机配套完整 OpenOCD 包：" + target);
+            var local = await OpenOcdScripts.ResolveAsync(current, null, target, cancellation: cancellation, allowTargetAlias: allowTargetAlias);
+            localReady = local.Ready;
+            if (localReady)
+            {
+                localPairChanged = current.OpenOcd != local.Tools.OpenOcd || current.Scripts != local.Tools.Scripts;
+                current = local.Tools;
+                target = local.Target;
+                Log(local.Details);
+            }
+            else Log(local.Details);
+        }
+        var missing = keys.Where(key => !File.Exists(GetPath(current, key)) || brokenKeys.Contains(key) || key == "OpenOcd" &&
+            (!EnvironmentScanner.IsScripts(current.Scripts) || brokenKeys.Contains("Scripts") || brokenKeys.Contains("Target") ||
+                target != null && !localReady)).Where(key => key != "OpenOcd" || !localReady).ToArray();
         await using (var initialOperation = await ManagedTools.AcquirePathsLockAsync(cancellation))
-            current = ManagedTools.ReconcilePathsLocked(current, missing);
+        {
+            current = ManagedTools.ReconcilePathsLocked(current, localPairChanged ? missing.Append("OpenOcd").ToArray() : missing);
+            if (localPairChanged)
+            {
+                await OpenOcdScripts.ValidateAsync(current, allowTargetAlias ? OpenOcdScripts.AvailableTarget(current.Scripts, target!) : target!, cancellation);
+                cancellation.ThrowIfCancellationRequested();
+                ManagedTools.SavePathsLocked(current);
+            }
+        }
         Log("安装目录：" + _root + "；只补齐缺失或无法运行的工具，保留已有可用工具。");
         for (var i = 0; i < missing.Length; i++)
         {
@@ -60,13 +89,13 @@ public sealed class ToolRepairInstaller : IDisposable
                 try
                 {
                     var package = await catalog.OfficialAsync(key, cancellation);
-                    location = await InstallAsync(package, validationTools, percent, 80 / missing.Length, progress, cancellation);
+                    location = await InstallForTargetAsync(package, validationTools, target, percent, 80 / missing.Length, progress, cancellation, allowTargetAlias);
                 }
                 catch (Exception ex) when (!cancellation.IsCancellationRequested && ex is not UnauthorizedAccessException)
                 {
                     Log(DisplayName(key) + " 官方下载暂不可用：" + ex.Message + "；查询备用发行版。");
                     var package = await catalog.AlternativeAsync(key, cancellation);
-                    location = await InstallAsync(package, validationTools, percent, 80 / missing.Length, progress, cancellation);
+                    location = await InstallForTargetAsync(package, validationTools, target, percent, 80 / missing.Length, progress, cancellation, allowTargetAlias);
                 }
                 current = await new ToolVersionManager(_root).ActivateForRepairAsync(location, current, pending, cancellation);
                 percent = 5 + (i + 1) * 80 / Math.Max(1, missing.Length);
@@ -77,8 +106,8 @@ public sealed class ToolRepairInstaller : IDisposable
         }
         await using var operation = await ManagedTools.AcquirePathsLockAsync(cancellation);
         current = ManagedTools.ReconcilePathsLocked(current, []);
-        percent = 90; progress?.Report(new(percent, "验证工具链与 CMSIS-DAP 配置"));
-        foreach (var key in new[] { "CMake", "Ninja", "Compiler", "OpenOcd" })
+        percent = 90; progress?.Report(new(percent, openOcdOnly ? "验证 OpenOCD Target 与 CMSIS-DAP 配置" : "验证工具链与 CMSIS-DAP 配置"));
+        foreach (var key in keys)
         {
             var path = GetPath(current, key);
             if (path == null || !File.Exists(path)) continue;
@@ -86,7 +115,7 @@ public sealed class ToolRepairInstaller : IDisposable
             catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
             catch (Exception ex) { problems.Add(DisplayName(key) + " 验证：" + ex.Message); }
         }
-        if (File.Exists(current.CMake) && File.Exists(current.Ninja) && File.Exists(current.Compiler))
+        if (!openOcdOnly && File.Exists(current.CMake) && File.Exists(current.Ninja) && File.Exists(current.Compiler))
         {
             try { await VerifyBuildAsync(current, cancellation, _root); Log("CMake + Ninja + ARM GCC 实际编译通过（ARM ELF）。"); }
             catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
@@ -96,12 +125,14 @@ public sealed class ToolRepairInstaller : IDisposable
         {
             try
             {
-                var args = new List<string> { "-s", current.Scripts!, "-f", "interface/cmsis-dap.cfg", "-c", "transport select swd" };
-                if (!string.IsNullOrWhiteSpace(target) && Regex.IsMatch(target, @"\Atarget/[a-zA-Z0-9_.-]+\.cfg\z") && File.Exists(Path.Combine(current.Scripts!, target)))
-                    args.AddRange(["-f", target]);
-                args.AddRange(["-c", "shutdown"]);
-                await RunAsync(current.OpenOcd!, args, _root, current, cancellation);
-                Log("OpenOCD CMSIS-DAP/SWD 脚本解析通过。");
+                if (!string.IsNullOrWhiteSpace(target))
+                {
+                    var actualTarget = allowTargetAlias ? OpenOcdScripts.AvailableTarget(current.Scripts, target) : target;
+                    await OpenOcdScripts.ValidateAsync(current, actualTarget, cancellation);
+                    Log("OpenOCD " + actualTarget + " 与 CMSIS-DAP/SWD 脚本解析通过（未连接硬件）。");
+                }
+                else
+                    await RunAsync(current.OpenOcd!, ["-s", current.Scripts!, "-f", "interface/cmsis-dap.cfg", "-c", "transport select swd", "-c", "shutdown"], _root, current, cancellation);
             }
             catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
             catch (Exception ex) { problems.Add("OpenOCD 配置验证：" + ex.Message); Log(problems[^1]); }
@@ -116,6 +147,16 @@ public sealed class ToolRepairInstaller : IDisposable
     public Task<ToolInstallation> InstallPackageAsync(ToolPackage package, ToolPaths current,
         IProgress<ToolRepairProgress>? progress = null, CancellationToken cancellation = default)
         => InstallAsync(package, current, 0, 100, progress, cancellation);
+
+    private async Task<ToolInstallation> InstallForTargetAsync(ToolPackage package, ToolPaths current, string? target,
+        int start, int span, IProgress<ToolRepairProgress>? progress, CancellationToken cancellation, bool allowTargetAlias)
+    {
+        var installation = await InstallAsync(package, current, start, span, progress, cancellation);
+        if (package.Key == "OpenOcd" && !string.IsNullOrWhiteSpace(target))
+            await OpenOcdScripts.ValidateAsync(current with { OpenOcd = installation.Executable, Scripts = installation.Scripts },
+                allowTargetAlias ? OpenOcdScripts.AvailableTarget(installation.Scripts, target) : target, cancellation);
+        return installation;
+    }
 
     private async Task<ToolInstallation> InstallAsync(ToolPackage package, ToolPaths current, int start, int span,
         IProgress<ToolRepairProgress>? progress, CancellationToken cancellation)

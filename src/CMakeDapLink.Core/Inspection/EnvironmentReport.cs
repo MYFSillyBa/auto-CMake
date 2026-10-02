@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 namespace CMakeDapLink.Core;
 
 public sealed record SetupIssue(string Key, string Title, string Instructions, bool BlocksConfiguration = true);
@@ -28,8 +26,20 @@ public static class EnvironmentReport
         if (!EnvironmentScanner.IsScripts(tools.Scripts))
             issues.Add(new("Scripts", "CMSIS-DAP 脚本目录缺失", "点击“自动修复”补齐 OpenOCD 完整包；或者在“脚本目录”行选择同时含 interface/cmsis-dap.cfg 和 target 文件夹的 scripts 目录，通常在 share/openocd/scripts 或 openocd/scripts 下。"));
         target = target.Trim().Replace('\\', '/');
-        if (!Regex.IsMatch(target, @"\Atarget/[a-zA-Z0-9_.-]+\.cfg\z") || tools.Scripts != null && !File.Exists(Path.Combine(tools.Scripts, target)))
-            issues.Add(new("Target", "OpenOCD Target 尚未确认", "先确认芯片具体型号，再在“Target 脚本”填写 scripts 下实际存在且匹配芯片的 target/xxx.cfg，例如 STM32H7 使用 target/stm32h7x.cfg。无法自动识别的型号需要手动核对。"));
+        var mapped = project?.Chip == null ? null : OpenOcdScripts.TargetForChip(project.Chip);
+        if (string.IsNullOrWhiteSpace(target) || !OpenOcdScripts.ValidTarget(target))
+            issues.Add(new("Target", mapped == null ? "芯片 Target 需要手动匹配" : "OpenOCD Target 尚未补全", mapped == null
+                ? "先确认芯片具体型号。该型号尚无可靠自动映射，请手动选择与芯片匹配的 target/*.cfg 和配套完整 OpenOCD 工具包。"
+                : "已识别芯片对应 " + mapped + "；程序会先查找本机配套完整 OpenOCD 包，缺失时自动下载。可点击“自动修复”重试。"));
+        else
+        {
+            var missing = OpenOcdScripts.MissingFiles(tools.Scripts, target);
+            if (missing.Count != 0)
+                issues.Add(new("Target", missing.Contains(target, StringComparer.OrdinalIgnoreCase) ? "OpenOCD Target 脚本缺失" : "OpenOCD 脚本依赖不完整",
+                    "当前 Target：" + target + "\n缺少或无法读取：" + string.Join("、", missing) + "\n点击“自动修复”查找或下载配套完整 OpenOCD 包后重试。"));
+            else if (runFailures.TryGetValue("Target", out var parseFailure) || runFailures.TryGetValue("Scripts", out parseFailure))
+                issues.Add(new("Target", "OpenOCD Target 脚本解析未通过", "当前 Target：" + target + "\n检测结果：" + parseFailure + "\n点击“自动修复”下载匹配的完整工具包后重试；脚本验证不连接硬件。"));
+        }
         if (project?.IsCMakeProject == true)
         {
             if (project.Chip == null)
