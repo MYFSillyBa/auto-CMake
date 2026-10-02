@@ -716,39 +716,63 @@ public sealed partial class MainForm : Form
         }
         if (_tools.CMake == null || _tools.Ninja == null || _tools.Compiler == null || _tools.OpenOcd == null || _tools.Scripts == null) return;
         BeginFeedback("configure", _configure, "配置验证中…"); _lastTaskChanges = [];
+        _buildProblems.Clear(); _buildOutput.Clear();
+        var tasksWritten = false;
         SetBusy(true, "准备配置工程…", 15);
         try
         {
             var options = CreateOptions();
             FeedbackStep(0, StepState.Complete);
             var plan = CMakeBuildPlan.Create(options);
-            await RunBuildAsync(plan);
-            var elf = ChooseFirmware(CMakeBuildPlan.FindElfs(plan.BuildDirectory, plan.BuildConfiguration), options.Root);
-            if (elf == null) { _stage.Text = "已取消固件选择，未写入任务。"; FeedbackStep(3, StepState.Cancelled); Notify(_stage.Text); return; }
-            _firmwareLabel.Text = "固件：" + Path.GetRelativePath(options.Root, elf);
-            Append("已确认固件：" + elf);
-            SetBusy(true, "检查 OpenOCD 脚本解析…", 88);
-            FeedbackStep(3, StepState.Running);
-            var openocd = await ProcessTools.RunAsync(_tools.OpenOcd, ["-s", _tools.Scripts, "-f", "interface/cmsis-dap.cfg", "-c", "transport select swd",
-                "-f", target, "-c", "shutdown"], _project.Root, TimeSpan.FromSeconds(20), Append);
-            if (openocd.ExitCode != 0) throw new InvalidOperationException("编译通过，但 OpenOCD 配置检查失败，退出码 " + openocd.ExitCode + "。");
-            FeedbackStep(3, StepState.Complete);
-            FeedbackStep(4, StepState.Running);
-            SetBusy(true, "正在写入 VS Code 任务…", 95);
-            var configuredOptions = options with { FirmwareElfPath = elf };
-            var changes = ConfigurationWriter.Preview(configuredOptions);
+            FeedbackStep(1, StepState.Running);
+            SetBusy(true, "预览 VS Code 任务，确认后先写入…", 25);
+            var changes = ConfigurationWriter.Preview(options);
             if (changes.Count > 0)
             {
-                using var preview = new ChangePreviewDialog(options.Root, "配置 VS Code 编译与烧录任务", changes);
-                _stage.Text = "等待确认任务修改，确认后写入。";
+                using var preview = new ChangePreviewDialog(options.Root, "先写入 VS Code 任务，再进行编译测试", changes);
                 if (preview.ShowDialog(this) != DialogResult.OK)
                 {
-                    _stage.Text = "已取消写入任务。"; FeedbackStep(4, StepState.Cancelled);
-                    ShowCompletion("编译通过，已取消写入任务", FirmwareSummary(elf, options.BuildConfiguration), elf); return;
+                    _stage.Text = "已取消写入任务，未执行 CMake 配置和编译测试。";
+                    FeedbackStep(1, StepState.Cancelled); Notify(_stage.Text); return;
                 }
                 ChangeHistory.Apply(options.Root, "配置 VS Code 编译与烧录任务", changes);
             }
-            _lastTaskChanges = changes; FeedbackStep(4, StepState.Complete);
+            tasksWritten = true; _lastTaskChanges = changes;
+            FeedbackStep(1, StepState.Complete);
+            Append("VS Code 任务已写入，接下来进行配置和编译测试；验证问题不会撤销任务。");
+            await RunBuildAsync(plan);
+            var firmware = CMakeBuildPlan.FindElfs(plan.BuildDirectory, plan.BuildConfiguration);
+            var elf = ChooseFirmware(firmware, options.Root);
+            if (elf == null)
+            {
+                _stage.Text = "任务已保留，编译通过；尚未确认多个目标中的烧录固件。";
+                FeedbackStep(4, StepState.Cancelled);
+                ShowCompletion("任务已写入，待确认烧录固件", "可运行“一键编译”；请重新配置并选择烧录固件，烧录任务不会猜测目标。", attention: true); return;
+            }
+            var selectedChanges = ConfigurationWriter.Preview(options with { FirmwareElfPath = elf });
+            if (firmware.Count > 1)
+            {
+                if (selectedChanges.Count > 0)
+                {
+                    using var preview = new ChangePreviewDialog(options.Root, "将所选固件绑定到已写入的烧录任务", selectedChanges);
+                    if (preview.ShowDialog(this) != DialogResult.OK)
+                    {
+                        FeedbackStep(4, StepState.Cancelled);
+                        ShowCompletion("任务已保留，待确认烧录固件", "编译通过；取消了所选固件绑定。可运行“一键编译”，烧录任务不会在多个目标中自动选择。", elf, attention: true); return;
+                    }
+                    ChangeHistory.Apply(options.Root, "选择烧录固件：" + Path.GetFileName(elf), selectedChanges);
+                    _lastTaskChanges = changes.Concat(selectedChanges).GroupBy(x => x.Path, StringComparer.OrdinalIgnoreCase)
+                        .Select(x => new FileChange(x.Key, x.First().Before, x.Last().After)).ToArray();
+                }
+            }
+            _firmwareLabel.Text = "固件：" + Path.GetRelativePath(options.Root, elf);
+            Append("已确认固件：" + elf);
+            SetBusy(true, "检查 OpenOCD 脚本解析…", 88);
+            FeedbackStep(4, StepState.Running);
+            var openocd = await ProcessTools.RunAsync(_tools.OpenOcd, ["-s", _tools.Scripts, "-f", "interface/cmsis-dap.cfg", "-c", "transport select swd",
+                "-f", target, "-c", "shutdown"], _project.Root, TimeSpan.FromSeconds(20), Append);
+            if (openocd.ExitCode != 0) throw new InvalidOperationException("编译通过，但 OpenOCD 配置检查失败，退出码 " + openocd.ExitCode + "。");
+            FeedbackStep(4, StepState.Complete);
             Append("VS Code 任务已配置；本次变更可通过“恢复修改”撤回。");
             SetBusy(true, "配置完成：编译与 OpenOCD 配置检查通过。", 100);
             Append("验证通过。VS Code 中可运行“一键编译”和“一键烧录(DAPLINK)”；烧录任务会编译、下载、校验并复位。未执行硬件烧录。");
@@ -758,7 +782,9 @@ public sealed partial class MainForm : Form
         catch (Exception ex)
         {
             _stage.Text = "验证未通过：" + ex.Message; Append("错误：" + ex); FinishActiveSteps(StepState.Attention);
-            ShowCompletion("配置需要处理", ex.Message + "\n查看问题与日志了解具体位置和处理建议。", attention: true);
+            ShowCompletion(tasksWritten ? "任务已写入，验证需要处理" : "任务配置需要处理", ex.Message +
+                (tasksWritten ? "\nVS Code 任务已保留，可修正工程后运行“一键编译”，或通过“恢复修改”撤回。" : "\n本次尚未写入任务。") +
+                "\n查看问题与日志了解具体位置和处理建议。", attention: true);
         }
         finally { _busy = false; EndFeedback(); }
     }
@@ -781,20 +807,20 @@ public sealed partial class MainForm : Form
         void Capture(string line) { _buildOutput.Enqueue(line); Append(line); }
         _buildOutput.Enqueue("=== CMake 配置 ===");
         SetBusy(true, "CMake 正在配置工程…", 40);
-        FeedbackStep(_operation == "source" ? 2 : 1, StepState.Running);
+        FeedbackStep(2, StepState.Running);
         var configure = await ProcessTools.RunAsync(plan.Configure.Executable, plan.Configure.Arguments,
             plan.Configure.WorkingDirectory, TimeSpan.FromMinutes(5), Capture, plan.Configure.PathPrefix);
         _buildProblems.AddRange(BuildDiagnostics.Parse(configure.Output, plan.Configure.WorkingDirectory, "CMake 配置"));
         if (configure.ExitCode != 0) throw new InvalidOperationException("CMake 配置失败，退出码 " + configure.ExitCode + "。请查看执行日志。");
-        FeedbackStep(_operation == "source" ? 2 : 1, StepState.Complete);
+        FeedbackStep(2, StepState.Complete);
         SetBusy(true, "正在实际编译工程…", 68);
-        FeedbackStep(_operation == "source" ? 3 : 2, StepState.Running);
+        FeedbackStep(3, StepState.Running);
         _buildOutput.Enqueue("=== 编译与链接 ===");
         var build = await ProcessTools.RunAsync(plan.Build.Executable, plan.Build.Arguments,
             plan.Build.WorkingDirectory, TimeSpan.FromMinutes(15), Capture, plan.Build.PathPrefix);
         _buildProblems.AddRange(BuildDiagnostics.Parse(build.Output, plan.Build.WorkingDirectory, "源码编译"));
         if (build.ExitCode != 0) throw new InvalidOperationException("实际编译失败，退出码 " + build.ExitCode + "。请查看执行日志。");
-        FeedbackStep(_operation == "source" ? 3 : 2, StepState.Complete);
+        FeedbackStep(3, StepState.Complete);
         SetBusy(true, "CMake 编译已通过。", 82);
     }
 

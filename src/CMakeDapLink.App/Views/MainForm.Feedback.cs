@@ -45,7 +45,7 @@ public sealed partial class MainForm
 
     private void BuildFeedback()
     {
-        _workflowSteps.Reset("检查环境", "配置 CMake", "编译", "检查脚本", "写入任务");
+        _workflowSteps.Reset("检查环境", "写入任务", "配置 CMake", "编译", "检查脚本");
         _sourceSteps.Reset("检查环境", "写入配置", "配置 CMake", "编译验证");
         _importSteps.Reset("核对文件", "复制校验", "完成");
         _output.Controls.AddRange([_workflowSteps, _elapsed, _toggleLog]);
@@ -86,7 +86,7 @@ public sealed partial class MainForm
         if (operation == "configure")
         {
             _completionShown = false; _completionCard.Visible = false; _notice.Visible = false;
-            _workflowSteps.Reset("检查环境", "配置 CMake", "编译", "检查脚本", "写入任务");
+            _workflowSteps.Reset("检查环境", "写入任务", "配置 CMake", "编译", "检查脚本");
             _workflowSteps.SetStep(0, StepState.Running);
         }
         if (operation == "source")
@@ -226,7 +226,7 @@ public sealed partial class MainForm
         _firmwareLabel.Text = "配置有变化，请重新配置并验证，以确认当前固件和 VS Code 任务。";
         if (resetWorkflow)
         {
-            _workflowSteps.Reset("检查环境", "配置 CMake", "编译", "检查脚本", "写入任务");
+            _workflowSteps.Reset("检查环境", "写入任务", "配置 CMake", "编译", "检查脚本");
             _progress.Value = 0; _elapsed.Text = "";
             if (_operation == "") { _sourceSteps.Reset("检查环境", "写入配置", "配置 CMake", "编译验证"); _sourceProgress.Value = 0; _sourceElapsed.Text = ""; }
         }
