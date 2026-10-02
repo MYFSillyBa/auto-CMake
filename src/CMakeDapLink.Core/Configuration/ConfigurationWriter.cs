@@ -27,11 +27,10 @@ public static class ConfigurationWriter
         if (!File.Exists(Path.Combine(root, "CMakeLists.txt"))) throw new ArgumentException("缺少 CMakeLists.txt。", nameof(options));
         if (options.ConfigurePreset != null && options.BuildDirectory == null)
             throw new ArgumentException("预设没有可用构建目录。", nameof(options));
-        if (options.FirmwareElfPath == null || !File.Exists(options.FirmwareElfPath))
-            throw new ArgumentException("请先成功编译并确认唯一的 ELF 文件。", nameof(options));
-        var elf = Path.GetFullPath(options.FirmwareElfPath);
-        var buildDirectory = Path.GetFullPath(options.BuildDirectory ?? Path.Combine(root, "build", "daplink-debug"));
-        if (!IsInside(buildDirectory, elf)) throw new ArgumentException("ELF 不在当前构建目录内。", nameof(options));
+        var plan = CMakeBuildPlan.Create(options);
+        var elf = options.FirmwareElfPath == null ? null : Path.GetFullPath(options.FirmwareElfPath);
+        if (elf != null && (!File.Exists(elf) || !IsInside(plan.BuildDirectory, elf)))
+            throw new ArgumentException("所选 ELF 不存在或不在当前构建目录内。", nameof(options));
 
         var vscode = Path.Combine(root, ".vscode");
         var tasksPath = Path.Combine(vscode, "tasks.json");
@@ -48,8 +47,8 @@ public static class ConfigurationWriter
         var buildLabel = AvailableLabel(BuildLabel);
         var flashLabel = AvailableLabel(FlashLabel);
         var managed = new List<JsonObject>();
-        var plan = CMakeBuildPlan.Create(options);
-        managed.Add(MakeProcessTask(configureLabel, plan.Configure, hidden: true));
+        var runnerPath = DapLinkTaskScript.AvailablePath(root);
+        managed.Add(MakeProcessTask(configureLabel, plan.Configure with { Arguments = ["-DACTION=configure", "-P", runnerPath] }, hidden: true));
         var build = MakeProcessTask(buildLabel, plan.Build);
         build["dependsOn"] = configureLabel;
         build["dependsOrder"] = "sequence";
@@ -57,15 +56,19 @@ public static class ConfigurationWriter
         build["problemMatcher"] = new JsonArray("$gcc");
         managed.Add(build);
 
-        var flashArgs = new List<string> { "-s", options.Scripts, "-f", "interface/cmsis-dap.cfg", "-c", "transport select swd",
-            "-f", options.TargetScript, "-c", "adapter speed 1000; program {" + TclPath(elf) + "} verify reset exit" };
-        var flash = MakeProcessTask(flashLabel, new(options.OpenOcd, flashArgs, root, plan.Configure.PathPrefix));
+        var flashArgs = new List<string> { "-DACTION=flash" };
+        if (elf != null) flashArgs.Add("-DFIRMWARE_ELF=" + elf);
+        flashArgs.AddRange(["-P", runnerPath]);
+        var flash = MakeProcessTask(flashLabel, new(options.CMake, flashArgs, root, plan.Configure.PathPrefix));
         flash["dependsOn"] = buildLabel;
         flash["dependsOrder"] = "sequence";
         managed.Add(flash);
         var after = JsoncTaskEditor.Update(before, managed);
         var changes = new List<FileChange>();
         if (before == null || !before.AsSpan().SequenceEqual(after)) changes.Add(new(tasksPath, before, after));
+        var runnerBefore = File.Exists(runnerPath) ? File.ReadAllBytes(runnerPath) : null;
+        var runnerAfter = DapLinkTaskScript.Create(options, plan);
+        if (runnerBefore == null || !runnerBefore.AsSpan().SequenceEqual(runnerAfter)) changes.Add(new(runnerPath, runnerBefore, runnerAfter));
         AddLegacyRemoval(vscode, changes);
         return changes;
     }
@@ -86,7 +89,6 @@ public static class ConfigurationWriter
         return task;
     }
 
-    private static string TclPath(string path) => path.Replace('\\', '/').Replace("{", "\\{").Replace("}", "\\}");
     private static bool IsInside(string directory, string path) =>
         path.StartsWith(directory.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 
