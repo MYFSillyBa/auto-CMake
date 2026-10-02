@@ -21,7 +21,7 @@ internal static class NormalFlow
                 { completionShown = true; dialog.DialogResult = DialogResult.Cancel; dialog.Close(); }
             };
             closeDialog.Start();
-            Await(Invoke(form, "AutoRepairAsync")); closeDialog.Stop();
+            Await(Invoke(form, "AutoRepairAsync", false)); closeDialog.Stop();
             if (!completionShown || !Field<Label>(form, "_stage").Text.Contains("验证通过")) throw new Exception("正常自动修复流程没有通过");
             foreach (var button in Walk(form).OfType<Button>())
                 if (button.FlatAppearance.BorderSize != 0) throw new Exception("按钮仍有描边：" + button.Text);

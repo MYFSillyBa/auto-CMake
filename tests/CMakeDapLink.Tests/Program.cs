@@ -12,6 +12,12 @@ var root = Path.Combine(Path.GetTempPath(), "CMakeDapLinkTests-" + Guid.NewGuid(
 Directory.CreateDirectory(root);
 try
 {
+    if (args.Contains("--target-scripts-flow", StringComparer.Ordinal))
+    {
+        OpenOcdScriptChecks.Run(root, Check, args.Contains("--download-official", StringComparer.Ordinal));
+        foreach (var failure in failures) Console.Error.WriteLine(failure);
+        return failures.Count == 0 ? 0 : 1;
+    }
     if (args.Contains("--conversion-flow", StringComparer.Ordinal))
     {
         CubeMxConversionChecks.Run(root, Check);
@@ -25,6 +31,7 @@ try
         ChangeHistoryChecks.Run(root, Check);
         SoftwareWorkflowChecks.Run(root, Check);
         ToolManagementChecks.Run(root, Check);
+        OpenOcdScriptChecks.Run(root, Check);
         foreach (var failure in failures) Console.Error.WriteLine(failure);
         return failures.Count == 0 ? 0 : 1;
     }
