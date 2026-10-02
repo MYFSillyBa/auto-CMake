@@ -217,6 +217,9 @@ public sealed partial class MainForm
     }
     private void InvalidateCompletion(bool resetWorkflow = true)
     {
+        if (!_conversionRunning && _project != null && _conversionRoot != null &&
+            Path.GetFullPath(_project.Root).Equals(Path.GetFullPath(_conversionRoot), StringComparison.OrdinalIgnoreCase))
+            InvalidateConversionTargets();
         _completionShown = _sourceCompletionShown = false; _completedFirmware = null;
         if (_completionCard == null) return;
         _completionCard.Visible = _sourceCompletionCard.Visible = false;

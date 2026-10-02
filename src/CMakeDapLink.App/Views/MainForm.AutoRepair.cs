@@ -95,7 +95,8 @@ public sealed partial class MainForm
             _stage.Text = "正在完成当前操作，请结束后再关闭窗口。";
             if (_operation == "source") _sourceStatus.Text = _stage.Text;
             if (_operation == "import") _importStatus.Text = _stage.Text;
-            LayoutPage(); LayoutSourcePage(); LayoutImportPage();
+            if (_conversionRunning) _conversionStage.Text = _stage.Text;
+            LayoutPage(); LayoutSourcePage(); LayoutImportPage(); LayoutConversionPage();
         }
         base.OnFormClosing(e);
     }

@@ -22,8 +22,8 @@ public sealed partial class MainForm : Form
     private readonly Button _navSources = Button("添加源文件", false);
     private readonly Button _navImport = Button("加入文件", false);
     private readonly ToolTip _navTips = new();
-    private readonly Label _sideBrand = Label("CMake", 13, Ink, bold: true);
-    private readonly Label _sideHint = Label("DAPLink 配置助手", 8.5f, Muted);
+    private readonly Label _sideBrand = Label("STM32", 13, Ink, bold: true);
+    private readonly Label _sideHint = Label("工程助手\nCMake · Keil · DAPLink", 8.5f, Muted);
     private readonly Label _sideFoot = Label("本地工作区", 8.5f, Muted);
     private readonly LineIcon _brandIcon = new(1) { BackColor = Color.Transparent };
     private readonly Panel _sideDivider = new() { BackColor = Border };
@@ -93,7 +93,7 @@ public sealed partial class MainForm : Form
     {
         _previewScale = previewScale;
         AutoScaleMode = AutoScaleMode.None;
-        Text = "CMake · DAPLink 配置助手";
+        Text = "STM32 工程助手 · CMake / Keil MDK / DAPLink";
         Icon = AppIcon.Chip;
         MinimumSize = new Size(640, 580);
         var workArea = Screen.FromControl(this).WorkingArea;
@@ -108,12 +108,14 @@ public sealed partial class MainForm : Form
         _workspace.Controls.Add(_flow);
         _workspace.Controls.Add(_sources);
         _workspace.Controls.Add(_imports);
+        _workspace.Controls.Add(_conversionPage);
         Controls.Add(_workspace);
         Controls.Add(_sidebar);
         BuildSidebar();
         BuildContent();
         BuildSourcePage();
         BuildImportPage();
+        BuildConversionPage();
         _sourcePreview.ShowRegistrationStatus = true;
         BuildFeedback();
         if (previewScale.HasValue)
@@ -125,6 +127,7 @@ public sealed partial class MainForm : Form
         _flow.Resize += (_, _) => LayoutPage();
         _sources.Resize += (_, _) => LayoutSourcePage();
         _imports.Resize += (_, _) => LayoutImportPage();
+        _conversionPage.Resize += (_, _) => LayoutConversionPage();
         Resize += (_, _) => LayoutShell();
         DpiChanged += (_, _) => BeginInvoke(LayoutShell);
         LayoutShell();
@@ -133,7 +136,7 @@ public sealed partial class MainForm : Form
 
     private void BuildSidebar()
     {
-        foreach (var item in new Control[] { _brandIcon, _sideBrand, _sideHint, _navSetup, _navSources, _navImport, _navTools, _sideFoot, _sideDivider }) _sidebar.Controls.Add(item);
+        foreach (var item in new Control[] { _brandIcon, _sideBrand, _sideHint, _navSetup, _navSources, _navImport, _navConversion, _navTools, _sideFoot, _sideDivider }) _sidebar.Controls.Add(item);
         _navSetup.Name = "NavSetup"; _navSources.Name = "NavSources";
         _navSetup.TextAlign = _navSources.TextAlign = ContentAlignment.MiddleLeft;
         ((SoftButton)_navSetup).IconKind = 1;
@@ -142,6 +145,8 @@ public sealed partial class MainForm : Form
         _navImport.Name = "NavImport"; _navImport.AccessibleName = "加入文件";
         _navTools.Name = "NavTools"; _navTools.AccessibleName = "工具管理";
         ((SoftButton)_navTools).IconKind = 1;
+        ((SoftButton)_navConversion).IconKind = 2;
+        _navConversion.Name = "NavConversion"; _navConversion.AccessibleName = "工程转换";
         _navTools.ForeColor = Muted; _navTools.BackColor = _sidebar.BackColor;
         _navTools.Click += async (_, _) => await ShowToolsAsync();
         _navImport.FlatAppearance.BorderSize = 0;
@@ -150,7 +155,8 @@ public sealed partial class MainForm : Form
         _navSetup.Click += (_, _) => ShowPage(false);
         _navSources.Click += (_, _) => ShowPage(true);
         _navImport.Click += (_, _) => ShowWorkspacePage(2);
-        foreach (var button in new[] { _navSetup, _navSources, _navImport, _navTools }) _navTips.SetToolTip(button, button.AccessibleName);
+        _navConversion.Click += async (_, _) => { ShowWorkspacePage(3); if (_conversionRoot == null && _project?.IsCMakeProject == true) await LoadConversionProjectAsync(_project.Root); };
+        foreach (var button in new[] { _navSetup, _navSources, _navImport, _navConversion, _navTools }) _navTips.SetToolTip(button, button.AccessibleName);
         ShowPage(false);
     }
 
@@ -159,8 +165,8 @@ public sealed partial class MainForm : Form
 
     private void ShowWorkspacePage(int page)
     {
-        var pages = new[] { _flow, _sources, _imports };
-        var buttons = new[] { _navSetup, _navSources, _navImport };
+        var pages = new[] { _flow, _sources, _imports, _conversionPage };
+        var buttons = new[] { _navSetup, _navSources, _navImport, _navConversion };
         for (var i = 0; i < pages.Length; i++)
         {
             pages[i].Visible = i == page;
@@ -168,7 +174,8 @@ public sealed partial class MainForm : Form
             buttons[i].ForeColor = i == page ? Accent : Muted;
         }
         pages[page].BringToFront();
-        if (page == 1) LayoutSourcePage(); else if (page == 2) LayoutImportPage(); else LayoutPage();
+        RefreshWorkspaceFooter();
+        if (page == 1) LayoutSourcePage(); else if (page == 2) LayoutImportPage(); else if (page == 3) LayoutConversionPage(); else LayoutPage();
     }
 
     private void LayoutShell()
@@ -185,12 +192,14 @@ public sealed partial class MainForm : Form
         _navSetup.SetBounds(Px(10), Px(114), sideWidth - Px(20), ButtonHeight(_navSetup, 39));
         _navSources.SetBounds(Px(10), _navSetup.Bottom + Px(7), sideWidth - Px(20), ButtonHeight(_navSources, 39));
         _navImport.SetBounds(Px(10), _navSources.Bottom + Px(7), sideWidth - Px(20), ButtonHeight(_navImport, 39));
-        _navTools.SetBounds(Px(10), _navImport.Bottom + Px(7), sideWidth - Px(20), ButtonHeight(_navTools, 39));
+        _navConversion.SetBounds(Px(10), _navImport.Bottom + Px(7), sideWidth - Px(20), ButtonHeight(_navConversion, 39));
+        _navTools.SetBounds(Px(10), _navConversion.Bottom + Px(7), sideWidth - Px(20), ButtonHeight(_navTools, 39));
         _navSetup.Text = compact ? "" : "工程配置";
         _navSources.Text = compact ? "" : "添加源文件";
         _navImport.Text = compact ? "" : "加入文件";
+        _navConversion.Text = compact ? "" : "工程转换";
         _navTools.Text = compact ? "" : "工具管理";
-        foreach (var button in new[] { _navSetup, _navSources, _navImport, _navTools })
+        foreach (var button in new[] { _navSetup, _navSources, _navImport, _navConversion, _navTools })
         {
             ((SoftButton)button).IconOnly = compact;
             button.TextAlign = compact ? ContentAlignment.MiddleCenter : ContentAlignment.MiddleLeft;
@@ -198,7 +207,7 @@ public sealed partial class MainForm : Form
         _sideFoot.Visible = !compact && ClientSize.Height > Px(340);
         Fit(_sideFoot, Px(24), Math.Max(1, ClientSize.Height - Px(50)), sideWidth - Px(48));
         _sideDivider.SetBounds(sideWidth - 1, 0, 1, ClientSize.Height);
-        LayoutPage(); LayoutSourcePage(); LayoutImportPage();
+        LayoutPage(); LayoutSourcePage(); LayoutImportPage(); LayoutConversionPage();
     }
 
     private int Px(float value) => Math.Max(1, (int)Math.Round(value * (_previewScale ?? DeviceDpi / 96f)));
@@ -555,13 +564,17 @@ public sealed partial class MainForm : Form
 
     private void OnDragEnter(object? sender, DragEventArgs e)
     {
+        if (_busy) { e.Effect = DragDropEffects.None; return; }
         if (e.Data?.GetDataPresent(DataFormats.FileDrop) == true && e.Data.GetData(DataFormats.FileDrop) is string[] files &&
             files.Length == 1 && Directory.Exists(files[0])) e.Effect = DragDropEffects.Copy;
     }
     private async void OnDragDrop(object? sender, DragEventArgs e)
     {
         if (e.Data?.GetData(DataFormats.FileDrop) is string[] files && files.Length == 1 && Directory.Exists(files[0]))
-            await LoadProjectAsync(files[0]);
+        {
+            if (_conversionPage.Visible) await LoadConversionProjectAsync(files[0]);
+            else await LoadProjectAsync(files[0]);
+        }
     }
     private async void BrowseProject()
     {
@@ -824,12 +837,13 @@ public sealed partial class MainForm : Form
             _project.IsCMakeProject == false ? "所选文件夹不包含 CMakeLists.txt，请更换工程。" : issues.Count == 0 ? "环境已就绪，可以配置" : $"有 {issues.Count} 项需要补全，查看具体步骤";
         _readiness.ForeColor = issues.Count == 0 ? Color.FromArgb(35, 139, 101) : Color.FromArgb(162, 106, 33);
         UpdateImportActions();
+        UpdateConversionActions();
         foreach (var button in new[] { _configure, _chooseSource, _applySource })
             button.BackColor = button.Enabled || button is SoftButton { IsBusy: true } ? Accent : Color.FromArgb(226, 234, 242);
         if (_completionCard != null)
         {
             _navSetup.Enabled = _navSources.Enabled = _navImport.Enabled = !_busy;
-            _sideFoot.Text = _busy ? "操作进行中\n完成后可切换页面" : _project == null ? "本地工作区" : "当前工程\n" + Path.GetFileName(_project.Root.TrimEnd(Path.DirectorySeparatorChar));
+            RefreshWorkspaceFooter();
             _stopRepair.Visible = _repairCancellation != null;
             _stopRepair.Enabled = _repairCancellation != null && !_repairCancellation.IsCancellationRequested;
             RefreshEmptyStates();
@@ -841,7 +855,7 @@ public sealed partial class MainForm : Form
     private static string ToolKey(string name) => name == "ARM GCC" ? "Compiler" : name == "OpenOCD" ? "OpenOcd" : name;
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { _navTips.Dispose(); _feedbackTimer.Dispose(); }
+        if (disposing) { _navTips.Dispose(); _feedbackTimer.Dispose(); _conversionTimer.Dispose(); }
         base.Dispose(disposing);
     }
     private void Append(string text)
