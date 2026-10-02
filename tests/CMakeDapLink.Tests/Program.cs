@@ -12,6 +12,14 @@ var root = Path.Combine(Path.GetTempPath(), "CMakeDapLinkTests-" + Guid.NewGuid(
 Directory.CreateDirectory(root);
 try
 {
+    if (args.Contains("--tasks-before-build-flow", StringComparer.Ordinal))
+    {
+        TaskBeforeBuildChecks.Run(root, Check);
+        ChangeHistoryChecks.Run(root, Check);
+        SoftwareWorkflowChecks.Run(root, Check);
+        foreach (var failure in failures) Console.Error.WriteLine(failure);
+        return failures.Count == 0 ? 0 : 1;
+    }
     if (args.Contains("--target-scripts-flow", StringComparer.Ordinal))
     {
         OpenOcdScriptChecks.Run(root, Check, args.Contains("--download-official", StringComparer.Ordinal));
@@ -26,6 +34,7 @@ try
     }
     if (args.Contains("--software-flow", StringComparer.Ordinal))
     {
+        TaskBeforeBuildChecks.Run(root, Check);
         Check("preset and chip evidence inspection", InspectionEnhancementChecks.Run);
         Check("current firmware targets isolate configurations and ignore leftover ELF files", FirmwareArtifactChecks.Run);
         ChangeHistoryChecks.Run(root, Check);
@@ -113,8 +122,8 @@ try
         if (tasks.Single(x => x.GetProperty("label").GetString() == "一键编译").GetProperty("command").GetString() != "C:/cmake.exe")
             throw new Exception("build task still uses helper script");
         var flash = tasks.Single(x => x.GetProperty("label").GetString() == "一键烧录(DAPLINK)");
-        if (flash.GetProperty("command").GetString() != "C:/openocd.exe" || flash.GetProperty("dependsOn").GetString() != "一键编译")
-            throw new Exception("flash task does not call OpenOCD after build");
+        if (flash.GetProperty("command").GetString() != "C:/cmake.exe" || flash.GetProperty("dependsOn").GetString() != "一键编译" || !File.ReadAllText(Path.Combine(vscode, "stm32-daplink.cmake")).Contains("C:/openocd.exe"))
+            throw new Exception("flash task does not resolve current firmware and call OpenOCD after build");
         if (File.Exists(Path.Combine(vscode, "cmake-daplink.ps1")) || File.Exists(Path.Combine(vscode, "cmake-daplink.json")))
             throw new Exception("legacy helper files were left behind");
         ConfigurationWriter.Write(options);

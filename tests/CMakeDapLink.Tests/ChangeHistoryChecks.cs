@@ -43,7 +43,7 @@ internal static class ChangeHistoryChecks
             var options = new SetupOptions(project, "C:/cmake.exe", "C:/ninja.exe", "C:/arm-none-eabi-gcc.exe",
                 "C:/openocd.exe", "C:/scripts", "target/stm32h7x.cfg", null, null, null, FirmwareElfPath: elf);
             var preview = ConfigurationWriter.Preview(options);
-            if (preview.Count != 1 || !File.ReadAllBytes(tasksPath).AsSpan().SequenceEqual(original))
+            if (preview.Count != 2 || !File.ReadAllBytes(tasksPath).AsSpan().SequenceEqual(original))
                 throw new Exception("preview changed a file or missed the task change");
             var after = preview[0].After!;
             var rendered = Encoding.UTF8.GetString(after.AsSpan(3));

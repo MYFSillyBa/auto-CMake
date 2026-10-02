@@ -21,6 +21,7 @@ internal static class SoftwareUiFlow
             File.WriteAllText(Path.Combine(root, "toolchain.cmake"), $"set(CMAKE_SYSTEM_NAME Generic)\nset(CMAKE_SYSTEM_PROCESSOR arm)\nset(CMAKE_C_COMPILER \"{compilerDirectory}/arm-none-eabi-gcc.exe\")\nset(CMAKE_CXX_COMPILER \"{compilerDirectory}/arm-none-eabi-g++.exe\")\nset(CMAKE_ASM_COMPILER \"{compilerDirectory}/arm-none-eabi-gcc.exe\")\nset(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)\n");
             File.WriteAllText(Path.Combine(root, "CMakeLists.txt"), "cmake_minimum_required(VERSION 3.22)\nproject(probe C)\nadd_executable(probe main.c)\nset_target_properties(probe PROPERTIES SUFFIX .elf)\ntarget_compile_options(probe PRIVATE -mcpu=cortex-m7 -mthumb)\ntarget_link_options(probe PRIVATE -mcpu=cortex-m7 -mthumb -nostdlib -Wl,-e,main)\n");
             File.WriteAllText(Path.Combine(root, "main.c"), "int main(void) { return 0; }\n");
+            File.AppendAllText(Path.Combine(root, "CMakeLists.txt"), "if(EXISTS \"${CMAKE_SOURCE_DIR}/.vscode/tasks.json\")\n file(WRITE \"${CMAKE_BINARY_DIR}/tasks-first.txt\" \"tasks present before configure\")\nendif()\n");
             File.WriteAllText(Path.Combine(root, "module", "motor.cpp"), "extern \"C\" int motor_value(void) { return 7; }\n");
             File.WriteAllText(Path.Combine(root, "module", "include", "motor.hpp"), "#pragma once\n");
             File.WriteAllText(Path.Combine(root, "module", "support.S"), ".syntax unified\n.thumb\n.text\n.global support_fn\n.thumb_func\nsupport_fn:\n bx lr\n");
@@ -119,7 +120,8 @@ internal static class SoftwareUiFlow
             Require(StepStates(form, "_workflowSteps").Contains("Running"), "执行步骤显示当前进行中的阶段");
             Screenshot(form, Path.Combine(output, "experience-building.png"));
             Await(configuring); accept.Stop();
-            Require(previews == 2 && File.Exists(Path.Combine(root, ".vscode", "tasks.json")), "编译及脚本解析后预览并写入 VS Code 任务：预览数=" + previews + "，状态=" + Field<Label>(form, "_stage").Text);
+            Require(previews == 2 && File.Exists(Path.Combine(root, ".vscode", "tasks.json")) && File.Exists(Path.Combine(root, ".vscode", "stm32-daplink.cmake")), "预览并先写入 VS Code 任务及 CMake 辅助文件：预览数=" + previews + "，状态=" + Field<Label>(form, "_stage").Text);
+            Require(File.Exists(Path.Combine(root, "build", "Multi", "tasks-first.txt")), "实际 CMake 配置开始前任务已存在");
             Require(!Directory.EnumerateFiles(root, "*.ps1", SearchOption.AllDirectories).Any(), "不生成 PowerShell 脚本");
             Require(StepStates(form, "_workflowSteps").All(x => x == "Complete"), "五个配置步骤全部完成");
             Require(Field<Panel>(form, "_completionCard").Visible && Field<Label>(form, "_completionBody").Text.Contains("probe.elf") && Field<Label>(form, "_completionBody").Text.Contains("下一步"), "结果卡显示实际固件和下一步操作");
@@ -134,6 +136,31 @@ internal static class SoftwareUiFlow
             var snapshot = ChangeHistory.List(root).First(x => x.Label.Contains("配置"));
             ChangeHistory.Restore(root, snapshot.Id);
             Require(!File.Exists(Path.Combine(root, ".vscode", "tasks.json")), "配置任务可恢复到未创建状态");
+            File.AppendAllText(Path.Combine(root, "CMakeLists.txt"), "add_executable(other main.c)\nset_target_properties(other PROPERTIES OUTPUT_NAME other.v2 SUFFIX .elf)\ntarget_compile_options(other PRIVATE -mcpu=cortex-m7 -mthumb)\ntarget_link_options(other PRIVATE -mcpu=cortex-m7 -mthumb -nostdlib -Wl,-e,main)\n");
+            var firmwarePicks = 0;
+            var tasksAtPicker = false;
+            using var pickFirmware = new System.Windows.Forms.Timer { Interval = 200 };
+            pickFirmware.Tick += (_, _) =>
+            {
+                foreach (var dialog in Application.OpenForms.Cast<Form>().Where(x => x.GetType().Name == "FirmwarePickerDialog").ToArray())
+                {
+                    pickFirmware.Stop();
+                    var list = Walk(dialog).OfType<ListBox>().Single();
+                    list.SelectedIndex = Enumerable.Range(0, list.Items.Count).First(i => list.Items[i]!.ToString()!.Contains("other.v2.elf"));
+                    tasksAtPicker = File.Exists(Path.Combine(root, ".vscode", "tasks.json"));
+                    firmwarePicks++;
+                    Walk(dialog).OfType<Button>().Single(x => x.Text == "使用所选固件").PerformClick();
+                }
+            };
+            var previewsBeforeBinding = previews;
+            accept.Start(); pickFirmware.Start(); Await(Invoke(form, "ConfigureAsync")); accept.Stop(); pickFirmware.Stop();
+            Require(tasksAtPicker && firmwarePicks == 1 && previews == previewsBeforeBinding + 2, "多个固件先写入任务，再确认并预览所选固件绑定");
+            using (var boundTasks = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, ".vscode", "tasks.json"))))
+            {
+                var boundFlash = boundTasks.RootElement.GetProperty("tasks").EnumerateArray().Single(x => x.GetProperty("label").GetString() == "一键烧录(DAPLINK)");
+                Require(boundFlash.GetProperty("args").EnumerateArray().Any(x => x.GetString()!.StartsWith("-DFIRMWARE_ELF=") && x.GetString()!.Contains("other.v2.elf")), "烧录任务绑定用户选择的实际固件");
+            }
+            Require(StepStates(form, "_workflowSteps").All(x => x == "Complete") && Field<Label>(form, "_completionBody").Text.Contains("other.v2.elf"), "多个固件流程通过编译和软件脚本检查");
             Field<Button>(form, "_navImport").PerformClick();
             var incoming = Path.Combine(root, "incoming"); Directory.CreateDirectory(incoming);
             File.WriteAllText(Path.Combine(incoming, "fresh.c"), "int fresh_value(void) { return 9; }\n");
