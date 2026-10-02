@@ -35,7 +35,8 @@ public sealed partial class MainForm
             Fit(_conversionStage, inset, _conversionSteps.Bottom + Px(12), inner);
             Fit(_conversionElapsed, inset, _conversionStage.Bottom + Px(5), inner);
             _conversionProgress.SetBounds(inset, _conversionElapsed.Bottom + Px(12), inner, Px(4));
-            y = ButtonRow(width, inset, _conversionProgress.Bottom + Px(14), _conversionLogToggle) + Px(12);
+            _conversionProblemsButton.Visible = _conversionProblems.Count > 0;
+            y = ButtonRow(width, inset, _conversionProgress.Bottom + Px(14), new[] { _conversionLogToggle, _conversionProblemsButton }.Where(x => x.Visible).ToArray()) + Px(12);
             _conversionLog.Visible = _conversionLogExpanded;
             if (_conversionLogExpanded) { _conversionLog.SetBounds(inset, y, inner, Px(220)); y = _conversionLog.Bottom + Px(14); }
             _conversionOutput.Height = y + Px(7);

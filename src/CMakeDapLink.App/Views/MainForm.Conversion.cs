@@ -12,8 +12,9 @@ public sealed partial class MainForm
     private readonly Button _conversionRefresh = Button("重新检测", false);
     private readonly Button _conversionRead = Button("解析 CMake 构建目标", false);
     private readonly Button _conversionApply = Button("预览并转换", true);
-    private readonly Button _conversionHelp = Button("查看补全说明", false);
+    private readonly Button _conversionHelp = Button("查看转换说明", false);
     private readonly Button _conversionLogToggle = Button("展开详细日志", false);
+    private readonly Button _conversionProblemsButton = Button("编译问题与建议", false);
     private readonly Button _conversionOpen = Button("打开输出目录", false);
     private readonly Button _conversionNext = Button("转到工程配置", true);
     private readonly Button _conversionRestore = Button("恢复转换修改", false);
@@ -43,6 +44,7 @@ public sealed partial class MainForm
     private ProjectInfo? _conversionCMakeProject;
     private IReadOnlyList<string> _conversionSourcePaths = [];
     private IReadOnlyList<ConversionIssue> _conversionIssues = [];
+    private readonly List<BuildProblem> _conversionProblems = [];
     private string? _conversionRoot, _conversionOutputPath, _conversionBuildDirectory;
     private bool _conversionUpdating, _conversionResultShown, _conversionLogExpanded, _conversionRunning, _conversionLayingOut, _conversionHasHistory;
     private ConversionDirection SelectedConversionDirection => _conversionDirection.SelectedIndex == 1 ? ConversionDirection.CMakeToMdk : ConversionDirection.MdkToCMake;
@@ -71,7 +73,7 @@ public sealed partial class MainForm
         _conversionActions = new RoundedPanel();
         _conversionActions.Controls.AddRange([Label("预览并生成工程", 11, Ink, bold: true), _conversionHint, _conversionApply, _conversionRefresh, _conversionHelp, _conversionRestore]);
         _conversionOutput = new RoundedPanel();
-        _conversionOutput.Controls.AddRange([Label("转换进度", 11, Ink, bold: true), _conversionSteps, _conversionStage, _conversionElapsed, _conversionProgress, _conversionLogToggle, _conversionLog]);
+        _conversionOutput.Controls.AddRange([Label("转换进度", 11, Ink, bold: true), _conversionSteps, _conversionStage, _conversionElapsed, _conversionProgress, _conversionLogToggle, _conversionProblemsButton, _conversionLog]);
         _conversionResult = new RoundedPanel();
         _conversionResult.Controls.AddRange([_conversionResultTitle, _conversionResultBody, _conversionOpen, _conversionNext]);
         foreach (var card in new Control[] { _conversionHero, _conversionNotice, _conversionSelection, _conversionOptions, _conversionActions, _conversionOutput, _conversionResult })
@@ -86,6 +88,7 @@ public sealed partial class MainForm
         _conversionRead.Click += async (_, _) => await ReadConversionTargetsAsync();
         _conversionApply.Click += async (_, _) => await ApplyConversionAsync();
         _conversionHelp.Click += (_, _) => ShowConversionIssues();
+        _conversionProblemsButton.Click += (_, _) => { using var problems = new BuildProblemsDialog(_conversionProblems.Distinct().ToArray(), _conversionLog.Text); problems.ShowDialog(this); };
         _conversionLogToggle.Click += (_, _) => { _conversionLogExpanded = !_conversionLogExpanded; _conversionLogToggle.Text = _conversionLogExpanded ? "收起详细日志" : "展开详细日志"; LayoutConversionPage(); };
         _conversionNotice.Dismissed += (_, _) => LayoutConversionPage();
         _conversionOpen.Click += (_, _) => { if (!_busy && _conversionOutputPath != null) OpenLocation(Path.GetDirectoryName(_conversionOutputPath)!); };
@@ -173,6 +176,7 @@ public sealed partial class MainForm
     private void InvalidateConversionResult()
     {
         _conversionResultShown = false; _conversionOutputPath = null; _conversionPlan = null;
+        _conversionProblems.Clear();
         _conversionIssues = _conversionInspection?.Issues ?? [];
         if (!_conversionRunning) _conversionNotice.Visible = false;
         if (!_conversionRunning) { ResetConversionSteps(); _conversionProgress.Value = 0; _conversionElapsed.Text = ""; _conversionStage.Text = "设置有变化，请重新预览并转换。"; }
@@ -204,6 +208,7 @@ public sealed partial class MainForm
     {
         build.PrepareArtifactQuery(); _conversionStage.Text = "正在解析 CMake 构建配置…"; LayoutConversionPage();
         var result = await ProcessTools.RunAsync(build.Configure.Executable, build.Configure.Arguments, build.Configure.WorkingDirectory, TimeSpan.FromMinutes(5), AppendConversion, build.Configure.PathPrefix);
+        _conversionProblems.AddRange(BuildDiagnostics.Parse(result.Output, build.Configure.WorkingDirectory, "CMake 配置"));
         if (result.ExitCode != 0) throw new InvalidOperationException("CMake 配置未通过。请展开日志，修正源码依赖或配置后重新解析。");
         _conversionBuildDirectory = build.BuildDirectory;
     }
@@ -274,9 +279,12 @@ public sealed partial class MainForm
                 var build = ConversionBuildPlan(converted: true); await ConfigureConversionCMakeAsync(build);
                 _conversionStage.Text = "正在实际编译转换后的 GCC 工程…"; LayoutConversionPage();
                 var compiled = await ProcessTools.RunAsync(build.Build.Executable, build.Build.Arguments, root, TimeSpan.FromMinutes(15), AppendConversion, build.Build.PathPrefix);
-                if (compiled.ExitCode != 0) throw new InvalidOperationException("配置已写入，但编译未通过。请展开日志修正依赖；也可以恢复本次转换。");
+                _conversionProblems.AddRange(BuildDiagnostics.Parse(compiled.Output, root, "源码编译"));
+                if (compiled.ExitCode != 0) throw new InvalidOperationException("配置已写入，但编译未通过。点击“编译问题与建议”查看文件位置和修正方法；也可以恢复本次转换。");
                 var firmware = CMakeBuildPlan.FindElfs(build.BuildDirectory, build.BuildConfiguration);
                 details += "\nGCC 实际编译通过。" + (firmware.Count == 1 ? "\n" + FirmwareSummary(firmware[0], build.BuildConfiguration) : $"\n生成 {firmware.Count} 个当前目标固件。");
+                var warnings = _conversionProblems.Distinct().Count(x => x.Severity == "警告");
+                if (warnings > 0) details += $"\n有 {warnings} 条编译/链接警告，请查看“编译问题与建议”，核对后再使用固件。";
                 _conversionResultTitle.Text = "转换完成，GCC 编译验证通过";
             }
             else if (direction == ConversionDirection.MdkToCMake)
@@ -290,7 +298,7 @@ public sealed partial class MainForm
                 details += "\n" + validation.Details;
                 _conversionResultTitle.Text = validation.Compiled ? "转换完成，Keil 编译验证通过" : "MDK 工程已生成，待 Keil 编译验证";
             }
-            if (_conversionIssues.Count > 0) details += $"\n有 {_conversionIssues.Count} 项转换说明，可查看补全说明。";
+            if (_conversionIssues.Count > 0) details += $"\n有 {_conversionIssues.Count} 项转换提示，可查看转换说明。";
             _conversionResultBody.Text = details; _conversionResultTitle.ForeColor = Color.FromArgb(28, 136, 100);
             _conversionResultShown = true; _conversionSteps.SetStep(4, StepState.Complete); _conversionProgress.Value = 100;
             _conversionStage.Text = "转换完成，原有源文件和原格式工程保留；替换的配置可恢复。";
@@ -298,6 +306,7 @@ public sealed partial class MainForm
         catch (Exception ex)
         {
             ConversionProblem("转换未完成", ex);
+            if (_conversionProblems.Any(x => x.Severity == "错误")) _conversionNotice.ShowMessage("实际编译发现需要处理的源码或链接问题。", true, "查看编译问题", () => _conversionProblemsButton.PerformClick());
             for (var i = 0; i < _conversionSteps.States.Count; i++) if (_conversionSteps.States[i] == StepState.Running) _conversionSteps.SetStep(i, StepState.Attention);
             if (_conversionOutputPath != null) { _conversionResultShown = true; _conversionResultTitle.Text = "配置已写入，验证未完成"; _conversionResultTitle.ForeColor = Color.FromArgb(160, 91, 32); _conversionResultBody.Text = ex.Message + "\n输出：" + _conversionOutputPath + "\n可查看详细日志，或恢复本次转换。"; }
         }
@@ -329,7 +338,7 @@ public sealed partial class MainForm
     private void ShowConversionIssues()
     {
         if (_conversionIssues.Count == 0) return;
-        using var help = new CompletionDialog(_conversionIssues.Select((x, i) => new SetupIssue("Conversion" + i, x.Message, x.Action, x.Blocking)).ToArray()); help.ShowDialog(this);
+        using var help = new CompletionDialog(_conversionIssues.Select((x, i) => new SetupIssue("Conversion" + i, x.Message, x.Action, x.Blocking)).ToArray(), conversion: true); help.ShowDialog(this);
     }
     private void UpdateConversionActions()
     {
@@ -348,6 +357,7 @@ public sealed partial class MainForm
         _conversionApply.Enabled = !_busy && ready && _conversionTarget.SelectedIndex >= 0 && (mdk ? SelectedMdkProject() != null : _conversionBuildDirectory != null);
         _conversionApply.BackColor = _conversionApply.Enabled || ((SoftButton)_conversionApply).IsBusy ? Accent : Color.FromArgb(226, 234, 242);
         _conversionHelp.Enabled = !_busy && _conversionIssues.Count > 0;
+        _conversionProblemsButton.Enabled = !_busy;
         _conversionOpen.Enabled = _conversionNext.Enabled = !_busy;
         _conversionRestore.Enabled = !_busy && _conversionRoot != null && _conversionHasHistory;
         _conversionNext.Visible = mdk;

@@ -34,33 +34,37 @@ public sealed partial class MainForm
         private readonly Button _close = Button("关闭", false);
         private readonly List<(RoundedPanel Card, Label Title, Label Instructions)> _items = [];
         private readonly float? _scale;
+        private readonly bool _conversion;
         private int Sc(float n) => Math.Max(1, (int)Math.Round(n * (_scale ?? DeviceDpi / 96f)));
 
-        public CompletionDialog(IReadOnlyList<SetupIssue> issues, float? previewScale = null)
+        public CompletionDialog(IReadOnlyList<SetupIssue> issues, float? previewScale = null, bool conversion = false)
         {
             _scale = previewScale;
+            _conversion = conversion;
             AutoScaleMode = AutoScaleMode.None; StartPosition = FormStartPosition.CenterParent;
-            Text = "环境补全说明"; BackColor = Background; Font = new Font("Microsoft YaHei UI", 9);
+            Text = conversion ? "转换检查说明" : "环境补全说明"; BackColor = Background; Font = new Font("Microsoft YaHei UI", 9);
             Icon = AppIcon.Chip;
             MinimizeBox = false; MaximizeBox = false;
             MinimumSize = new Size(Sc(340), Sc(310));
             var area = Screen.PrimaryScreen!.WorkingArea;
             Size = new Size(Math.Min(Sc(660), area.Width - Sc(48)), Math.Min(Sc(580), area.Height - Sc(48)));
-            _title = Label(issues.Count == 0 ? "环境检测已通过" : $"还有 {issues.Count} 项需要补全", 15, Ink, bold: true);
-            _subtitle = Label(issues.Count == 0 ? "工具和脚本已就绪，可以进行配置与编译验证。" : "按下列步骤补齐后，回到工程页重新检测。", 9, Muted);
+            var blocking = issues.Count(x => x.BlocksConfiguration);
+            _title = Label(conversion ? blocking > 0 ? $"{blocking} 项阻止转换 · {issues.Count - blocking} 项提示" : $"可以生成 · {issues.Count} 项转换提示" : issues.Count == 0 ? "环境检测已通过" : $"还有 {issues.Count} 项需要补全", 15, Ink, bold: true);
+            _subtitle = Label(conversion ? "必须补全的事项会阻止生成；其他提示保留原配置，由实际编译检查。" : issues.Count == 0 ? "工具和脚本已就绪，可以进行配置与编译验证。" : "按下列步骤补齐后，回到工程页重新检测。", 9, Muted);
+            if (conversion) { _locate.Visible = false; AcceptButton = _close; }
             Controls.AddRange([_title, _subtitle, _page, _locate, _close]);
             var entries = issues.Count == 0 ? new[] { new SetupIssue("Ready", "可以进行下一步", "点击“配置并验证”后，程序会实际执行 CMake 配置和编译，检查 OpenOCD 配置，并写入 VS Code 一键编译与一键烧录任务。", false) } : issues;
-            foreach (var item in entries)
+            foreach (var item in conversion ? entries.OrderByDescending(x => x.BlocksConfiguration) : entries.AsEnumerable())
             {
                 var card = new RoundedPanel();
-                var title = Label(item.Title, 10, item.BlocksConfiguration ? Color.FromArgb(153, 98, 35) : Ink, bold: true);
+                var title = Label((conversion ? item.BlocksConfiguration ? "必须补全 · " : "提示 · " : "") + item.Title, 10, item.BlocksConfiguration ? Color.FromArgb(153, 98, 35) : Ink, bold: true);
                 var body = Label(item.Instructions, 9, Ink);
                 card.Controls.AddRange([title, body]);
                 _page.Canvas.Controls.Add(card); _page.AttachCard(card);
                 _items.Add((card, title, body));
             }
             _locate.DialogResult = DialogResult.OK; _close.DialogResult = DialogResult.Cancel;
-            AcceptButton = _locate; CancelButton = _close;
+            AcceptButton = conversion ? _close : _locate; CancelButton = _close;
             if (previewScale.HasValue)
             {
                 var ratio = previewScale.Value / (DeviceDpi / 96f);
@@ -80,7 +84,7 @@ public sealed partial class MainForm
             PlaceLabel(_subtitle, margin, _title.Bottom + Sc(5), width);
             var height = Math.Max(Sc(34), _locate.Font.Height + Sc(16));
             _locate.SetBounds(ClientSize.Width - margin - Sc(142), ClientSize.Height - margin - height, Sc(142), height);
-            _close.SetBounds(_locate.Left - Sc(88), _locate.Top, Sc(78), height);
+            _close.SetBounds(_conversion ? ClientSize.Width - margin - Sc(78) : _locate.Left - Sc(88), _locate.Top, Sc(78), height);
             _page.SetBounds(margin - Sc(4), _subtitle.Bottom + Sc(14), width + Sc(8), Math.Max(1, _locate.Top - _subtitle.Bottom - Sc(28)));
             ArrangeItems();
         }
