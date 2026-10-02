@@ -1,10 +1,10 @@
 # 贡献说明
 
-欢迎反馈问题和提交改进。
+欢迎为 STM32 工程助手（STM32 Project Helper）反馈问题和提交改进，包括 CubeMX MDK-ARM / CMake 工程转换、环境配置、VS Code 任务及源文件管理。
 
 ## 报告问题
 
-使用 Bug Report 模板，提供 Windows 版本、使用的发布版本、复现步骤、预期结果和实际结果。涉及工程检查时附上相关 CMake 配置及构建输出，日志中的个人目录可先替换为示例路径。
+使用 Bug Report 模板，提供 Windows 版本、应用版本及 portable/lite 类型、操作入口、复现步骤、预期结果和实际结果。涉及转换时说明方向、芯片型号、所选目标和 Debug/Release，并附相关 `.ioc` 元数据、`.uvprojx` 或 CMake / 链接配置及构建输出；日志中的个人目录可先替换为示例路径。
 
 ## 开发
 

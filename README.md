@@ -1,8 +1,23 @@
-# CMake · DAPLink 配置助手
+# STM32 工程助手 | STM32 Project Helper
 
 <img src="docs/images/chip.png" width="64" height="64" alt="蓝色芯片图标">
 
-Windows 图形工具，用于检测嵌入式 CMake 工程的构建环境，配置 VS Code **一键编译**和**一键烧录(DAPLINK)**，以及管理工程文件。
+面向 STM32 开发的 Windows 桌面工具，集中完成 **STM32CubeMX 工程的 Keil MDK-ARM ↔ CMake 转换**、**ARM GCC 构建环境检测与自动安装**、**VS Code 一键编译与 DAPLink 烧录任务配置**，以及 C/C++、头文件和汇编源文件管理。
+
+**STM32 Project Helper** is a Windows GUI for STM32CubeMX project conversion between Keil MDK5 (`.uvprojx`) and ARM GCC CMake, embedded toolchain setup, VS Code build/flash tasks, CMSIS-DAP/DAPLink and source-file management. Project conversion does not invoke STM32CubeMX.
+
+## 从需求找到入口
+
+| 你想做什么 | 应用入口 | 得到什么 |
+| --- | --- | --- |
+| 把 CubeMX 生成的 Keil 工程放到 VS Code 中编译 | 工程转换 → MDK-ARM → CMake | CMakeLists、Debug/Release 预设、GCC 启动和链接配置 |
+| 把 CubeMX CMake 工程转回 Keil MDK5 | 工程转换 → CMake → MDK-ARM | 按所选实际目标生成 `.uvprojx`、启动文件和 scatter |
+| 解决 CMake、Ninja、ARM GCC 或 OpenOCD 缺失 | 工程配置 → 自动修复；工具管理 | 下载校验、安装验证、工具路径与版本切换 |
+| 配置 VS Code 一键编译和 DAPLink 一键烧录 | 工程配置 → 配置并验证 | 保留原有任务的 `.vscode/tasks.json` |
+| 把 BSP、驱动或业务模块加入 CMake 编译 | 添加源文件 | 勾选文件和目标，预览后维护源文件与包含目录 |
+| 创建工程目录并复制文件 | 加入文件 | 文件夹创建、同名处理及后续参与构建的选择 |
+
+所有配置写入前均可预览；受支持的修改会记录备份，可在应用中恢复。软件验证会区分“配置已生成”和“实际编译通过”。
 
 ## 功能
 
@@ -13,6 +28,7 @@ Windows 图形工具，用于检测嵌入式 CMake 工程的构建环境，配�
 - 显示 CMake、编译和链接问题的位置与处理建议，可复制或导出完整日志。
 - 通过目录树、搜索和过滤逐项选择 C/C++、汇编及头文件，添加到指定 CMake 目标。
 - 创建工程文件夹并复制选定文件，同名文件夹询问是否追加，同名文件自动改名。
+- 对 STM32CubeMX 生成的 STM32 工程进行 MDK5 与 ARM GCC CMake 双向转换，不调用本机 CubeMX；转换前预览、记录修改，生成后检查并按可用工具执行编译验证。
 - 按钮显示悬停、按下、键盘焦点及运行状态，操作期间防止重复执行，禁用时说明原因。
 - 显示当前操作步骤和用时，详细日志默认收起；完成后保留结果卡，展示实际固件路径、大小、时间和下一步入口。
 - 文件列表显示已引用、待加入和未选择状态，统计过滤后隐藏的勾选项；复制完成后可直接预选新增文件参与构建。
@@ -21,15 +37,28 @@ Windows 图形工具，用于检测嵌入式 CMake 工程的构建环境，配�
 
 前往 [GitHub Releases](https://github.com/MYFSillyBa/auto-CMake/releases/latest) 下载：
 
-- **轻量版**：[CMakeDapLink-portable-win-x64.exe](https://github.com/MYFSillyBa/auto-CMake/releases/latest/download/CMakeDapLink-portable-win-x64.exe)，下载后直接运行，自带 .NET。
-- **极致轻量版**：[CMakeDapLink-lite-win-x64.exe](https://github.com/MYFSillyBa/auto-CMake/releases/latest/download/CMakeDapLink-lite-win-x64.exe)，需要电脑已安装 .NET 9 Desktop Runtime。
+- **轻量版**：[STM32ProjectHelper-portable-win-x64.exe](https://github.com/MYFSillyBa/auto-CMake/releases/latest/download/STM32ProjectHelper-portable-win-x64.exe)，下载后直接运行，自带 .NET。
+- **极致轻量版**：[STM32ProjectHelper-lite-win-x64.exe](https://github.com/MYFSillyBa/auto-CMake/releases/latest/download/STM32ProjectHelper-lite-win-x64.exe)，需要电脑已安装 .NET 9 Desktop Runtime。
 
 | 版本 | 本地发布路径 | 大小 | 运行要求 |
 | --- | --- | --- | --- |
-| 轻量版 | `artifacts/publish/portable/CMakeDapLink.exe` | 约 48 MB | Windows x64，自带 .NET |
-| 极致轻量版 | `artifacts/publish/lite/CMakeDapLink.exe` | 约 0.6 MB | Windows x64，.NET 9 Desktop Runtime |
+| 轻量版 | `artifacts/publish/portable/STM32ProjectHelper.exe` | 约 48 MB | Windows x64，自带 .NET |
+| 极致轻量版 | `artifacts/publish/lite/STM32ProjectHelper.exe` | 约 0.7 MB | Windows x64，.NET 9 Desktop Runtime |
 
-两个版本功能相同。本地发布文件已保留；Git 仓库只保存源码和文档，克隆后可以自行构建。GitHub Actions 构建成功后会生成两个版本的下载产物。
+两个版本功能相同，Release 附件直接提供 EXE。应用原名“CMake · DAPLink 配置助手”；新版本继续读取已有工具设置和修改记录，并识别旧版生成的 VS Code 任务。仓库名保留 `auto-CMake`，Git 仓库保存源码和文档，克隆后可以自行构建。GitHub Actions 构建成功后会生成两个版本的下载产物。
+
+### 支持范围
+
+- 工程转换：保留 `.ioc` 和生成源码的 STM32CubeMX 单核 STM32 MDK5 / ARM GCC CMake 工程；标准启动代码及实际使用一个 FLASH、一个 RAM 的布局。
+- CMake 工作台：检测、配置和编译工程已有的构建目标，使用当前 CMake 配置声明的固件，避免选中旧 ELF。
+- 软件要求：配置/编译需要对应 CMake、Ninja、ARM GCC；生成 MDK 工程不要求安装 Keil，实际 MDK 编译验证需要 Keil、对应芯片 Pack 和编译器。
+- 烧录任务：DAPLink / CMSIS-DAP，OpenOCD SWD。应用验证阶段只检查软件和脚本；用户执行 VS Code 烧录任务时才连接并下载硬件。
+
+### 常见查找方式
+
+如果你在找“STM32 Keil 转 CMake”“MDK-ARM 转 VS Code”“CubeMX CMake 转 Keil”“CMake 自动安装配置”“DAPLink 一键烧录”或“CMake 添加源文件”，可先按上面的需求表选择入口。
+
+Related terms: **STM32CubeMX · Keil uVision / MDK-ARM / MDK5 · uvprojx · CMakeLists.txt · CMakePresets.json · ARM GCC / arm-none-eabi · VS Code · OpenOCD · CMSIS-DAP · DAPLink · embedded firmware · project converter · toolchain setup**.
 
 ## 使用
 
@@ -64,6 +93,17 @@ Windows 图形工具，用于检测嵌入式 CMake 工程的构建环境，配�
 
 安装目录选择、工具路径和镜像设置保存在 `%LOCALAPPDATA%\CMakeDapLink`；旧版安装目录中的配置会兼容读取。下载中显示大小和速度，可点击“停止下载”；已完成的安装保留。芯片型号、缺失源码和错误构建预设需要按弹窗说明处理。
 
+### 工程转换
+
+在左侧“工程转换”选择含 `.ioc` 的 STM32CubeMX 工程根目录。仅支持 CubeMX 生成的 STM32 MDK5（`.uvprojx`）和 ARM GCC CMake 工程；不启动、不安装、不调用 CubeMX，也不重新生成外设初始化代码。
+
+- **MDK-ARM → CMake**：选择 MDK 工程文件和构建目标，读取已启用源文件、宏、包含路径、启动文件及内存布局，预览后生成 CMake 配置。已有 CMake、Ninja、ARM GCC 时实际配置并编译，完成后可“转到工程配置”生成 VS Code 编译与 DAPLink 烧录任务。
+- **CMake → MDK-ARM**：选择配置预设和构建类型，先“解析 CMake 构建目标”，再选择需要导出的实际可执行目标。预览后生成 MDK5 工程；检测到本机 Keil 时自动以隐藏命令行进行编译，缺少 Keil 时显示工程文件检查结果及待编译状态。
+
+转换保留原有源文件和原格式工程。已有同名配置会显示替换差异，确认后保存到恢复记录，可通过“恢复转换修改”撤销。输出位置、编译状态和固件信息显示在结果卡中，日志默认收起。
+
+启动文件和链接脚本只转换能够可靠解析的标准结构，自动内存映射限于实际使用一个 FLASH、一个 RAM 的布局。复杂分区、多 RAM 分配、双核配置、编译器专用库、自定义命令及缺失的 FreeRTOS 编译器移植层会列出文件位置和具体补全方法，不会自动删掉依赖或猜测内存地址。生成工程成功和实际编译通过会分别显示；整个流程只检查软件，不连接硬件。
+
 ### 工具管理
 
 左侧“工具管理”列出已安装版本、路径和大小，可导入官方完整 ZIP 或指定外部工具。导入版本后通过“启用所选版本”验证并切换，其他版本保留，便于回退。“检查更新”先显示候选版本，由用户决定是否安装。清理页面仅允许删除本程序记录的缓存或未启用版本；外部手动工具不能删除。离线包来自用户选择，程序计算 SHA-256、检查内容和可执行性，不能凭本地摘要确认发行者身份。
@@ -96,6 +136,8 @@ dotnet publish src/CMakeDapLink.App -p:PublishProfile=Lite
 发布目录包含 EXE 和 MIT 许可证。`Portable` 保留完整运行时并启用单文件压缩；`Lite` 依赖电脑已有的 .NET 9 Desktop Runtime。构建程序本身不需要安装 CMake 或 ARM 工具链。
 
 可选检查项目位于 `tests`。正常软件流程：`dotnet run --project tests/CMakeDapLink.Tests -c Release -- --software-flow`；普通窗口流程：`dotnet run --project tests/CMakeDapLink.UiTests -c Release -- --software-ui`。这些流程需要已安装的嵌入式工具；界面检查需要交互式 Windows 桌面。临时工程不连接硬件。
+
+转换正常流程：`dotnet run --project tests/CMakeDapLink.Tests -c Release -- --conversion-flow`；转换普通窗口流程：`dotnet run --project tests/CMakeDapLink.UiTests -c Release -- --conversion-ui`。
 
 ## 项目结构
 

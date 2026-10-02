@@ -1,4 +1,4 @@
-name: Build Windows packages
+name: Build STM32 Project Helper for Windows
 
 on:
   push:
@@ -35,9 +35,9 @@ jobs:
         run: dotnet publish src/CMakeDapLink.App -p:PublishProfile=${{ matrix.profile }}
       - uses: actions/upload-artifact@v7
         with:
-          name: CMakeDapLink-${{ matrix.folder }}-win-x64
+          name: STM32ProjectHelper-${{ matrix.folder }}-win-x64
           path: |
-            artifacts/publish/${{ matrix.folder }}/CMakeDapLink.exe
+            artifacts/publish/${{ matrix.folder }}/STM32ProjectHelper.exe
             artifacts/publish/${{ matrix.folder }}/LICENSE
           if-no-files-found: error
           retention-days: 14
