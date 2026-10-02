@@ -167,13 +167,13 @@ public sealed class ToolVersionManager
     public Task<ToolPaths> ActivateAsync(ToolInstallation installation, ToolPaths current, bool savePaths = true, CancellationToken cancellation = default)
         => ActivateCoreAsync(installation, current, [], savePaths, cancellation);
 
-    internal Task<ToolPaths> ActivateForRepairAsync(ToolInstallation installation, ToolPaths current, IReadOnlyCollection<string> pendingKeys, CancellationToken cancellation)
-        => ActivateCoreAsync(installation, current, pendingKeys, true, cancellation);
+    internal Task<ToolPaths> ActivateForRepairAsync(ToolInstallation installation, ToolPaths current, IReadOnlyCollection<string> pendingKeys, CancellationToken cancellation, string? requiredScripts = null)
+        => ActivateCoreAsync(installation, current, pendingKeys, true, cancellation, requiredScripts);
 
-    private async Task<ToolPaths> ActivateCoreAsync(ToolInstallation installation, ToolPaths current, IReadOnlyCollection<string> pendingKeys, bool savePaths, CancellationToken cancellation)
+    private async Task<ToolPaths> ActivateCoreAsync(ToolInstallation installation, ToolPaths current, IReadOnlyCollection<string> pendingKeys, bool savePaths, CancellationToken cancellation, string? requiredScripts = null)
     {
         await using var operation = await ManagedTools.AcquirePathsLockAsync(cancellation);
-        var latest = savePaths ? ManagedTools.ReconcilePathsLocked(current, [installation.Key]) : current;
+        var latest = savePaths ? ManagedTools.ReconcilePathsLocked(current, [installation.Key], requiredScripts) : current;
         var validationTools = new ToolPaths(pendingKeys.Contains("CMake") ? null : latest.CMake,
             pendingKeys.Contains("Ninja") ? null : latest.Ninja, pendingKeys.Contains("Compiler") ? null : latest.Compiler,
             pendingKeys.Contains("OpenOcd") ? null : latest.OpenOcd, pendingKeys.Contains("OpenOcd") ? null : latest.Scripts);

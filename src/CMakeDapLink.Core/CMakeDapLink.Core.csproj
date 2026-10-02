@@ -4,4 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Resources/OpenOcdScripts.zip" LogicalName="CMakeDapLink.Core.Resources.OpenOcdScripts.zip" />
+  </ItemGroup>
 </Project>

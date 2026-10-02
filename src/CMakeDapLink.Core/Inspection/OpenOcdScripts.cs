@@ -105,7 +105,7 @@ public static class OpenOcdScripts
 
     // Upstream c36f59d9 renamed stm32wbax to stm32wba5x when adding the distinct WBA6 configuration.
     // No alias is valid for WBA2/WBA6.
-    internal static string AvailableTarget(string? scripts, string target)
+    public static string AvailableTarget(string? scripts, string target)
     {
         if (scripts != null && target == "target/stm32wba5x.cfg" && !File.Exists(Path.Combine(scripts, target)) &&
             File.Exists(Path.Combine(scripts, "target", "stm32wbax.cfg"))) return "target/stm32wbax.cfg";

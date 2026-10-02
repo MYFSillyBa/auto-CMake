@@ -51,7 +51,7 @@ public static class ManagedTools
 
     // The caller owns only the keys it is changing. A dialog or a repair can have
     // an older snapshot of the other tools while another process activates them.
-    internal static ToolPaths ReconcilePathsLocked(ToolPaths current, IReadOnlyCollection<string> changedKeys)
+    internal static ToolPaths ReconcilePathsLocked(ToolPaths current, IReadOnlyCollection<string> changedKeys, string? requiredScripts = null)
     {
         var saved = LoadPaths();
         string? KeepLatest(string key, string? previous, string? latest)
@@ -62,8 +62,8 @@ public static class ManagedTools
             return latest;
         }
         var openOcd = KeepLatest("OpenOcd", current.OpenOcd, saved.OpenOcd);
-        var scripts = changedKeys.Contains("OpenOcd") || string.IsNullOrWhiteSpace(saved.OpenOcd) ? current.Scripts : saved.Scripts;
-        if (!changedKeys.Contains("OpenOcd") && !string.IsNullOrWhiteSpace(saved.OpenOcd) &&
+        var scripts = requiredScripts ?? (changedKeys.Contains("OpenOcd") || string.IsNullOrWhiteSpace(saved.OpenOcd) ? current.Scripts : saved.Scripts);
+        if (requiredScripts == null && !changedKeys.Contains("OpenOcd") && !string.IsNullOrWhiteSpace(saved.OpenOcd) &&
             (!ToolVersionManager.SamePath(current.OpenOcd, saved.OpenOcd) ||
                 current.Scripts != saved.Scripts && !ToolVersionManager.SamePath(current.Scripts, saved.Scripts)) &&
             !EnvironmentScanner.IsScripts(scripts))

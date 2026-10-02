@@ -24,21 +24,21 @@ public static class EnvironmentReport
                 issues.Add(new(key, name + " 无法运行", $"当前文件：{path}\n检测结果：{failure}\n点击“自动修复”安装完整工具包，或手动选择可正常运行 --version 的 {executable}。"));
         }
         if (!EnvironmentScanner.IsScripts(tools.Scripts))
-            issues.Add(new("Scripts", "CMSIS-DAP 脚本目录缺失", "点击“自动修复”补齐 OpenOCD 完整包；或者在“脚本目录”行选择同时含 interface/cmsis-dap.cfg 和 target 文件夹的 scripts 目录，通常在 share/openocd/scripts 或 openocd/scripts 下。"));
+            issues.Add(new("Scripts", "内置 OpenOCD 脚本尚未就绪", "重新检测环境以解压并校验程序内置的完整 Target、CMSIS-DAP 接口和 Tcl 依赖。若资源缺失，请重新安装完整程序。目标脚本无需搜索本机或下载。"));
         target = target.Trim().Replace('\\', '/');
         var mapped = project?.Chip == null ? null : OpenOcdScripts.TargetForChip(project.Chip);
         if (string.IsNullOrWhiteSpace(target) || !OpenOcdScripts.ValidTarget(target))
             issues.Add(new("Target", mapped == null ? "芯片 Target 需要手动匹配" : "OpenOCD Target 尚未补全", mapped == null
-                ? "先确认芯片具体型号。该型号尚无可靠自动映射，请手动选择与芯片匹配的 target/*.cfg 和配套完整 OpenOCD 工具包。"
-                : "已识别芯片对应 " + mapped + "；程序会先查找本机配套完整 OpenOCD 包，缺失时自动下载。可点击“自动修复”重试。"));
+                ? "先确认芯片具体型号。该型号尚无可靠自动映射，请手动选择程序内置目录中与芯片匹配的 target/*.cfg。"
+                : "已识别芯片对应 " + mapped + "；重新检测环境会匹配程序内置的实际脚本。若内置版本尚未包含该型号，请核对芯片或使用更新的程序版本。"));
         else
         {
             var missing = OpenOcdScripts.MissingFiles(tools.Scripts, target);
             if (missing.Count != 0)
                 issues.Add(new("Target", missing.Contains(target, StringComparer.OrdinalIgnoreCase) ? "OpenOCD Target 脚本缺失" : "OpenOCD 脚本依赖不完整",
-                    "当前 Target：" + target + "\n缺少或无法读取：" + string.Join("、", missing) + "\n点击“自动修复”查找或下载配套完整 OpenOCD 包后重试。"));
+                    "当前 Target：" + target + "\n内置目录缺少或无法读取：" + string.Join("、", missing) + "\n重新检测环境会校验并恢复内置资源；型号尚未包含时请核对型号或升级程序。缺失 Target 不触发工具下载。"));
             else if (runFailures.TryGetValue("Target", out var parseFailure) || runFailures.TryGetValue("Scripts", out parseFailure))
-                issues.Add(new("Target", "OpenOCD Target 脚本解析未通过", "当前 Target：" + target + "\n检测结果：" + parseFailure + "\n点击“自动修复”下载匹配的完整工具包后重试；脚本验证不连接硬件。"));
+                issues.Add(new("Target", "OpenOCD Target 脚本解析未通过", "当前 Target：" + target + "\n检测结果：" + parseFailure + "\n请核对当前 OpenOCD 可执行工具对所选内置脚本的支持，并通过“工具管理”选择合适版本。脚本验证不连接硬件。"));
         }
         if (project?.IsCMakeProject == true)
         {
