@@ -10,6 +10,7 @@ internal static class CubeMxConversionChecks
 {
     public static void Run(string root, Action<string, Action> check)
     {
+        ConversionCoverageChecks.Run(root, check);
         var project = Path.Combine(root, "CubeMX firmware"); CubeMxFixture.Create(project);
         ConversionPlan? forward = null; CMakeBuildPlan? build = null; ConversionPlan? reverse = null;
         check("CubeMX MDK inspection and preview preserve all existing inputs without writing", () =>

@@ -21,6 +21,18 @@ internal static class ConversionUiFlow
                 try
                 {
                     Until(() => !Field<bool>(form, "_busy"));
+                    using (var help = new MainForm.CompletionDialog([new SetupIssue("Note", "保留原配置", "生成后实际编译检查。", false)], conversion: true) { ShowInTaskbar = false })
+                    {
+                        help.Show(form); Application.DoEvents();
+                        Require(help.Controls.OfType<Label>().Any(x => x.Text.Contains("可以生成")) && !help.Controls.OfType<Label>().Any(x => x.Text.Contains("需要补全")), "转换提示与必须补全事项分开显示");
+                        Require(help.Controls.OfType<Button>().Count(x => x.Visible) == 1 && help.Controls.OfType<Button>().Single(x => x.Visible).Text == "关闭", "转换说明只显示关闭按钮");
+                        Screenshot(help, Path.Combine(output, "conversion-advisory.png")); help.Close();
+                    }
+                    using (var help = new MainForm.CompletionDialog([]) { ShowInTaskbar = false })
+                    {
+                        help.Show(form); Application.DoEvents(); var buttons = help.Controls.OfType<Button>().Where(x => x.Visible).ToArray();
+                        Require(buttons.Length == 2 && !buttons[0].Bounds.IntersectsWith(buttons[1].Bounds), "环境说明按钮布局保持完整"); help.Close();
+                    }
                     Field<Button>(form, "_navConversion").PerformClick();
                     Require(Field<Control>(form, "_conversionPage").Visible, "侧栏显示独立工程转换页面");
                     Screenshot(form, Path.Combine(output, "conversion-empty.png"));
