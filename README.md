@@ -23,6 +23,7 @@
 
 - 选择或拖入 CMake 工程，显示 STM32 型号的识别依据及冲突，选择构建预设和 Debug/Release 配置；多个 ELF 时自行选择固件。
 - 检查 CMake、Ninja、ARM GCC、OpenOCD、CMSIS-DAP 脚本，提示待补全项，可展开具体处理说明。
+- 识别 STM32 后自动匹配 OpenOCD Target，优先查找本机完整工具包；脚本或依赖缺失时自动下载配套包、验证并回填路径，保留手动指定的 Target。
 - 自动下载缺失工具，校验 SHA-256 后安装；支持自选安装目录、镜像源、离线 ZIP、版本切换和旧版本清理。
 - 修改前显示文件差异，确认后写入 `.vscode/tasks.json` 或 `CMakeLists.txt`，保存可恢复的修改记录，保留用户任务和 JSONC 注释。
 - 显示 CMake、编译和链接问题的位置与处理建议，可复制或导出完整日志。
@@ -63,7 +64,7 @@ Related terms: **STM32CubeMX · Keil uVision / MDK-ARM / MDK5 · uvprojx · CMak
 ## 使用
 
 1. 打开程序，在“工程配置”选择含 `CMakeLists.txt` 的工程根目录，也可以拖入文件夹。
-2. 查看检测摘要。工具缺失时点击“自动修复”；已有安装可使用“手动指定路径”。“镜像源”可以修改备用下载地址，“展开配置详情”可核对工具路径和 Target。
+2. 查看检测摘要。识别到支持的芯片后自动补全 Target：先检测本机，找不到可用脚本时自动下载安装配套 OpenOCD。其他工具缺失时点击“自动修复”；已有安装可使用“手动指定路径”。“镜像源”可以修改备用下载地址，“展开配置详情”可核对工具路径和 Target。
 3. 查看“识别详情”，确认芯片型号及 Target，选择配置预设及对应编译预设；预设未固定构建类型时可另选 Debug/Release，也可选择直接构建目录。点击“配置并验证”，程序实际配置、编译并解析 OpenOCD 脚本；多个 ELF 时选择固件，核对差异后确认写入 VS Code 任务。
 4. 在 VS Code 的“终端 → 运行任务”中选择“一键编译”或“一键烧录(DAPLINK)”。烧录任务先编译，再通过 CMSIS-DAP/SWD 下载 ELF、校验和复位。
 
@@ -90,6 +91,10 @@ Related terms: **STM32CubeMX · Keil uVision / MDK-ARM / MDK5 · uvprojx · CMak
 ### 自动修复
 
 点击“自动修复”仅补齐缺失或无法运行的工具，保留已有可用工具。默认安装到 `D:\CMake_Tools`，可在“工具管理”更换目录。安装使用 Windows x64 ZIP 完整包，下载前查询最新稳定发行版，下载后核对摘要，解压、检查版本，再编译临时 ARM ELF 并解析 DAP 配置。工具验证工程在安装目录内创建并清理，不写入用户工程。
+
+**Target 自动补全**：选择工程后根据芯片系列匹配 `target/*.cfg`，检查当前 OpenOCD、PATH、工具管理目录和常见安装位置。找到可解析的配套包时直接使用；找不到时只下载 OpenOCD 完整包，保留其中的 `interface`、`target` 和 Tcl 依赖，验证成功后补齐 OpenOCD 与脚本目录。此流程不下载其他构建工具，不连接硬件；支持停止下载，未完成时可点击“自动修复”重试或手动指定完整包。
+
+常见 STM32 C0、F0/F1/F2/F3/F4/F7、G0/G4、H7、L0/L1/L4/L5、U0/U3/U5、WB/WL 具有系列映射；H7R/S 和 WBA2/5/6 使用专门的系列脚本。具体可用性以发行包内容及软件解析结果为准：如果完整包仍不支持对应芯片，会列出待补全原因，不能使用其他系列脚本代替。用户手动填写的 Target 不会在重新检测或切换预设时被自动覆盖。
 
 安装目录选择、工具路径和镜像设置保存在 `%LOCALAPPDATA%\CMakeDapLink`；旧版安装目录中的配置会兼容读取。下载中显示大小和速度，可点击“停止下载”；已完成的安装保留。芯片型号、缺失源码和错误构建预设需要按弹窗说明处理。
 
@@ -138,6 +143,8 @@ dotnet publish src/CMakeDapLink.App -p:PublishProfile=Lite
 可选检查项目位于 `tests`。正常软件流程：`dotnet run --project tests/CMakeDapLink.Tests -c Release -- --software-flow`；普通窗口流程：`dotnet run --project tests/CMakeDapLink.UiTests -c Release -- --software-ui`。这些流程需要已安装的嵌入式工具；界面检查需要交互式 Windows 桌面。临时工程不连接硬件。
 
 转换正常流程：`dotnet run --project tests/CMakeDapLink.Tests -c Release -- --conversion-flow`；转换普通窗口流程：`dotnet run --project tests/CMakeDapLink.UiTests -c Release -- --conversion-ui`。
+
+Target 本机发现、依赖检查与脚本解析：`dotnet run --project tests/CMakeDapLink.Tests -c Release -- --target-scripts-flow`；官方完整 OpenOCD 包下载校验：同一命令追加 `--download-official`，安装在临时目录且不切换用户当前工具。
 
 ## 项目结构
 
