@@ -12,6 +12,12 @@ var root = Path.Combine(Path.GetTempPath(), "CMakeDapLinkTests-" + Guid.NewGuid(
 Directory.CreateDirectory(root);
 try
 {
+    if (args.Contains("--conversion-flow", StringComparer.Ordinal))
+    {
+        CubeMxConversionChecks.Run(root, Check);
+        foreach (var failure in failures) Console.Error.WriteLine(failure);
+        return failures.Count == 0 ? 0 : 1;
+    }
     if (args.Contains("--software-flow", StringComparer.Ordinal))
     {
         Check("preset and chip evidence inspection", InspectionEnhancementChecks.Run);

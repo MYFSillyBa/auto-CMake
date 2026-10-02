@@ -35,6 +35,9 @@ internal static class InspectionEnhancementChecks
                 {"version":6,"configurePresets":[{"name":"Local","inherits":"Debug","binaryDir":"$env{OUTPUT}/${presetName}"}]}
                 """);
             var debug = ProjectInspector.Inspect(root);
+            var direct = ProjectInspector.Inspect(root, usePresets: false);
+            Assert(direct.ConfigurePreset == null && direct.BuildPreset == null && direct.ToolchainFile == toolchain &&
+                !direct.Notes.Any(x => x.Contains("所选配置预设不可用")), "explicit direct configuration ignores preset selection and discovers project toolchain");
             Assert(debug.Chip == "STM32H723VGT6" && debug.TargetScript == "target/stm32h7x.cfg", "IOC and compatible compile/startup evidence");
             Assert(debug.ChipCandidates.SequenceEqual(["STM32H723VGT6"]), "compatible clues produce one candidate");
             Assert(debug.ChipEvidence.Contains("board.ioc") && debug.ChipEvidence.Contains("编译缓存") && debug.ChipEvidence.Contains("启动"), "evidence identifies its sources");

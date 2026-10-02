@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../Fixtures/CubeMxFixture.cs" Link="CubeMxFixture.cs" />
     <ProjectReference Include="../../src/CMakeDapLink.Core/CMakeDapLink.Core.csproj" />
   </ItemGroup>
 </Project>

@@ -6,6 +6,23 @@ internal static class ChangeHistoryChecks
 {
     public static void Run(string root, Action<string, Action> check)
     {
+        check("renamed application updates old managed tasks without duplicate labels", () =>
+        {
+            var project = Path.Combine(root, "legacy application name"); Directory.CreateDirectory(project);
+            File.WriteAllText(Path.Combine(project, "CMakeLists.txt"), "project(example C)\n");
+            var elf = Path.Combine(project, "build", "daplink-debug", "example.elf");
+            Directory.CreateDirectory(Path.GetDirectoryName(elf)!); File.WriteAllText(elf, "fixture ELF");
+            var options = new SetupOptions(project, "C:/cmake.exe", "C:/ninja.exe", "C:/arm-none-eabi-gcc.exe",
+                "C:/openocd.exe", "C:/scripts", "target/stm32h7x.cfg", null, null, null, FirmwareElfPath: elf);
+            ConfigurationWriter.Write(options);
+            var tasksPath = Path.Combine(project, ".vscode", "tasks.json");
+            File.WriteAllText(tasksPath, File.ReadAllText(tasksPath).Replace("由 STM32 工程助手管理", "由 CMake · DAPLink 配置助手管理"));
+            ConfigurationWriter.Write(options);
+            using var document = JsonDocument.Parse(File.ReadAllText(tasksPath));
+            var tasks = document.RootElement.GetProperty("tasks").EnumerateArray().ToArray();
+            if (tasks.Length != 3 || tasks.Any(x => x.GetProperty("detail").GetString() != "由 STM32 工程助手管理") || ConfigurationWriter.Preview(options).Count != 0)
+                throw new Exception("legacy managed tasks were duplicated or not upgraded");
+        });
         check("previews JSONC tasks without writes and preserves comments, user tasks, BOM and settings", () =>
         {
             var project = Path.Combine(root, "change preview");
