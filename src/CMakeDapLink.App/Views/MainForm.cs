@@ -290,7 +290,7 @@ public sealed partial class MainForm : Form
         targetLabel.Name = "TargetLabel";
         _details.Controls.Add(targetLabel);
         _details.Controls.Add(_target);
-        _target.TextChanged += (_, _) => { if (_action != null) { if (!_busy) InvalidateCompletion(); UpdateActions(); LayoutPage(); } };
+        _target.TextChanged += (_, _) => { if (_action != null) { if (!_busy) { _targetScriptResolution = null; _toolFailures.Remove("Target"); InvalidateCompletion(); } UpdateActions(); LayoutPage(); } };
         SetDetailChildrenVisible(false);
         Add(_details);
 
@@ -585,6 +585,7 @@ public sealed partial class MainForm : Form
     private async Task LoadProjectAsync(string path)
     {
         if (_busy) return;
+        var completeTarget = false;
         BeginFeedback("load", _browseProject, "检查工程中…");
         _completionShown = _sourceCompletionShown = false;
         _lastTaskChanges = _lastSourceChanges = []; _completedFirmware = null;
@@ -598,7 +599,7 @@ public sealed partial class MainForm : Form
             RefreshProjectOptions();
             _folder.Text = _project.Root;
             _dropTitle.Text = Path.GetFileName(_project.Root.TrimEnd(Path.DirectorySeparatorChar));
-            _target.Text = _project.TargetScript ?? "";
+            SetAutomaticTarget(_project.TargetScript);
             _sourceProject.Text = "当前工程  ·  " + _project.Root;
             _sourceFolder.Text = "尚未选择文件夹";
             _sourcePlan = null;
@@ -616,9 +617,11 @@ public sealed partial class MainForm : Form
             LayoutSourcePage();
             Append("已选择工程：" + _project.Root);
             await RefreshEnvironmentAsync(showIssues: true);
+            completeTarget = ShouldCompleteTargetAutomatically();
         }
         catch (Exception ex) { _result.Text = "工程检查失败：" + ex.Message; Append(_result.Text); Notify(_result.Text, true, "选择工程", BrowseProject); }
         finally { SetBusy(false, "工程检查结束，请选择下一步操作", 0); EndFeedback(); _browseProject.Text = _project == null ? "选择工程" : "更换工程"; }
+        if (completeTarget) await AutoRepairAsync(openOcdOnly: true);
     }
 
     private async Task RefreshEnvironmentAsync(bool showIssues = false)
@@ -646,10 +649,13 @@ public sealed partial class MainForm : Form
             }
             catch (Exception ex) { _toolTiles[check.Name].SetStatus("运行失败", false); _toolFailures[ToolKey(check.Name)] = ex.Message; }
         }
+        await RefreshTargetScriptsAsync();
+        _toolBoxes["OpenOcd"].Text = _tools.OpenOcd ?? "未找到";
+        _toolBoxes["Scripts"].Text = _tools.Scripts ?? "未找到";
         var projectStatus = _project == null ? "尚未选择工程" : _project.IsCMakeProject ?
             $"{_project.Chip ?? "芯片待确认"}  ·  {_project.ConfigurePreset ?? "默认构建"}" : "不是有效 CMake 根目录";
-        var targetStatus = _project != null && !string.IsNullOrWhiteSpace(_target.Text) && _tools.Scripts != null &&
-            File.Exists(Path.Combine(_tools.Scripts, _target.Text)) ? Path.GetFileName(_target.Text) : "Target 待确认";
+        var targetStatus = _targetScriptResolution?.Ready == true ? "Target 配置已验证：" + Path.GetFileName(_target.Text) :
+            !string.IsNullOrWhiteSpace(_target.Text) ? "Target 脚本待补全：" + Path.GetFileName(_target.Text) : "Target 待确认";
         _result.Text = _project == null ? "工具检测结果如下。选择工程后识别芯片、构建预设和烧录配置。" : projectStatus + Environment.NewLine +
             (_tools.Scripts == null ? "CMSIS-DAP 配置缺失" : "CMSIS-DAP 配置已找到") + "  ·  " + targetStatus +
             (_project?.Notes.Count > 0 ? Environment.NewLine + string.Join("；", _project.Notes) : "");
@@ -705,13 +711,13 @@ public sealed partial class MainForm : Form
         if (_busy || _project?.IsCMakeProject != true) return;
         if (CurrentIssues().Any(x => x.BlocksConfiguration)) { Notify("配置尚未补齐，请处理待补全项后再进行编译验证。", true, "查看补全说明", () => ShowEnvironmentHelp()); return; }
         var target = _target.Text.Trim().Replace('\\', '/');
-        if (_tools.Scripts == null || !File.Exists(Path.Combine(_tools.Scripts, target)))
+        if (OpenOcdScripts.MissingFiles(_tools.Scripts, target).Count > 0)
         {
             if (!_expanded) ToggleDetails();
-            Notify("Target 待确认，请填写 OpenOCD scripts 目录中存在的 target/*.cfg 文件。", true, "展开配置", ShowDetails);
+            Notify("Target 或依赖脚本尚未补齐。请自动修复，或指定完整的配套 OpenOCD。", true, "自动修复", () => _ = AutoRepairAsync(openOcdOnly: true));
             return;
         }
-        if (_tools.CMake == null || _tools.Ninja == null || _tools.Compiler == null || _tools.OpenOcd == null) return;
+        if (_tools.CMake == null || _tools.Ninja == null || _tools.Compiler == null || _tools.OpenOcd == null || _tools.Scripts == null) return;
         BeginFeedback("configure", _configure, "配置验证中…"); _lastTaskChanges = [];
         SetBusy(true, "准备配置工程…", 15);
         try

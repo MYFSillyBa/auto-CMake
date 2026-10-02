@@ -61,17 +61,20 @@ public sealed partial class MainForm
             }
             var name = _project.ConfigurePresets.FirstOrDefault(x => PresetLabel(x) == _presetPicker.SelectedItem)?.Name;
             var root = _project.Root;
+            var completeTarget = false;
             SetBusy(true, "读取所选构建预设…", 8);
             try
             {
                 _project = await Task.Run(() => ProjectInspector.Inspect(root, name));
                 _confirmedChip = null;
-                _target.Text = _project.TargetScript ?? "";
+                SetAutomaticTarget(_project.TargetScript, preserveManual: true);
                 _firmwareLabel.Text = "构建后确认固件；多个 ELF 时可选择目标。";
                 RefreshProjectOptions(); await RefreshEnvironmentAsync();
+                completeTarget = ShouldCompleteTargetAutomatically();
             }
             catch (Exception ex) { Append("预设读取：" + ex); Notify("预设读取未完成：" + ex.Message, true, "查看问题与日志", ShowBuildProblems); }
             finally { SetBusy(false, "构建预设已更新，请核对识别信息。", 0); }
+            if (completeTarget) await AutoRepairAsync(openOcdOnly: true);
         };
         Add(_projectOptionsCard);
     }
@@ -143,9 +146,14 @@ public sealed partial class MainForm
         {
             InvalidateCompletion();
             _confirmedChip = dialog.ConfirmedChip; ApplyConfirmedChip();
-            _target.Text = _project!.TargetScript ?? _target.Text; RefreshProjectOptions();
-            _ = RescanAsync(showIssues: false);
+            SetAutomaticTarget(_project!.TargetScript, preserveManual: true); RefreshProjectOptions();
+            _ = RefreshConfirmedChipAsync();
         }
+    }
+    private async Task RefreshConfirmedChipAsync()
+    {
+        await RescanAsync(showIssues: false);
+        if (ShouldCompleteTargetAutomatically()) await AutoRepairAsync(openOcdOnly: true);
     }
     private void ShowChangeHistory()
     {

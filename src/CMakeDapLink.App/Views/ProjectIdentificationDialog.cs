@@ -28,7 +28,7 @@ internal sealed class ProjectIdentificationDialog : Form
         confirm.Click += (_, _) =>
         {
             var value = chip.Text.Trim().ToUpperInvariant();
-            if (!Regex.IsMatch(value, @"\ASTM32[A-Z]{1,2}[0-9][A-Z0-9]{2,12}\z"))
+            if (!Regex.IsMatch(value, @"\ASTM32(?:WBA|[A-Z]{1,2})[0-9][A-Z0-9]{2,12}\z"))
             { MessageBox.Show(this, "请填写可核对的 STM32 型号，例如 STM32H723VGT6。", "型号待确认"); return; }
             ConfirmedChip = value; DialogResult = DialogResult.OK; Close();
         };
