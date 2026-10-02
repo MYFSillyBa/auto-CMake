@@ -32,7 +32,21 @@ internal static class SoftwareUiFlow
                  "buildPresets":[{"name":"DebugBuild","configurePreset":"Multi","configuration":"Debug"},{"name":"ReleaseBuild","configurePreset":"Multi","configuration":"Release"}]}
                 """);
             using var form = new MainForm { Size = new(1453, 1032), ShowInTaskbar = false };
-            form.Show(); Pump(1200); Await(Invoke(form, "LoadProjectAsync", root));
+            var exitCode = 1;
+            form.Shown += (_, _) => form.BeginInvoke(() =>
+            {
+            try
+            {
+            Pump(1200); Until(() => !Field<bool>(form, "_busy"));
+            Require(!Field<Button>(form, "_configure").Enabled && Field<Label>(form, "_readiness").Text.Contains("先选择工程"), "禁用配置按钮说明原因");
+            Screenshot(form, Path.Combine(output, "experience-empty-workbench.png"));
+            Field<Button>(form, "_navSources").PerformClick();
+            Require(Field<Button>(form, "_sourceChooseProject").Visible && !Field<Panel>(form, "_sourceFiles").Visible, "源文件页无工程时显示选择入口");
+            Screenshot(form, Path.Combine(output, "experience-empty-sources.png"));
+            Field<Button>(form, "_navImport").PerformClick();
+            Require(Field<Button>(form, "_importChooseProject").Visible, "加入文件页无工程时显示选择入口");
+            Field<Button>(form, "_navSetup").PerformClick();
+            Await(Invoke(form, "LoadProjectAsync", root));
             Require(Field<TextBox>(form, "_target").Text == "target/stm32h7x.cfg", "芯片和软件 Target 自动识别");
             var picker = Field<Control>(form, "_presetPicker");
             picker.GetType().GetProperty("SelectedIndex")!.SetValue(picker, 1);
@@ -58,9 +72,11 @@ internal static class SoftwareUiFlow
             Field<Control>(form, "_sourceSearch").Text = "support";
             Require((int)files.GetType().GetProperty("VisibleFileCount")!.GetValue(files)! == 1, "搜索过滤文件");
             Require(((IReadOnlyList<string>)files.GetType().GetProperty("CheckedPaths")!.GetValue(files)!).SequenceEqual(selectedBefore), "过滤保留隐藏文件的勾选");
+            Require((int)files.GetType().GetProperty("HiddenCheckedCount")!.GetValue(files)! == 1 && Field<Label>(form, "_sourceCount").Text.Contains("隐藏的已选 1"), "过滤后的隐藏已选数量可见");
             Field<Control>(form, "_sourceSearch").Text = "";
             files.GetType().GetMethod("SetAll")!.Invoke(files, [true]);
             files.GetType().GetMethod("CollapseAll")!.Invoke(files, null);
+            Require((int)files.GetType().GetProperty("HiddenCheckedCount")!.GetValue(files)! == 0, "目录折叠不计入过滤隐藏数量");
             files.GetType().GetMethod("ExpandAll")!.Invoke(files, null);
             Screenshot(form, Path.Combine(output, "software-sources.png"));
             var previews = 0;
@@ -77,12 +93,55 @@ internal static class SoftwareUiFlow
             };
             accept.Start(); Await(Invoke(form, "ApplySourceAsync"));
             Require(Field<Label>(form, "_sourceStatus").Text.StartsWith("验证通过"), "预览后写入并实际编译 C/C++/ASM");
-            Field<Button>(form, "_navSetup").PerformClick(); Await(Invoke(form, "ConfigureAsync")); accept.Stop();
+            Require(Field<Panel>(form, "_sourceCompletionCard").Visible && !Field<RichTextBox>(form, "_sourceLog").Visible, "源文件结果卡和默认收起日志");
+            Require((int)files.GetType().GetProperty("RegisteredFileCount")!.GetValue(files)! == 3, "刚写入的托管文件显示已引用");
+            Screenshot(form, Path.Combine(output, "experience-source-result.png"));
+            Field<Button>(form, "_navSetup").PerformClick();
+            var configuring = Invoke(form, "ConfigureAsync");
+            var configureButton = Field<Button>(form, "_configure");
+            Require(configureButton.Text.Contains("验证中") && (bool)configureButton.GetType().GetProperty("IsBusy")!.GetValue(configureButton)! && !configureButton.Enabled, "配置按钮显示忙态并禁止重复点击");
+            Require(StepStates(form, "_workflowSteps").Contains("Running"), "执行步骤显示当前进行中的阶段");
+            Screenshot(form, Path.Combine(output, "experience-building.png"));
+            Await(configuring); accept.Stop();
             Require(previews == 2 && File.Exists(Path.Combine(root, ".vscode", "tasks.json")), "编译及脚本解析后预览并写入 VS Code 任务：预览数=" + previews + "，状态=" + Field<Label>(form, "_stage").Text);
             Require(!Directory.EnumerateFiles(root, "*.ps1", SearchOption.AllDirectories).Any(), "不生成 PowerShell 脚本");
+            Require(StepStates(form, "_workflowSteps").All(x => x == "Complete"), "五个配置步骤全部完成");
+            Require(Field<Panel>(form, "_completionCard").Visible && Field<Label>(form, "_completionBody").Text.Contains("probe.elf") && Field<Label>(form, "_completionBody").Text.Contains("下一步"), "结果卡显示实际固件和下一步操作");
+            Require(!Field<RichTextBox>(form, "_log").Visible, "详细日志默认折叠");
+            Screenshot(form, Path.Combine(output, "experience-completed.png"));
+            Field<Button>(form, "_toggleLog").PerformClick(); Require(Field<RichTextBox>(form, "_log").Visible, "可展开详细日志");
+            Field<Button>(form, "_toggleLog").PerformClick();
+            var originalBuildIndex = (int)buildPicker.GetType().GetProperty("SelectedIndex")!.GetValue(buildPicker)!;
+            buildPicker.GetType().GetProperty("SelectedIndex")!.SetValue(buildPicker, 1);
+            Require(!Field<bool>(form, "_completionShown") && StepStates(form, "_workflowSteps").All(x => x == "Pending"), "切换配置使旧成功结果失效");
+            buildPicker.GetType().GetProperty("SelectedIndex")!.SetValue(buildPicker, originalBuildIndex);
             var snapshot = ChangeHistory.List(root).First(x => x.Label.Contains("配置"));
             ChangeHistory.Restore(root, snapshot.Id);
             Require(!File.Exists(Path.Combine(root, ".vscode", "tasks.json")), "配置任务可恢复到未创建状态");
+            Field<Button>(form, "_navImport").PerformClick();
+            var incoming = Path.Combine(root, "incoming"); Directory.CreateDirectory(incoming);
+            File.WriteAllText(Path.Combine(incoming, "fresh.c"), "int fresh_value(void) { return 9; }\n");
+            File.WriteAllText(Path.Combine(incoming, "fresh.h"), "#pragma once\nint fresh_value(void);\n");
+            Field<Control>(form, "_importName").Text = "extras";
+            typeof(MainForm).GetMethod("AddImportFiles", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(form, [new[] { Path.Combine(incoming, "fresh.c"), Path.Combine(incoming, "fresh.h") }]);
+            Await(Invoke(form, "CopyImportFilesAsync"));
+            Require(StepStates(form, "_importSteps").All(x => x == "Complete") && !Field<RichTextBox>(form, "_importLog").Visible, "复制完成反馈及默认收起记录");
+            Require(Field<Control>(form, "_importNotice").Visible, "复制成功使用界面通知");
+            var notice = Field<Control>(form, "_importNotice");
+            using (var renderedNotice = new Bitmap(notice.Width, notice.Height))
+            {
+                notice.DrawToBitmap(renderedNotice, new(Point.Empty, renderedNotice.Size));
+                var corner = renderedNotice.GetPixel(0, 0);
+                Require(corner.R > 100 && corner.G > 100 && corner.B > 100, "提示条圆角显示页面背景，无黑色残影");
+            }
+            Screenshot(form, Path.Combine(output, "experience-import-completed.png"));
+            File.WriteAllText(Path.Combine(root, "extras", "unused.c"), "int unused_value(void) { return 2; }\n");
+            Field<Button>(form, "_openImported").PerformClick();
+            var importedSelection = (IReadOnlyList<string>)files.GetType().GetProperty("CheckedPaths")!.GetValue(files)!;
+            Require(importedSelection.Contains("extras/fresh.c") && importedSelection.Contains("extras/fresh.h") && !importedSelection.Contains("extras/unused.c") && selectedBefore.All(importedSelection.Contains), "复制后预选新文件并保留原有托管选择");
+            Screenshot(form, Path.Combine(output, "experience-import-next.png"));
+            accept.Start(); Await(Invoke(form, "ApplySourceAsync")); accept.Stop();
+            Require(File.ReadAllText(Path.Combine(root, "CMakeLists.txt")).Contains("extras/fresh.c") && Field<Label>(form, "_sourceStatus").Text.StartsWith("验证通过"), "复制的新文件加入 CMake 并通过实际编译");
             var assembly = typeof(MainForm).Assembly;
             using var toolDialog = (Form)Activator.CreateInstance(assembly.GetType("CMakeDapLink.App.ToolManagementDialog")!, tools)!;
             toolDialog.Show(form); Pump(1000); Screenshot(toolDialog, Path.Combine(output, "software-tools.png")); toolDialog.Close();
@@ -90,7 +149,18 @@ internal static class SoftwareUiFlow
                 new object[] { Array.Empty<BuildProblem>(), "正常固件编译通过。" })!;
             logDialog.Show(form); Pump(300); Screenshot(logDialog, Path.Combine(output, "software-log.png")); logDialog.Close();
             Require(Walk(form).OfType<Button>().All(x => x.FlatAppearance.BorderSize == 0), "主界面按钮无黑色描边");
-            form.Close(); Console.WriteLine("PASS 普通窗口完整软件流程；截图：" + output); return 0;
+            Await(Invoke(form, "LoadProjectAsync", root));
+            Require(!Field<bool>(form, "_completionShown") && !Field<bool>(form, "_sourceCompletionShown")
+                && StepStates(form, "_workflowSteps").All(x => x == "Pending")
+                && StepStates(form, "_sourceSteps").All(x => x == "Pending")
+                && StepStates(form, "_importSteps").All(x => x == "Pending"), "重新选择工程清除旧结果并重置所有步骤");
+            Console.WriteLine("PASS 普通窗口完整软件流程；截图：" + output); exitCode = 0;
+            }
+            catch (Exception ex) { Console.Error.WriteLine(ex); }
+            finally { form.Close(); Application.ExitThread(); }
+            });
+            Application.Run(form);
+            return exitCode;
         }
         catch (Exception ex) { Console.Error.WriteLine(ex); return 1; }
         finally
@@ -101,6 +171,7 @@ internal static class SoftwareUiFlow
         }
     }
     private static void Require(bool value, string label) { if (!value) throw new Exception(label); Console.WriteLine("PASS " + label); }
+    private static string[] StepStates(Form form, string field) => ((System.Collections.IEnumerable)Field<Control>(form, field).GetType().GetProperty("States")!.GetValue(Field<Control>(form, field))!).Cast<object>().Select(x => x.ToString()!).ToArray();
     private static T Field<T>(Form form, string name) => (T)typeof(MainForm).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
     private static Task Invoke(Form form, string method, params object[] args) => (Task)typeof(MainForm).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(form, args)!;
     private static IEnumerable<Control> Walk(Control control) { foreach (Control child in control.Controls) { yield return child; foreach (var item in Walk(child)) yield return item; } }
