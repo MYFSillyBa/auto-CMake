@@ -119,7 +119,7 @@ internal static class CMakeConversionReader
                     else if (flag.StartsWith("-D", StringComparison.Ordinal) && flag.Length > 2) fragmentDefines.Add(flag[2..]);
                 }
                 var defines = Array(group, "defines").Select(x => Text(x, "define")).Concat(fragmentDefines).Distinct(StringComparer.Ordinal).ToArray();
-                foreach (var include in includes) if (!Directory.Exists(include)) result.Issues.Add(ConversionPaths.Block(include, "当前编译组的包含目录不存在。", "补齐或修正 CMake 包含目录后重新配置。"));
+                foreach (var include in includes) ConversionCompatibility.CheckInclude(include, result.Issues);
                 var semanticFlags = Array(group, "compileCommandFragments").SelectMany(x => Tokens(Text(x, "fragment"))).Where(x =>
                     x.StartsWith("-std=", StringComparison.Ordinal) || Regex.IsMatch(x, @"^-(?:O[0123sg]|f(?:short-enums|short-wchar|signed-char|unsigned-char|rtti|no-rtti|no-exceptions|no-threadsafe-statics))$")).ToArray();
                 var duplicate = result.Sources.FirstOrDefault(x => x.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
@@ -156,6 +156,11 @@ internal static class CMakeConversionReader
             if (token == "-T" && i + 1 < linkTokens.Length) scripts.Add(ConversionPaths.Resolve(buildDirectory, linkTokens[++i]));
             else if (token.StartsWith("-T", StringComparison.Ordinal) && token.Length > 2) scripts.Add(ConversionPaths.Resolve(buildDirectory, token[2..]));
             else if (token.StartsWith("-Wl,-T,", StringComparison.Ordinal)) scripts.Add(ConversionPaths.Resolve(buildDirectory, token[7..]));
+            else if (Path.GetExtension(token).Equals(".a", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(token).Equals(".lib", StringComparison.OrdinalIgnoreCase))
+            {
+                var library = ConversionLibraries.CmsisDsp(ConversionPaths.Resolve(buildDirectory, token), result, false);
+                if (library != null) result.Libraries.Add(library);
+            }
             else if (!AcceptedLinkFlag(token)) result.Issues.Add(ConversionPaths.Block(targetName, $"链接参数/库 {token} 不能直接用于 Arm Compiler 6。", "保留库构建/链接顺序并验证 ABI，或明确迁移该链接选项。"));
         }
         scripts = scripts.Distinct(StringComparer.OrdinalIgnoreCase).ToList();

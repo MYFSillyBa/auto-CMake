@@ -66,7 +66,7 @@ public static class CubeMxConverter
                 }
                 project = CMakeConversionReader.Read(root, chip, Path.GetFullPath(request.BuildDirectory, root), request.Configuration, request.Target);
             }
-            issues.AddRange(project.Issues);
+            issues.AddRange(project.Issues.Distinct());
             if (project.Memory is { } memory && (memory.FlashSize == 0 || memory.RamSize == 0 || memory.StackSize + memory.HeapSize > memory.RamSize))
                 issues.Add(ConversionPaths.Block(output, "活动内存大小无效，或堆/栈超过 RAM。", "检查所选目标的显式内存配置。"));
             IReadOnlyList<string>? vectors = null;
@@ -76,7 +76,7 @@ public static class CubeMxConverter
             var changes = request.Direction == ConversionDirection.MdkToCMake ? GccChanges(project, vectors) : MdkChanges(project, vectors);
             issues.Add(new("转换保留源码与原构建格式；生成文件需要通过预览确认。", "配置并编译生成的目标以验证工具链行为。", false));
             return new(root, output, changes, issues, project.Sources.Count, project.Includes.Count,
-                $"{chip} · {request.Target} · {project.Cpu}{(project.Fpu == null ? "" : " / " + project.Fpu + " / " + project.FloatAbi)} · FLASH 0x{project.Memory.FlashStart:X}+0x{project.Memory.FlashSize:X} · RAM 0x{project.Memory.RamStart:X}+0x{project.Memory.RamSize:X} · {project.Sources.Count} 个源文件。");
+                $"{chip} · {request.Target} · {project.Cpu}{(project.Fpu == null ? "" : " / " + project.Fpu + " / " + project.FloatAbi)} · FLASH 0x{project.Memory.FlashStart:X}+0x{project.Memory.FlashSize:X} · RAM 0x{project.Memory.RamStart:X}+0x{project.Memory.RamSize:X} · {project.Sources.Count} 个源文件 · {project.Libraries.Count} 个库。");
         }
         catch (Exception ex) when (Expected(ex)) { issues.Add(ConversionPaths.Block(root, ex.Message, "补齐工程文件并重新配置所选目标后再转换。")); return new(root, output, [], issues, 0, 0, "无法读取转换输入。"); }
     }
@@ -136,14 +136,14 @@ set(CMAKE_SIZE "${ARM_SIZE}" CACHE FILEPATH "")
         foreach (var source in project.Sources.Where(x => x.Path != project.Startup)) cmake.AppendLine("  " + ConversionPaths.Quote(ConversionPaths.Relative(root, source.Path)));
         cmake.AppendLine("  " + ConversionPaths.Quote(startup)); cmake.AppendLine("  cmake/converted/runtime.c\n)");
         cmake.AppendLine($"set_target_properties({name} PROPERTIES OUTPUT_NAME {ConversionPaths.Quote(project.OutputName)} SUFFIX .elf)");
-        cmake.AppendLine($"target_include_directories({name} PRIVATE"); foreach (var include in project.Includes) cmake.AppendLine("  " + ConversionPaths.Quote(ConversionPaths.Relative(root, include))); cmake.AppendLine(")");
+        cmake.AppendLine($"target_include_directories({name} PRIVATE"); foreach (var include in project.Includes) cmake.AppendLine("  " + CMakePath(root, include)); cmake.AppendLine(")");
         cmake.AppendLine($"target_compile_definitions({name} PRIVATE"); foreach (var define in project.Defines) cmake.AppendLine("  " + ConversionPaths.Quote(define)); cmake.AppendLine(")");
         foreach (var source in project.Sources.Where(x => x.Language == "CXX" && Path.GetExtension(x.Path).Equals(".c", StringComparison.OrdinalIgnoreCase)))
             cmake.AppendLine($"set_source_files_properties({ConversionPaths.Quote(ConversionPaths.Relative(root, source.Path))} PROPERTIES LANGUAGE CXX)");
         foreach (var source in project.Sources.Where(x => x.Path != project.Startup && (x.Includes.Count > 0 || x.Defines.Count > 0 || x.CompilerFlags.Count > 0)))
         {
             var src = ConversionPaths.Quote(ConversionPaths.Relative(root, source.Path));
-            if (source.Includes.Count > 0) cmake.AppendLine($"set_property(SOURCE {src} APPEND PROPERTY INCLUDE_DIRECTORIES {string.Join(" ", source.Includes.Select(x => ConversionPaths.Quote(ConversionPaths.Relative(root, x))))})");
+            if (source.Includes.Count > 0) cmake.AppendLine($"set_property(SOURCE {src} APPEND PROPERTY INCLUDE_DIRECTORIES {string.Join(" ", source.Includes.Select(x => CMakePath(root, x)))})");
             if (source.Defines.Count > 0) cmake.AppendLine($"set_property(SOURCE {src} APPEND PROPERTY COMPILE_DEFINITIONS {string.Join(" ", source.Defines.Select(ConversionPaths.Quote))})");
             if (source.CompilerFlags.Count > 0) cmake.AppendLine($"set_property(SOURCE {src} APPEND PROPERTY COMPILE_OPTIONS {string.Join(" ", source.CompilerFlags.Select(ConversionPaths.Quote))})");
         }
@@ -151,6 +151,15 @@ set(CMAKE_SIZE "${ARM_SIZE}" CACHE FILEPATH "")
         cmake.AppendLine($"target_compile_options({name} PRIVATE {machine} -ffunction-sections -fdata-sections $<$<CONFIG:Debug>:-O0> $<$<CONFIG:Debug>:-g3> $<$<CONFIG:Release>:-Os>)");
         cmake.AppendLine($"target_link_options({name} PRIVATE {machine} -nostartfiles --specs=nano.specs --specs=nosys.specs \"-T${{CMAKE_CURRENT_SOURCE_DIR}}/{linker}\" -Wl,--gc-sections \"-Wl,-Map=${{CMAKE_CURRENT_BINARY_DIR}}/{name}.map\")");
         cmake.AppendLine($"set_property(TARGET {name} APPEND PROPERTY LINK_DEPENDS \"${{CMAKE_CURRENT_SOURCE_DIR}}/{linker}\")");
+        if (project.Libraries.Count > 0)
+        {
+            cmake.AppendLine($"target_link_libraries({name} PRIVATE");
+            foreach (var library in project.Libraries)
+            {
+                cmake.AppendLine("  " + CMakePath(root, library));
+            }
+            cmake.AppendLine("  m\n)");
+        }
         cmake.AppendLine($"add_custom_command(TARGET {name} POST_BUILD\n  COMMAND \"${{CMAKE_OBJCOPY}}\" -O ihex \"$<TARGET_FILE:{name}>\" \"$<TARGET_FILE_DIR:{name}>/$<TARGET_FILE_BASE_NAME:{name}>.hex\"\n  COMMAND \"${{CMAKE_OBJCOPY}}\" -O binary \"$<TARGET_FILE:{name}>\" \"$<TARGET_FILE_DIR:{name}>/$<TARGET_FILE_BASE_NAME:{name}>.bin\"\n  COMMAND \"${{CMAKE_SIZE}}\" \"$<TARGET_FILE:{name}>\"\n  VERBATIM)\n");
         changes.Add(ConversionPaths.Change(root, "CMakeLists.txt", cmake.ToString()));
         var presets = new
@@ -206,7 +215,16 @@ set(CMAKE_SIZE "${ARM_SIZE}" CACHE FILEPATH "")
             groups.Add(new XElement("Group", new XElement("GroupName", sample.Group + " " + ++index), new XElement("GroupOption", groupCommon, new XElement("GroupArmAds", groupCompiler, groupAssembler)), files));
         }
         groups.Add(new XElement("Group", new XElement("GroupName", "Startup"), new XElement("Files", new XElement("File", new XElement("FileName", Path.GetFileName(startup)), new XElement("FileType", "2"), new XElement("FilePath", startup.Replace('/', '\\'))))));
+        if (project.Libraries.Count > 0)
+            groups.Add(new XElement("Group", new XElement("GroupName", "CMSIS DSP Libraries"), new XElement("Files", project.Libraries.Select(path =>
+                new XElement("File", new XElement("FileName", Path.GetFileName(path)), new XElement("FileType", "4"), new XElement("FilePath", ConversionPaths.Relative(outputDirectory, path).Replace('/', '\\')))))));
         var doc = new XDocument(new XDeclaration("1.0", "UTF-8", null), new XElement("Project", new XElement("SchemaVersion", "2.1"), new XElement("Header", "### uVision Project, (C) Keil Software"), new XElement("Targets", target)));
         return [ConversionPaths.Change(root, "MDK-ARM/" + startup, ConversionStartup.Arm(project.Startup!, vectors, memory)), ConversionPaths.Change(root, "MDK-ARM/" + scatter, ConversionLinker.Scatter(memory)), ConversionPaths.Change(root, "MDK-ARM/" + safeName + ".uvprojx", "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n" + doc + "\n")];
+    }
+
+    private static string CMakePath(string root, string path)
+    {
+        var relative = ConversionPaths.Relative(root, path);
+        return Path.IsPathRooted(relative) ? ConversionPaths.Quote(path) : $"\"${{CMAKE_CURRENT_SOURCE_DIR}}/{ConversionPaths.Quote(relative)[1..^1]}\"";
     }
 }

@@ -12,6 +12,7 @@ internal static class MdkConversionReader
     public static ConversionProject Read(string root, string chip, string project, string targetName)
     {
         var result = new ConversionProject { Root = root, Chip = chip, Name = targetName };
+        var portIncludes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var directory = Path.GetDirectoryName(project)!;
         var matches = XDocument.Load(project).Descendants("Target").Where(x => Value(x, "TargetName") == targetName).ToArray();
         if (matches.Length != 1) { result.Issues.Add(ConversionPaths.Block(project, $"所选目标 {targetName} 不唯一或不存在。", "明确选择工程文件及目标。")); return result; }
@@ -65,7 +66,11 @@ internal static class MdkConversionReader
                 CheckOptions(fileOptions, path, compiler, assembler, result.Issues);
                 var type = Value(file, "FileType"); var extension = Path.GetExtension(path).ToLowerInvariant();
                 if (type is "3" or "4" || extension is ".lib" or ".a" or ".o" or ".obj")
-                { result.Issues.Add(ConversionPaths.Block(path, "编译器专用对象/库不能直接用于 GCC。", "提供库源码或已验证兼容的 GCC 库并显式链接。")); continue; }
+                {
+                    var library = ConversionLibraries.CmsisDsp(path, result, true);
+                    if (library != null) result.Libraries.Add(library);
+                    continue;
+                }
                 if (type == "6") { result.Issues.Add(ConversionPaths.Block(path, "启用了自定义文件构建步骤。", "将该文件的自定义构建步骤显式迁移到 CMake。")); continue; }
                 if (type == "5") continue;
                 if (extension is ".h" or ".hpp" or ".txt") continue;
@@ -73,12 +78,9 @@ internal static class MdkConversionReader
                 if (type == "8" && language == "C") language = "CXX";
                 if (language.Length == 0) { result.Issues.Add(ConversionPaths.Block(path, "启用文件的类型不能自动编译。", "明确该文件是源码、头文件或自定义构建输入，并迁移构建步骤。")); continue; }
                 if (!File.Exists(path)) { result.Issues.Add(ConversionPaths.Block(path, "启用源文件不存在。", "补齐所选目标的源文件。")); continue; }
-                if (path.Contains("/RVDS/", StringComparison.OrdinalIgnoreCase) || path.Contains("\\RVDS\\", StringComparison.OrdinalIgnoreCase))
-                {
-                    var gccPath = Regex.Replace(path, @"([/\\])RVDS([/\\])", "$1GCC$2", RegexOptions.IgnoreCase);
-                    if (!File.Exists(gccPath)) { result.Issues.Add(ConversionPaths.Block(path, "项目缺少对应 GCC FreeRTOS port。", $"补齐 {gccPath} 及同目录 portmacro.h，保持版本及核心/FPU 相同。")); continue; }
-                    path = gccPath; result.Issues.Add(new($"FreeRTOS port: {raw} → {gccPath}", "确认项目内 GCC port 与 FreeRTOS 内核版本及 CPU/FPU 相同。", false));
-                }
+                var adaptedPort = ConversionCompatibility.FreeRtosPort(path, result, portIncludes);
+                if (adaptedPort == null) continue;
+                path = adaptedPort;
                 var sourceIncludes = new List<string>(); var sourceDefines = new List<string>(); var sourceFlags = new List<string>();
                 if (language == "ASM") { sourceIncludes.AddRange(asmIncludes); sourceDefines.AddRange(asmDefines); }
                 foreach (var sourceOptions in new[] { groupOptions, fileOptions })
@@ -110,17 +112,18 @@ internal static class MdkConversionReader
                     if (effective("vShortWch") == "1") sourceFlags.Add("-fshort-wchar");
                     if (language == "CXX" && Value(target, "uAC6") == "1" && effective("v6Rtti") == "0") sourceFlags.Add("-fno-rtti");
                 }
-                foreach (var include in sourceIncludes) if (!Directory.Exists(include)) result.Issues.Add(ConversionPaths.Block(include, "组/文件包含目录不存在。", "补齐对应包含目录。"));
                 result.Sources.Add(new(path, Value(group, "GroupName"), language, sourceIncludes.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(), sourceDefines.Distinct(StringComparer.Ordinal).ToArray()) { CompilerFlags = sourceFlags.Distinct(StringComparer.Ordinal).ToArray() });
             }
         }
         for (var i = 0; i < result.Includes.Count; i++)
         {
-            var gcc = Regex.Replace(result.Includes[i], @"([/\\])RVDS([/\\])", "$1GCC$2", RegexOptions.IgnoreCase);
-            if (gcc != result.Includes[i] && Directory.Exists(gcc)) result.Includes[i] = gcc;
+            result.Includes[i] = ConversionCompatibility.MapInclude(result.Includes[i], portIncludes);
         }
+        for (var i = 0; i < result.Sources.Count; i++)
+            result.Sources[i] = result.Sources[i] with { Includes = result.Sources[i].Includes.Select(x => ConversionCompatibility.MapInclude(x, portIncludes)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() };
         ConversionPaths.Distinct(result.Includes); ConversionPaths.Distinct(result.Defines);
-        foreach (var include in result.Includes.Concat(asmIncludes)) if (!Directory.Exists(include)) result.Issues.Add(ConversionPaths.Block(include, "包含目录不存在。", "补齐路径或修正 MDK IncludePath。"));
+        foreach (var include in result.Includes.Concat(asmIncludes.Select(x => ConversionCompatibility.MapInclude(x, portIncludes))).Concat(result.Sources.SelectMany(x => x.Includes)))
+            ConversionCompatibility.CheckInclude(include, result.Issues);
         var startups = result.Sources.Where(x => x.Language == "ASM" && Path.GetFileName(x.Path).StartsWith("startup_", StringComparison.OrdinalIgnoreCase)).ToArray();
         if (startups.Length == 1) result.Startup = startups[0].Path;
         else result.Issues.Add(ConversionPaths.Block(project, $"启用源中找到 {startups.Length} 个 startup。", "选择只有一个标准 CubeMX startup 的单核目标。"));

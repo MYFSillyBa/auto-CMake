@@ -32,6 +32,7 @@ internal sealed class ConversionProject
     public string? Fpu { get; set; }
     public string FloatAbi { get; set; } = "soft";
     public List<ConversionSource> Sources { get; } = [];
+    public List<string> Libraries { get; } = [];
     public List<string> Includes { get; } = [];
     public List<string> Defines { get; } = [];
     public ConversionMemory? Memory { get; set; }
