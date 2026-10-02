@@ -27,7 +27,7 @@ public static class ProjectInspector
     private static readonly HashSet<string> SkippedDirectories = new(StringComparer.OrdinalIgnoreCase)
         { ".git", ".vs", ".vscode", "build", "bin", "obj", "Drivers", "CMSIS", "Middlewares", "third_party", "node_modules" };
 
-    public static ProjectInfo Inspect(string root, string? selectedPreset = null)
+    public static ProjectInfo Inspect(string root, string? selectedPreset = null, bool usePresets = true)
     {
         root = Path.GetFullPath(root);
         var notes = new List<string>();
@@ -36,10 +36,10 @@ public static class ProjectInspector
 
         var reader = new CMakePresetReader(root, notes);
         var presets = reader.Read();
-        var chosen = selectedPreset == null
+        var chosen = !usePresets ? null : selectedPreset == null
             ? presets.FirstOrDefault(p => p.Name.Contains("debug", StringComparison.OrdinalIgnoreCase)) ?? presets.FirstOrDefault()
             : presets.FirstOrDefault(p => p.Name == selectedPreset);
-        if (selectedPreset != null && chosen == null) notes.Add("所选配置预设不可用：" + selectedPreset + "。请重新选择可见预设。");
+        if (usePresets && selectedPreset != null && chosen == null) notes.Add("所选配置预设不可用：" + selectedPreset + "。请重新选择可见预设。");
         var buildDirectory = chosen?.BinaryDirectory;
         if (chosen == null) buildDirectory = Path.Combine(root, "build", "daplink-debug");
 

@@ -8,7 +8,7 @@ namespace CMakeDapLink.Core;
 /// <summary>Edits task values while retaining user values, comments and surrounding text.</summary>
 internal static class JsoncTaskEditor
 {
-    internal const string ManagedDetail = "由 CMake · DAPLink 配置助手管理";
+    internal const string ManagedDetail = "由 STM32 工程助手管理";
     private static readonly JsonDocumentOptions DocumentOptions = new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
     private static readonly JsonSerializerOptions PrintOptions = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
@@ -115,7 +115,7 @@ internal static class JsoncTaskEditor
     {
         if (node is not JsonObject task) return false;
         string? Text(string key) => task[key] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
-        if (Text("detail") == ManagedDetail) return true;
+        if (Text("detail") is ManagedDetail or "由 CMake · DAPLink 配置助手管理") return true;
         var label = Text("label");
         if (label is not ("CMake 配置（自动）" or "一键编译" or "一键烧录(DAPLINK)" or "一键启动（DAPLINK）" or "一键启动(DAPLINK)")) return false;
         if (Text("type") != "process" || task["args"] is not JsonArray arguments) return false;
