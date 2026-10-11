@@ -1,0 +1,8 @@
+node_modules/**
+test/**
+scripts/**
+package-lock.json
+.gitignore
+**/*.map
+**/*.pdb
+server/*.xml

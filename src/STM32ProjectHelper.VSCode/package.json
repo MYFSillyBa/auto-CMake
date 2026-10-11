@@ -1,0 +1,44 @@
+{
+  "name": "stm32-project-helper",
+  "displayName": "STM32 工程助手",
+  "description": "STM32 本地工程工具：CubeMX Keil MDK-ARM/CMake 双向转换、ARM GCC 环境检测、VS Code 一键编译与 DAPLink 烧录任务、源文件管理和修改恢复。",
+  "version": "1.0.3",
+  "publisher": "myfsillyba",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/MYFSillyBa/auto-CMake.git" },
+  "homepage": "https://github.com/MYFSillyBa/auto-CMake#readme",
+  "bugs": { "url": "https://github.com/MYFSillyBa/auto-CMake/issues" },
+  "keywords": ["stm32", "stm32cubemx", "keil", "mdk-arm", "cmake", "arm-gcc", "daplink", "cmsis-dap", "openocd", "embedded"],
+  "engines": { "vscode": "^1.95.0" },
+  "categories": ["Other"],
+  "main": "./extension.js",
+  "icon": "media/chip.png",
+  "extensionKind": ["workspace"],
+  "activationEvents": ["workspaceContains:CMakeLists.txt", "workspaceContains:**/*.uvprojx", "workspaceContains:**/*.ioc"],
+  "capabilities": { "untrustedWorkspaces": { "supported": false, "description": "需要可信的本地 Windows 工作区才能运行构建工具及修改工程。" }, "virtualWorkspaces": false },
+  "contributes": {
+    "commands": [
+      { "command": "stm32ProjectHelper.open", "title": "STM32 工程助手：打开" },
+      { "command": "stm32ProjectHelper.selectWorkspace", "title": "STM32 工程助手：选择工作区", "icon": "$(folder-opened)" },
+      { "command": "stm32ProjectHelper.refresh", "title": "STM32 工程助手：重新检测", "icon": "$(refresh)" }
+    ],
+    "viewsContainers": { "activitybar": [{ "id": "stm32ProjectHelper", "title": "STM32 工程助手", "icon": "media/sidebar.svg" }] },
+    "views": { "stm32ProjectHelper": [{ "id": "stm32ProjectHelper.navigation", "name": "当前工程" }] },
+    "menus": { "view/title": [
+      { "command": "stm32ProjectHelper.selectWorkspace", "when": "view == stm32ProjectHelper.navigation", "group": "navigation" },
+      { "command": "stm32ProjectHelper.refresh", "when": "view == stm32ProjectHelper.navigation", "group": "navigation" }
+    ] },
+    "configuration": {
+      "title": "STM32 工程助手",
+      "properties": {
+        "stm32ProjectHelper.autoOpen": { "type": "boolean", "default": true, "description": "检测到受支持的工程后自动打开工程助手。" },
+        "stm32ProjectHelper.tools.cMake": { "type": "string", "default": "", "description": "CMake 可执行文件路径。留空自动检测。", "scope": "machine-overridable" },
+        "stm32ProjectHelper.tools.ninja": { "type": "string", "default": "", "description": "Ninja 可执行文件路径。", "scope": "machine-overridable" },
+        "stm32ProjectHelper.tools.compiler": { "type": "string", "default": "", "description": "arm-none-eabi-gcc 可执行文件路径。", "scope": "machine-overridable" },
+        "stm32ProjectHelper.tools.openOcd": { "type": "string", "default": "", "description": "OpenOCD 可执行文件路径。", "scope": "machine-overridable" }
+      }
+    }
+  },
+  "scripts": { "check": "node --check extension.js && node --check bridge.js && node --check media/workbench.js", "build": "node scripts/package.mjs", "package": "node scripts/package.mjs", "smoke": "node scripts/test-vscode.cjs", "test": "node --test test/*.test.cjs" },
+  "devDependencies": { "@vscode/vsce": "4.0.0", "@vscode/test-electron": "3.1.0" }
+}
