@@ -2,18 +2,18 @@
 
 <img src="docs/images/chip.png" width="64" height="64" alt="蓝色芯片图标">
 
-面向 STM32 开发的 Windows 桌面工具，集中完成 **STM32CubeMX 工程的 Keil MDK-ARM ↔ CMake 转换**、**ARM GCC 构建环境检测与自动安装**、**VS Code 一键编译与 DAPLink 烧录任务配置**，以及 C/C++、头文件和汇编源文件管理。
+面向 STM32 开发的 Windows 工具，提供**桌面程序**和 **VS Code 本地扩展**两个使用入口，集中完成 **STM32CubeMX 工程的 Keil MDK-ARM ↔ CMake 转换**、**ARM GCC 构建环境检测与自动安装**、**VS Code 一键编译与 DAPLink 烧录任务配置**，以及 C/C++、头文件和汇编源文件管理。
 
-**STM32 Project Helper** is a Windows GUI for STM32CubeMX project conversion between Keil MDK5 (`.uvprojx`) and ARM GCC CMake, embedded toolchain setup, VS Code build/flash tasks, CMSIS-DAP/DAPLink and source-file management. Project conversion does not invoke STM32CubeMX.
+**STM32 Project Helper** provides a Windows desktop application and a local VS Code extension for STM32CubeMX project conversion between Keil MDK5 (`.uvprojx`) and ARM GCC CMake, embedded toolchain setup, build/flash tasks, CMSIS-DAP/DAPLink and source-file management. Project conversion does not invoke STM32CubeMX.
 
-## 从需求找到入口
+## 功能入口
 
-| 你想做什么 | 应用入口 | 得到什么 |
+| 使用需求 | 功能入口 | 输出内容 |
 | --- | --- | --- |
 | 把 CubeMX 生成的 Keil 工程放到 VS Code 中编译 | 工程转换 → MDK-ARM → CMake | CMakeLists、Debug/Release 预设、GCC 启动和链接配置 |
 | 把 CubeMX CMake 工程转回 Keil MDK5 | 工程转换 → CMake → MDK-ARM | 按所选实际目标生成 `.uvprojx`、启动文件和 scatter |
 | 解决 CMake、Ninja、ARM GCC 或 OpenOCD 缺失 | 工程配置 → 自动修复；工具管理 | 下载校验、安装验证、工具路径与版本切换 |
-| 配置 VS Code 一键编译和 DAPLink 一键烧录 | 工程配置 → 配置并验证 | 保留原有任务的 `.vscode/tasks.json` |
+| 配置 VS Code 一键编译和 DAPLink 一键烧录 | 工程配置；桌面端“配置并验证”，扩展“确认写入” | 保留原有任务的 `.vscode/tasks.json` |
 | 把 BSP、驱动或业务模块加入 CMake 编译 | 添加源文件 | 勾选文件和目标，预览后维护源文件与包含目录 |
 | 创建工程目录并复制文件 | 加入文件 | 文件夹创建、同名处理及后续参与构建的选择 |
 
@@ -23,9 +23,9 @@
 
 - 选择或拖入 CMake 工程，显示 STM32 型号的识别依据及冲突，选择构建预设和 Debug/Release 配置；多个 ELF 时自行选择固件。
 - 检查 CMake、Ninja、ARM GCC、OpenOCD、CMSIS-DAP 脚本，提示待补全项，可展开具体处理说明。
-- EXE 内置完整 OpenOCD Target 及配套脚本，识别 STM32 后自动选择配置并验证，无需查找或下载 Target；保留手动指定的 Target。
+- 桌面程序和 VS Code 扩展均内置完整 OpenOCD Target 及配套脚本，识别 STM32 后自动选择配置并验证，无需查找或下载 Target；保留手动指定的 Target。
 - 自动下载缺失工具，校验 SHA-256 后安装；支持自选安装目录、镜像源、离线 ZIP、版本切换和旧版本清理。
-- 修改前显示文件差异，确认后写入 `.vscode/tasks.json` 或 `CMakeLists.txt`，保存可恢复的修改记录，保留用户任务和 JSONC 注释。
+- 写入 `.vscode/tasks.json` 或 `CMakeLists.txt` 时保存可恢复的修改记录，保留用户任务和 JSONC 注释。桌面端通过差异预览确认；扩展提供直接“确认写入”按钮和可选差异预览。
 - 显示 CMake、编译和链接问题的位置与处理建议，可复制或导出完整日志。
 - 通过目录树、搜索和过滤逐项选择 C/C++、汇编及头文件，添加到指定 CMake 目标。
 - 创建工程文件夹并复制选定文件，同名文件夹询问是否追加，同名文件自动改名。
@@ -34,9 +34,11 @@
 - 显示当前操作步骤和用时，详细日志默认收起；完成后保留结果卡，展示实际固件路径、大小、时间和下一步入口。
 - 文件列表显示已引用、待加入和未选择状态，统计过滤后隐藏的勾选项；复制完成后可直接预选新增文件参与构建。
 
-## 下载与运行
+## 下载与安装
 
-前往 [GitHub Releases](https://github.com/MYFSillyBa/auto-CMake/releases/latest) 下载：
+### 桌面程序
+
+前往 [桌面程序最新版本](https://github.com/MYFSillyBa/auto-CMake/releases/latest) 下载：
 
 - **轻量版**：[STM32ProjectHelper-portable-win-x64.exe](https://github.com/MYFSillyBa/auto-CMake/releases/latest/download/STM32ProjectHelper-portable-win-x64.exe)，下载后直接运行，自带 .NET。
 - **极致轻量版**：[STM32ProjectHelper-lite-win-x64.exe](https://github.com/MYFSillyBa/auto-CMake/releases/latest/download/STM32ProjectHelper-lite-win-x64.exe)，需要电脑已安装 .NET 9 Desktop Runtime。
@@ -48,6 +50,22 @@
 
 两个版本功能相同，Release 附件直接提供 EXE。应用原名“CMake · DAPLink 配置助手”；新版本继续读取已有工具设置和修改记录，并识别旧版生成的 VS Code 任务。仓库名保留 `auto-CMake`，Git 仓库保存源码和文档，克隆后可以自行构建。GitHub Actions 构建成功后会生成两个版本的下载产物。
 
+### VS Code 本地扩展
+
+本地扩展提供工程配置、添加源文件、加入文件、工程转换、工具管理和修改记录，直接操作当前工作区，无需启动桌面程序。扩展适用于本地 Windows x64、VS Code 1.95 及以上版本，自带经过裁剪的后台运行时，无需另装 .NET。
+
+- **插件安装包 v1.0.3**：[stm32-project-helper-1.0.3-win32-x64.vsix](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.0.3/stm32-project-helper-1.0.3-win32-x64.vsix)。安装包约 **8.5 MB**，较初版约 32.2 MB 减少约 74%。
+- **版本说明**：[VS Code 扩展 v1.0.3](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.0.3)。
+- **完整操作指南**：[安装、更新、使用流程与常见问题](src/STM32ProjectHelper.VSCode/README.md)。
+
+1. 下载 VSIX，按 `Ctrl+Shift+X` 打开 VS Code 扩展面板，在右上角的 `…` 菜单选择“从 VSIX 安装…”，选择下载的 `stm32-project-helper-1.0.3-win32-x64.vsix`；从源码打包的文件位于 `artifacts/vsix`。
+2. 打开并信任包含 `CMakeLists.txt`、`.ioc` 或 `.uvprojx` 的工程文件夹，工作台自动打开；也可点击活动栏的芯片图标，或执行“STM32 工程助手：打开”。
+3. 核对检测结果，点击“确认写入”，在弹窗中确认受影响文件，然后执行软件检查。也可先点“预览改动”查看原生文件差异。检查不连接硬件；烧录通过“终端 → 运行任务 → 一键烧录(DAPLINK)”自行执行。
+
+多个工程使用侧栏的“选择工作区”按钮切换；编辑另一工作区的源文件时自动切换当前工程。设置 `stm32ProjectHelper.autoOpen` 可关闭自动打开。扩展不上传工程，不保存最近工程列表。
+
+**更新方法**：再次“从 VSIX 安装…”选择新版文件，覆盖已有扩展后重新加载窗口，无需先卸载。若未出现重新加载提示，可执行命令“Developer: Reload Window”，或关闭并重新打开 VS Code。桌面版本与扩展版本使用各自的版本号，发布页分别提供下载。
+
 ### 支持范围
 
 - 工程转换：保留 `.ioc` 和生成源码的 STM32CubeMX 单核 STM32 MDK5 / ARM GCC CMake 工程；标准启动代码及实际使用一个 FLASH、一个 RAM 的布局。
@@ -55,9 +73,9 @@
 - 软件要求：配置/编译需要对应 CMake、Ninja、ARM GCC；生成 MDK 工程不要求安装 Keil，实际 MDK 编译验证需要 Keil、对应芯片 Pack 和编译器。
 - 烧录任务：DAPLink / CMSIS-DAP，OpenOCD SWD。应用验证阶段只检查软件和脚本；用户执行 VS Code 烧录任务时才连接并下载硬件。
 
-### 常见查找方式
+### 相关关键词
 
-如果你在找“STM32 Keil 转 CMake”“MDK-ARM 转 VS Code”“CubeMX CMake 转 Keil”“CMake 自动安装配置”“DAPLink 一键烧录”或“CMake 添加源文件”，可先按上面的需求表选择入口。
+适用需求包括：STM32 Keil 转 CMake、MDK-ARM 转 VS Code、CubeMX CMake 转 Keil、CMake 自动安装配置、DAPLink 一键烧录、CMake 添加源文件，以及 STM32 VS Code 本地插件。
 
 Related terms: **STM32CubeMX · Keil uVision / MDK-ARM / MDK5 · uvprojx · CMakeLists.txt · CMakePresets.json · ARM GCC / arm-none-eabi · VS Code · OpenOCD · CMSIS-DAP · DAPLink · embedded firmware · project converter · toolchain setup**.
 
@@ -156,6 +174,16 @@ dotnet publish src/CMakeDapLink.App -p:PublishProfile=Lite
 
 内置 Target 资源完整性、解压缓存、依赖检查与脚本解析：`dotnet run --project tests/CMakeDapLink.Tests -c Release -- --target-scripts-flow`。可选工具下载检查可追加 `--download-official`，安装在临时目录且不切换用户当前工具；日常使用内置 Target 无需下载。
 
+打包 VS Code 本地扩展需要 Windows x64、.NET 9 SDK 和 Node.js 22 及以上版本：
+
+```powershell
+cd src/STM32ProjectHelper.VSCode
+npm ci
+npm run package
+```
+
+产物写入 `artifacts/vsix`。打包只构建独立后台和扩展，不重新发布桌面 EXE，也不上传 Marketplace 或 GitHub。`npm test` 检查正常软件流程；`npm run smoke` 在隔离配置的本机 VS Code 中检查扩展，可用 `VSCODE_EXECUTABLE_PATH` 指定 VS Code 路径。
+
 ## 项目结构
 
 ```text
@@ -163,10 +191,13 @@ auto-CMake/
 ├── .github/                 # 构建工作流、Issue 和 PR 模板
 ├── src/
 │   ├── CMakeDapLink.App/     # Views、Controls、Infrastructure、Resources
-│   └── CMakeDapLink.Core/    # 检测、构建、配置、文件管理及工具安装
+│   ├── CMakeDapLink.Core/    # 检测、构建、配置、文件管理及工具安装
+│   ├── CMakeDapLink.ExtensionHost/ # VS Code 独立后台接口
+│   └── STM32ProjectHelper.VSCode/ # 本地扩展、界面与 VSIX 打包
 ├── tests/                   # 核心、界面及工具安装检查
 ├── docs/images/             # 文档静态图片
 ├── artifacts/publish/       # 两个本地发布版本，不提交 Git
+├── artifacts/vsix/          # 本地 VS Code 安装包，不提交 Git
 ├── CMakeDapLink.sln          # 解决方案入口
 ├── Directory.Build.props    # 共享构建属性
 ├── global.json              # SDK 版本选择

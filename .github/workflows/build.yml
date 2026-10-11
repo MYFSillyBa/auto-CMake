@@ -41,3 +41,34 @@ jobs:
             artifacts/publish/${{ matrix.folder }}/LICENSE
           if-no-files-found: error
           retention-days: 14
+  vscode-extension:
+    name: Package VS Code extension for Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: src/STM32ProjectHelper.VSCode
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 9.0.x
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/STM32ProjectHelper.VSCode/package-lock.json
+      - name: Install extension build dependencies
+        run: npm ci
+      - name: Check extension JavaScript
+        run: npm run check
+      - name: Publish backend and package VSIX
+        run: npm run package
+      - uses: actions/upload-artifact@v7
+        with:
+          name: STM32ProjectHelper-vscode-win-x64
+          path: artifacts/vsix/*.vsix
+          if-no-files-found: error
+          retention-days: 14

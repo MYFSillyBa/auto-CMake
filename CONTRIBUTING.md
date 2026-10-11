@@ -6,6 +6,8 @@
 
 使用 Bug Report 模板，提供 Windows 版本、应用版本及 portable/lite 类型、操作入口、复现步骤、预期结果和实际结果。涉及转换时说明方向、芯片型号、所选目标和 Debug/Release，并附相关 `.ioc` 元数据、`.uvprojx` 或 CMake / 链接配置及构建输出；日志中的个人目录可先替换为示例路径。
 
+VS Code 扩展的问题还需提供 VS Code 版本、扩展版本及本地/远程窗口类型，相关输出位于“STM32 工程助手”输出频道。
+
 ## 开发
 
 1. Fork 或克隆仓库，建立用于修改的分支。
@@ -15,6 +17,8 @@
 5. 功能或操作方式变化时同步更新根目录 README。
 
 构建与发布命令见 [README](README.md)。`artifacts/`、`bin/`、`obj/` 和个人 IDE 设置不提交；遵循 `.editorconfig`，避免写死个人工作目录。
+
+VS Code 扩展前端与打包代码位于 `src/STM32ProjectHelper.VSCode`，后台接口位于 `src/CMakeDapLink.ExtensionHost`。扩展开发另需 Node.js 22 及以上版本；在扩展目录执行 `npm ci`、`npm run check` 和 `npm run package`。正常软件流程及隔离窗口检查的要求见 [扩展操作指南](src/STM32ProjectHelper.VSCode/README.md#从源码打包与检查)。
 
 ## Pull Request
 
