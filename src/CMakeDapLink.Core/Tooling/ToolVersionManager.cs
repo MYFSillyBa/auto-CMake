@@ -39,6 +39,8 @@ public sealed class ToolVersionManager
     public async Task<IReadOnlyList<ToolInstallation>> ListAsync(ToolPaths current, CancellationToken cancellation = default)
     {
         var result = new List<ToolInstallation>();
+        var discovered = await Task.Run(() => EnvironmentScanner.Discover(current,
+            new ToolDiscoveryOptions(ManagedRoot: _root), cancellation), cancellation);
         foreach (var key in Keys)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -57,11 +59,14 @@ public sealed class ToolVersionManager
                     result.Add(new(key, version, executable, scripts, directory, Size(directory), manifest != null, SamePath(executable, GetPath(current, key))));
                 }
             }
-            var active = GetPath(current, key);
-            if (File.Exists(active) && !result.Any(x => SamePath(x.Executable, active)))
-                result.Add(new(key, await DescribeVersionAsync(key, active!, cancellation), Path.GetFullPath(active!),
-                    key == "OpenOcd" ? EnvironmentScanner.FindScripts(active, current.Scripts) : null,
-                    Path.GetDirectoryName(Path.GetFullPath(active!))!, new FileInfo(active!).Length, false, true));
+            foreach (var candidate in discovered.CandidatesFor(key))
+            {
+                var path = candidate.Executable;
+                if (result.Any(x => SamePath(x.Executable, path))) continue;
+                result.Add(new(key, await DescribeVersionAsync(key, path, cancellation), path,
+                    key == "OpenOcd" ? EnvironmentScanner.FindScripts(path, SamePath(path, current.OpenOcd) ? current.Scripts : null) : null,
+                    Path.GetDirectoryName(path)!, new FileInfo(path).Length, false, SamePath(path, GetPath(current, key))));
+            }
         }
         return result;
     }
@@ -167,8 +172,8 @@ public sealed class ToolVersionManager
     public Task<ToolPaths> ActivateAsync(ToolInstallation installation, ToolPaths current, bool savePaths = true, CancellationToken cancellation = default)
         => ActivateCoreAsync(installation, current, [], savePaths, cancellation);
 
-    internal Task<ToolPaths> ActivateForRepairAsync(ToolInstallation installation, ToolPaths current, IReadOnlyCollection<string> pendingKeys, CancellationToken cancellation, string? requiredScripts = null)
-        => ActivateCoreAsync(installation, current, pendingKeys, true, cancellation, requiredScripts);
+    internal Task<ToolPaths> ActivateForRepairAsync(ToolInstallation installation, ToolPaths current, IReadOnlyCollection<string> pendingKeys, CancellationToken cancellation, string? requiredScripts = null, bool savePaths = true)
+        => ActivateCoreAsync(installation, current, pendingKeys, savePaths, cancellation, requiredScripts);
 
     private async Task<ToolPaths> ActivateCoreAsync(ToolInstallation installation, ToolPaths current, IReadOnlyCollection<string> pendingKeys, bool savePaths, CancellationToken cancellation, string? requiredScripts = null)
     {
@@ -283,7 +288,7 @@ public sealed class ToolVersionManager
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
         catch (Exception) { return "未通过版本验证"; }
     }
-    private static async Task<string> ReadVersionAsync(string key, string path, CancellationToken cancellation)
+    internal static async Task<string> ReadVersionAsync(string key, string path, CancellationToken cancellation)
     {
         var output = await ToolRepairInstaller.RunAsync(path, ["--version"], Path.GetDirectoryName(path)!, new(null, null, null, null, null), cancellation);
         var pattern = key switch

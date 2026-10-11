@@ -5,14 +5,10 @@ public sealed record ToolPaths(string? CMake, string? Ninja, string? Compiler, s
 public static class EnvironmentScanner
 {
     public static ToolPaths Scan(ToolPaths? preferred = null)
-    {
-        var managed = ManagedTools.LoadPaths();
-        var cmake = Valid(preferred?.CMake) ?? Valid(managed.CMake) ?? Find("cmake.exe");
-        var ninja = Valid(preferred?.Ninja) ?? Valid(managed.Ninja) ?? Find("ninja.exe");
-        var compiler = Valid(preferred?.Compiler) ?? Valid(managed.Compiler) ?? Find("arm-none-eabi-gcc.exe");
-        var openocd = Valid(preferred?.OpenOcd) ?? Valid(managed.OpenOcd) ?? Find("openocd.exe");
-        return new(cmake, ninja, compiler, openocd, FindScripts(openocd, preferred?.Scripts ?? (openocd == managed.OpenOcd ? managed.Scripts : null)));
-    }
+        => Discover(preferred).Selected;
+
+    public static ToolDiscoveryResult Discover(ToolPaths? preferred = null, ToolDiscoveryOptions? options = null,
+        CancellationToken cancellation = default) => ToolDiscovery.Discover(preferred, options ?? new(), cancellation);
 
     public static string? FindScripts(string? openocd, string? preferred = null)
     {
@@ -37,14 +33,4 @@ public static class EnvironmentScanner
     public static bool IsScripts(string? path) => path != null &&
         File.Exists(Path.Combine(path, "interface", "cmsis-dap.cfg")) && Directory.Exists(Path.Combine(path, "target"));
 
-    private static string? Valid(string? path) => path != null && File.Exists(path) ? Path.GetFullPath(path) : null;
-    private static string? Find(string name)
-    {
-        foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
-        {
-            try { var path = Path.Combine(dir.Trim('"'), name); if (File.Exists(path)) return Path.GetFullPath(path); }
-            catch (Exception ex) when (ex is ArgumentException or NotSupportedException) { }
-        }
-        return null;
-    }
 }

@@ -206,7 +206,7 @@ public sealed partial class MainForm
     private bool ConversionToolsReady => _tools.CMake != null && _tools.Ninja != null && _tools.Compiler != null;
     private async Task ConfigureConversionCMakeAsync(CMakeBuildPlan build)
     {
-        build.PrepareArtifactQuery(); _conversionStage.Text = "正在解析 CMake 构建配置…"; LayoutConversionPage();
+        build.PrepareArtifactQuery(AppendConversion); _conversionStage.Text = "正在解析 CMake 构建配置…"; LayoutConversionPage();
         var result = await ProcessTools.RunAsync(build.Configure.Executable, build.Configure.Arguments, build.Configure.WorkingDirectory, TimeSpan.FromMinutes(5), AppendConversion, build.Configure.PathPrefix);
         _conversionProblems.AddRange(BuildDiagnostics.Parse(result.Output, build.Configure.WorkingDirectory, "CMake 配置"));
         if (result.ExitCode != 0) throw new InvalidOperationException("CMake 配置未通过。请展开日志，修正源码依赖或配置后重新解析。");

@@ -49,6 +49,42 @@ public static class ManagedTools
     }
     internal static void SavePathsLocked(ToolPaths paths) => SaveJson(PathsPath, paths);
 
+    public static async Task<ToolPaths> SelectToolAsync(string key, string executable, string? scripts = null,
+        CancellationToken cancellation = default)
+    {
+        var expected = ToolDiscovery.ExecutableName(key);
+        var absolute = Path.GetFullPath(executable);
+        if (!Path.GetFileName(absolute).Equals(expected, StringComparison.OrdinalIgnoreCase) || !File.Exists(absolute))
+            throw new InvalidDataException("请选择有效的 " + expected + " 文件。");
+        ToolVersionManager.EnsureOrdinaryPath(absolute);
+        await ToolVersionManager.ReadVersionAsync(key, absolute, cancellation);
+        if (key == "Compiler")
+            foreach (var name in new[] { "arm-none-eabi-g++.exe", "arm-none-eabi-objcopy.exe", "arm-none-eabi-ld.exe" })
+                if (!File.Exists(Path.Combine(Path.GetDirectoryName(absolute)!, name))) throw new InvalidDataException("ARM GCC 缺少 " + name);
+        if (key == "OpenOcd")
+        {
+            scripts = EnvironmentScanner.FindScripts(absolute, scripts);
+            if (!EnvironmentScanner.IsScripts(scripts)) throw new InvalidDataException("OpenOCD 缺少完整 CMSIS-DAP 脚本。");
+            await ToolRepairInstaller.RunAsync(absolute,
+                ["-s", scripts!, "-f", "interface/cmsis-dap.cfg", "-c", "transport select swd", "-c", "shutdown"],
+                Path.GetDirectoryName(absolute)!, new(null, null, null, absolute, scripts), cancellation);
+        }
+        await using var operation = await AcquirePathsLockAsync(cancellation);
+        cancellation.ThrowIfCancellationRequested();
+        if (!File.Exists(absolute)) throw new IOException("选定工具已不存在，请重新选择。");
+        // Merge the selected key into the latest file, including unrelated stale keys.
+        // A stale installation must never prevent the user from repairing another selection.
+        var latest = LoadPaths();
+        var merged = key switch
+        {
+            "CMake" => latest with { CMake = absolute }, "Ninja" => latest with { Ninja = absolute },
+            "Compiler" => latest with { Compiler = absolute }, "OpenOcd" => latest with { OpenOcd = absolute, Scripts = scripts },
+            _ => throw new ArgumentException("未知工具：" + key)
+        };
+        SavePathsLocked(merged);
+        return merged;
+    }
+
     // The caller owns only the keys it is changing. A dialog or a repair can have
     // an older snapshot of the other tools while another process activates them.
     internal static ToolPaths ReconcilePathsLocked(ToolPaths current, IReadOnlyCollection<string> changedKeys, string? requiredScripts = null)
@@ -57,17 +93,10 @@ public static class ManagedTools
         string? KeepLatest(string key, string? previous, string? latest)
         {
             if (changedKeys.Contains(key) || string.IsNullOrWhiteSpace(latest)) return previous;
-            if (!ToolVersionManager.SamePath(previous, latest) && !File.Exists(latest))
-                throw new IOException(ToolVersionManager.DisplayName(key) + " 的已保存路径已变化但文件不存在，请刷新工具选择后重试：" + latest);
             return latest;
         }
         var openOcd = KeepLatest("OpenOcd", current.OpenOcd, saved.OpenOcd);
         var scripts = requiredScripts ?? (changedKeys.Contains("OpenOcd") || string.IsNullOrWhiteSpace(saved.OpenOcd) ? current.Scripts : saved.Scripts);
-        if (requiredScripts == null && !changedKeys.Contains("OpenOcd") && !string.IsNullOrWhiteSpace(saved.OpenOcd) &&
-            (!ToolVersionManager.SamePath(current.OpenOcd, saved.OpenOcd) ||
-                current.Scripts != saved.Scripts && !ToolVersionManager.SamePath(current.Scripts, saved.Scripts)) &&
-            !EnvironmentScanner.IsScripts(scripts))
-            throw new IOException("OpenOCD 的已保存脚本路径已变化但配置不完整，请刷新工具选择后重试。");
         return new(KeepLatest("CMake", current.CMake, saved.CMake), KeepLatest("Ninja", current.Ninja, saved.Ninja),
             KeepLatest("Compiler", current.Compiler, saved.Compiler), openOcd, scripts);
     }

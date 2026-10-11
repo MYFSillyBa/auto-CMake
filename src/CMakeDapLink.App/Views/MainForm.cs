@@ -625,11 +625,14 @@ public sealed partial class MainForm : Form
     {
         _stage.Text = "准备内置 OpenOCD 脚本…";
         var bundledScripts = await Task.Run(() => BundledOpenOcdScripts.GetDirectoryAsync(_repairCancellation?.Token ?? CancellationToken.None));
-        _tools = EnvironmentScanner.Scan(_tools with { Scripts = bundledScripts });
-        _toolBoxes["CMake"].Text = _tools.CMake ?? "未找到";
-        _toolBoxes["Ninja"].Text = _tools.Ninja ?? "未找到";
-        _toolBoxes["Compiler"].Text = _tools.Compiler ?? "未找到";
-        _toolBoxes["OpenOcd"].Text = _tools.OpenOcd ?? "未找到";
+        _toolDiscovery = await Task.Run(() => EnvironmentScanner.Discover(_tools with { Scripts = bundledScripts },
+            cancellation: _repairCancellation?.Token ?? CancellationToken.None));
+        _tools = _toolDiscovery.Selected;
+        PrepareToolSelectionLinks();
+        _toolBoxes["CMake"].Text = _tools.CMake ?? ToolPathStatus("CMake");
+        _toolBoxes["Ninja"].Text = _tools.Ninja ?? ToolPathStatus("Ninja");
+        _toolBoxes["Compiler"].Text = _tools.Compiler ?? ToolPathStatus("Compiler");
+        _toolBoxes["OpenOcd"].Text = _tools.OpenOcd ?? ToolPathStatus("OpenOcd");
         _toolBoxes["Scripts"].Text = _tools.Scripts ?? "未找到";
         var checks = new (string Name, string? Path)[]
         {
@@ -638,7 +641,7 @@ public sealed partial class MainForm : Form
         _toolFailures.Clear();
         foreach (var check in checks)
         {
-            if (check.Path == null) { _toolTiles[check.Name].SetStatus("未找到", false); continue; }
+            if (check.Path == null) { _toolTiles[check.Name].SetStatus(_toolDiscovery.CandidatesFor(ToolKey(check.Name)).Count > 1 ? "待选择" : "未找到", false); continue; }
             try
             {
                 var result = await ProcessTools.RunAsync(check.Path, ["--version"], _project?.Root ?? Environment.CurrentDirectory, TimeSpan.FromSeconds(8));
@@ -649,7 +652,7 @@ public sealed partial class MainForm : Form
             catch (Exception ex) { _toolTiles[check.Name].SetStatus("运行失败", false); _toolFailures[ToolKey(check.Name)] = ex.Message; }
         }
         await RefreshTargetScriptsAsync();
-        _toolBoxes["OpenOcd"].Text = _tools.OpenOcd ?? "未找到";
+        _toolBoxes["OpenOcd"].Text = _tools.OpenOcd ?? ToolPathStatus("OpenOcd");
         _toolBoxes["Scripts"].Text = _tools.Scripts ?? "未找到";
         var projectStatus = _project == null ? "尚未选择工程" : _project.IsCMakeProject ?
             $"{_project.Chip ?? "芯片待确认"}  ·  {_project.ConfigurePreset ?? "默认构建"}" : "不是有效 CMake 根目录";
@@ -671,28 +674,22 @@ public sealed partial class MainForm : Form
 
     private async Task BrowseToolAsync(string key)
     {
+        if (_busy) return;
         if (key == "Scripts")
         {
             if (_tools.Scripts != null) OpenLocation(_tools.Scripts);
             return;
         }
-        else
+        SetBusy(true, "正在列出 " + ToolVersionManager.DisplayName(key) + " 的安装…", 0);
+        try
         {
-            var expected = key switch { "CMake" => "cmake.exe", "Ninja" => "ninja.exe", "Compiler" => "arm-none-eabi-gcc.exe", _ => "openocd.exe" };
-            using var file = new OpenFileDialog { Title = "选择 " + expected, Filter = "可执行文件 (*.exe)|*.exe", FileName = expected };
-            if (file.ShowDialog(this) != DialogResult.OK) return;
-            if (!string.Equals(Path.GetFileName(file.FileName), expected, StringComparison.OrdinalIgnoreCase))
-            { Notify("文件不匹配，请选择 " + expected + "。", true, "重新选择", () => _ = BrowseToolAsync(key)); return; }
-            _tools = key switch
-            {
-                "CMake" => _tools with { CMake = file.FileName }, "Ninja" => _tools with { Ninja = file.FileName },
-                "Compiler" => _tools with { Compiler = file.FileName }, _ => _tools with { OpenOcd = file.FileName, Scripts = null }
-            };
+            var installations = await Task.Run(() => new ToolVersionManager().ListAsync(_tools));
+            using var picker = new ToolSelectionDialog(key, installations);
+            if (picker.ShowDialog(this) != DialogResult.OK || picker.SelectedExecutable == null) return;
+            await SelectToolPathAsync(key, picker.SelectedExecutable);
         }
-        Append("已更新 " + key + " 路径。");
-        InvalidateCompletion();
-        await RefreshEnvironmentAsync();
-        Notify("工具路径已更新并重新检测。", actionText: "查看配置详情", action: ShowDetails);
+        catch (Exception ex) { Append("工具选择：" + ex); Notify("工具列表读取失败：" + ex.Message, true); }
+        finally { SetBusy(false, "工具选择结束。", 0); }
     }
     private async Task RepairAsync()
     {
@@ -803,7 +800,7 @@ public sealed partial class MainForm : Form
     private async Task RunBuildAsync(CMakeBuildPlan plan)
     {
         _buildProblems.Clear(); _buildOutput.Clear();
-        plan.PrepareArtifactQuery();
+        plan.PrepareArtifactQuery(Append);
         void Capture(string line) { _buildOutput.Enqueue(line); Append(line); }
         _buildOutput.Enqueue("=== CMake 配置 ===");
         SetBusy(true, "CMake 正在配置工程…", 40);

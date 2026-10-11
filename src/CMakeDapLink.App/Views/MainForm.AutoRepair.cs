@@ -26,6 +26,15 @@ public sealed partial class MainForm
         {
             Directory.CreateDirectory(ManagedTools.Root);
             await RefreshEnvironmentAsync();
+            var pendingChoice = ToolVersionManager.Keys.FirstOrDefault(key => (!openOcdOnly || key == "OpenOcd") &&
+                ToolVersionManager.GetPath(_tools, key) == null && _toolDiscovery?.CandidatesFor(key).Count > 1);
+            if (pendingChoice != null)
+            {
+                _workflowSteps.SetStep(0, StepState.Attention);
+                _stage.Text = "已检测到多个 " + ToolVersionManager.DisplayName(pendingChoice) + " 安装，请先选择要使用的版本。";
+                Notify(_stage.Text, true, "选择工具版本", () => _ = BrowseToolAsync(pendingChoice));
+                return;
+            }
             _workflowSteps.SetStep(0, StepState.Complete); _workflowSteps.SetStep(1, StepState.Running);
             using var installer = new ToolRepairInstaller();
             var progress = new Progress<ToolRepairProgress>(item =>

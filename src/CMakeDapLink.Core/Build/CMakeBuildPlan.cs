@@ -6,8 +6,13 @@ public sealed record CMakeBuildPlan(ToolCommand Configure, ToolCommand Build)
 {
     public string BuildDirectory { get; init; } = "";
     public string BuildConfiguration { get; init; } = "Debug";
+    internal BuildToolSelection? ToolSelection { get; init; }
 
-    public void PrepareArtifactQuery() => CurrentFirmwareArtifacts.PrepareQuery(BuildDirectory);
+    public void PrepareArtifactQuery(Action<string>? report = null)
+    {
+        ToolSelection?.Prepare(Configure, report);
+        CurrentFirmwareArtifacts.PrepareQuery(BuildDirectory);
+    }
 
     public static CMakeBuildPlan Create(SetupOptions options)
     {
@@ -18,12 +23,15 @@ public sealed record CMakeBuildPlan(ToolCommand Configure, ToolCommand Build)
         var pathPrefix = string.Join(Path.PathSeparator,
             new[] { options.Compiler, options.Ninja, options.CMake }.Select(Path.GetDirectoryName)
                 .Where(x => !string.IsNullOrEmpty(x)).Distinct(StringComparer.OrdinalIgnoreCase));
+        var selection = new BuildToolSelection(options, buildDirectory);
         var configureArgs = options.ConfigurePreset != null
             ? new List<string> { "--preset", options.ConfigurePreset }
             : new List<string> { "-S", root, "-B", buildDirectory, "-G", "Ninja", "-DCMAKE_BUILD_TYPE=" + options.BuildConfiguration,
                 "-DCMAKE_MAKE_PROGRAM=" + options.Ninja };
-        if (options.ConfigurePreset == null && options.ToolchainFile != null)
-            configureArgs.Add("-DCMAKE_TOOLCHAIN_FILE=" + options.ToolchainFile);
+        // --toolchain overrides even a preset's toolchainFile field. The wrapper
+        // retains the original chain and binds compilers to the user's selection.
+        configureArgs.AddRange(["--toolchain", selection.ToolchainPath]);
+        if (options.ConfigurePreset != null) configureArgs.Add("-DCMAKE_MAKE_PROGRAM=" + options.Ninja);
         var buildArgs = options.BuildPreset != null
             ? new List<string> { "--build", "--preset", options.BuildPreset }
             : new List<string> { "--build", buildDirectory, "--parallel" };
@@ -35,7 +43,8 @@ public sealed record CMakeBuildPlan(ToolCommand Configure, ToolCommand Build)
         return new(new(options.CMake, configureArgs, root, pathPrefix), new(options.CMake, buildArgs, root, pathPrefix))
         {
             BuildDirectory = Path.GetFullPath(buildDirectory, root),
-            BuildConfiguration = options.BuildConfiguration
+            BuildConfiguration = options.BuildConfiguration,
+            ToolSelection = selection
         };
     }
 

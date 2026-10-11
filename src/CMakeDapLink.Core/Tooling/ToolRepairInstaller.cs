@@ -29,7 +29,7 @@ public sealed class ToolRepairInstaller : IDisposable
 
     public async Task<ToolRepairResult> RepairAsync(ToolPaths current, IReadOnlyCollection<string> brokenKeys,
         string? target, IProgress<ToolRepairProgress>? progress = null, CancellationToken cancellation = default,
-        bool openOcdOnly = false, bool allowTargetAlias = false)
+        bool openOcdOnly = false, bool allowTargetAlias = false, bool savePaths = true)
     {
         target = string.IsNullOrWhiteSpace(target) ? null : target.Trim().Replace('\\', '/');
         if (openOcdOnly && (target == null || !OpenOcdScripts.ValidTarget(target)))
@@ -56,8 +56,10 @@ public sealed class ToolRepairInstaller : IDisposable
         var installed = new List<string>(); var problems = new List<string>();
         var keys = openOcdOnly ? new[] { "OpenOcd" } : new[] { "CMake", "Ninja", "Compiler", "OpenOcd" };
         var missing = keys.Where(key => !File.Exists(GetPath(current, key)) || brokenKeys.Contains(key)).ToArray();
-        await using (var initialOperation = await ManagedTools.AcquirePathsLockAsync(cancellation))
+        // Desktop repairs merge shared defaults; workspace repairs keep the caller's choices.
+        if (savePaths)
         {
+            await using var initialOperation = await ManagedTools.AcquirePathsLockAsync(cancellation);
             current = ManagedTools.ReconcilePathsLocked(current, missing, bundledScripts);
         }
         Log("使用程序内置的完整 Target、接口和 Tcl 脚本，不搜索本机脚本目录、不下载目标脚本。");
@@ -86,7 +88,7 @@ public sealed class ToolRepairInstaller : IDisposable
                     location = await InstallForTargetAsync(package, validationTools, target, percent, 80 / missing.Length, progress, cancellation, allowTargetAlias);
                 }
                 if (key == "OpenOcd") location = location with { Scripts = bundledScripts };
-                current = await new ToolVersionManager(_root).ActivateForRepairAsync(location, current, pending, cancellation, bundledScripts);
+                current = await new ToolVersionManager(_root).ActivateForRepairAsync(location, current, pending, cancellation, bundledScripts, savePaths);
                 current = current with { Scripts = bundledScripts };
                 percent = 5 + (i + 1) * 80 / Math.Max(1, missing.Length);
                 installed.Add(DisplayName(key)); Log(DisplayName(key) + " 安装并验证完成：" + location.Executable);
@@ -94,8 +96,8 @@ public sealed class ToolRepairInstaller : IDisposable
             catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
             catch (Exception ex) { problems.Add(DisplayName(key) + "：" + ex.Message); Log(problems[^1]); }
         }
-        await using var operation = await ManagedTools.AcquirePathsLockAsync(cancellation);
-        current = ManagedTools.ReconcilePathsLocked(current, [], bundledScripts);
+        await using var operation = savePaths ? await ManagedTools.AcquirePathsLockAsync(cancellation) : null;
+        if (savePaths) current = ManagedTools.ReconcilePathsLocked(current, [], bundledScripts);
         percent = 90; progress?.Report(new(percent, openOcdOnly ? "验证 OpenOCD Target 与 CMSIS-DAP 配置" : "验证工具链与 CMSIS-DAP 配置"));
         foreach (var key in keys)
         {
@@ -130,8 +132,10 @@ public sealed class ToolRepairInstaller : IDisposable
             catch (Exception ex) { problems.Add("OpenOCD 配置验证：" + ex.Message); Log(problems[^1]); }
         }
         cancellation.ThrowIfCancellationRequested();
-        if (target == null || openOcdValidated) ManagedTools.SavePathsLocked(current);
-        progress?.Report(new(100, problems.Count == 0 ? "自动修复完成，路径已保存" : "自动修复结束，查看待补全项",
+        if (savePaths && (target == null || openOcdValidated)) ManagedTools.SavePathsLocked(current);
+        var completionStage = problems.Count != 0 ? "自动修复结束，查看待补全项" :
+            savePaths ? "自动修复完成，路径已保存" : "自动修复完成，工具已验证";
+        progress?.Report(new(100, completionStage,
             installed.Count == 0 ? "本机工具已可用，无需下载。" : "已补齐：" + string.Join("、", installed)));
         return new(current, installed, problems);
     }

@@ -4,7 +4,12 @@ namespace CMakeDapLink.App;
 
 public sealed partial class MainForm
 {
-    private IReadOnlyList<SetupIssue> CurrentIssues() => EnvironmentReport.Create(_project, _tools, _target.Text, _toolFailures);
+    private IReadOnlyList<SetupIssue> CurrentIssues() => EnvironmentReport.Create(_project, _tools, _target.Text, _toolFailures)
+        .Select(issue => ToolVersionManager.Keys.Contains(issue.Key) &&
+            ToolVersionManager.GetPath(_tools, issue.Key) == null && _toolDiscovery?.CandidatesFor(issue.Key).Count > 1
+            ? issue with { Title = ToolVersionManager.DisplayName(issue.Key) + " 检测到多个安装，待选择",
+                Instructions = "点击上方工具卡片，或在配置详情中点击“选择”，查看各安装的版本和完整路径。选择要使用的版本后会保存；重新检测和重启后继续使用该选择。" }
+            : issue).ToArray();
 
     private bool ShowBuildIssues()
     {

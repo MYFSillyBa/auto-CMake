@@ -29,6 +29,7 @@ get_filename_component(_root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(_build {{Quote(plan.BuildDirectory)}})
 set(_configuration {{Quote(plan.BuildConfiguration)}})
 if(ACTION STREQUAL "configure")
+  {{plan.ToolSelection?.PreparationScript()}}
   set(_query "${_build}/.cmake/api/v1/query/client-cmake-daplink")
   file(MAKE_DIRECTORY "${_query}")
   file(WRITE "${_query}/codemodel-v2" "")
