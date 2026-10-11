@@ -12,6 +12,18 @@ var root = Path.Combine(Path.GetTempPath(), "CMakeDapLinkTests-" + Guid.NewGuid(
 Directory.CreateDirectory(root);
 try
 {
+    if (args.Contains("--tool-paths-flow", StringComparer.Ordinal))
+    {
+        ToolPathBuildChecks.Run(root, Check);
+        foreach (var failure in failures) Console.Error.WriteLine(failure);
+        return failures.Count == 0 ? 0 : 1;
+    }
+    if (args.Contains("--tool-discovery-flow", StringComparer.Ordinal))
+    {
+        ToolDiscoveryChecks.Run(root, Check);
+        foreach (var failure in failures) Console.Error.WriteLine(failure);
+        return failures.Count == 0 ? 0 : 1;
+    }
     if (args.Contains("--tasks-before-build-flow", StringComparer.Ordinal))
     {
         TaskBeforeBuildChecks.Run(root, Check);
@@ -40,6 +52,8 @@ try
         ChangeHistoryChecks.Run(root, Check);
         SoftwareWorkflowChecks.Run(root, Check);
         ToolManagementChecks.Run(root, Check);
+        ToolDiscoveryChecks.Run(root, Check);
+        ToolPathBuildChecks.Run(root, Check);
         OpenOcdScriptChecks.Run(root, Check);
         foreach (var failure in failures) Console.Error.WriteLine(failure);
         return failures.Count == 0 ? 0 : 1;

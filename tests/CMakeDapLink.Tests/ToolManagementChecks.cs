@@ -65,15 +65,16 @@ public static class ToolManagementChecks
         var inventory = await manager.ListAsync(enabled);
         check("version inventory lists path size and active rollback version", () =>
         {
-            if (inventory.Count(x => x.Key == "Ninja") != 2 || inventory.Single(x => x.IsActive).Executable != first.Executable ||
-                inventory.Any(x => x.Version != first.Version || x.SizeBytes <= 0)) throw new Exception("version inventory or rollback failed");
+            var local = inventory.Where(x => x.IsManaged).ToArray();
+            if (local.Count(x => x.Key == "Ninja") != 2 || inventory.Single(x => x.IsActive).Executable != first.Executable ||
+                local.Any(x => x.Version != first.Version || x.SizeBytes <= 0)) throw new Exception("version inventory or rollback failed");
         });
         var external = empty with { Ninja = existing };
         var externalInventory = await manager.ListAsync(external);
         check("external Ninja appears as active and is never offered for deletion", () =>
         {
-            var item = externalInventory.Single(x => x.IsActive);
-            if (item.IsManaged || item.Executable != existing || manager.ListCleanup(external).Any(x => x.Path == existing))
+            var item = externalInventory.Single(x => x.Executable == existing);
+            if (item.IsManaged || !item.IsActive || manager.ListCleanup(external).Any(x => x.Path == existing))
                 throw new Exception("external active tool was not preserved");
         });
         var cache = Path.Combine(installRoot, "_downloads"); Directory.CreateDirectory(cache);
