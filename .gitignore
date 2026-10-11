@@ -28,3 +28,8 @@ Desktop.ini
 # Generated screenshots from optional UI checks
 normal-flow.png
 live-buttons.png
+
+# VS Code extension build outputs
+**/node_modules/
+src/STM32ProjectHelper.VSCode/server/
+*.vsix
