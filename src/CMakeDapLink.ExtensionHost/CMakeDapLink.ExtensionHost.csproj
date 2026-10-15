@@ -16,6 +16,7 @@
     <TrimmerRootAssembly Include="CMakeDapLink.Core" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="DisplayMessages.tsv" LogicalName="CMakeDapLink.ExtensionHost.DisplayMessages.tsv" />
     <ProjectReference Include="../CMakeDapLink.Core/CMakeDapLink.Core.csproj" />
   </ItemGroup>
 </Project>

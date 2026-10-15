@@ -7,10 +7,10 @@ internal static class TaskPreview
 {
     private const string Marker = "# STM32 Project Helper managed task runner v1\n";
 
-    public static IReadOnlyList<FileChange> Create(SetupOptions options, CMakeBuildPlan effectivePlan)
+    public static IReadOnlyList<FileChange> Create(SetupOptions options, CMakeBuildPlan effectivePlan, bool buildOnly = false)
     {
         var originalPlan = CMakeBuildPlan.Create(options);
-        var changes = ConfigurationWriter.Preview(options).ToList();
+        var changes = ConfigurationWriter.Preview(options, buildOnly).ToList();
         if (originalPlan.Configure.Arguments.SequenceEqual(effectivePlan.Configure.Arguments)) return changes;
         var originalCommand = ConfigureCommand(originalPlan.Configure);
         var effectiveCommand = ConfigureCommand(effectivePlan.Configure);
@@ -31,7 +31,7 @@ internal static class TaskPreview
             // Core may omit an unchanged runner; its current bytes still need the effective arguments.
             var vscode = Path.Combine(options.Root, ".vscode");
             if (Directory.Exists(vscode))
-                foreach (var path in Directory.EnumerateFiles(vscode, "stm32-daplink*.cmake"))
+                foreach (var path in Directory.EnumerateFiles(vscode, buildOnly ? "stm32-build*.cmake" : "stm32-daplink*.cmake"))
                 {
                     WorkspaceSafety.Child(options.Root, path);
                     var before = File.ReadAllBytes(path);

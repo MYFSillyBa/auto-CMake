@@ -4,9 +4,9 @@ using CMakeDapLink.Core;
 
 namespace CMakeDapLink.ExtensionHost;
 
-internal sealed partial class RequestHandler(string root, JsonSerializerOptions json, Action<int, string, string?> progress)
+internal sealed partial class RequestHandler(string root, JsonSerializerOptions json, Action<int, string, string?> progress, Func<string, string> display)
 {
-    public static string[] Commands { get; } = ["capabilities", "inspect", "previewTasks", "applyChanges", "verify", "scanSources", "previewSources", "previewImport", "importFiles", "inspectConversion", "previewConversion", "history", "previewRestore", "restore", "tools", "selectTool", "repair", "importTool", "activateTool"];
+    public static string[] Commands { get; } = ["capabilities", "inspect", "previewTasks", "applyChanges", "verify", "build", "flash", "memory", "scanSources", "previewSources", "previewImport", "importFiles", "inspectConversion", "previewConversion", "history", "previewRestore", "restore", "tools", "selectTool", "repair", "importTool", "activateTool"];
     private static string? Text(JsonElement payload, string key) => payload.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     private static bool Flag(JsonElement payload, string key, bool fallback = false) => payload.TryGetProperty(key, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : fallback;
     private static string Required(JsonElement payload, string key) => Text(payload, key) is { Length: > 0 } value ? value : throw new ArgumentException("请提供 " + key + "。");
@@ -15,13 +15,14 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
     private static string Configuration(JsonElement payload)
     {
         var value = Text(payload, "configuration") ?? "Debug";
-        return value is "Debug" or "Release" ? value : throw new ArgumentException("配置只能是 Debug 或 Release。");
+        return CMakeConfigurations.Validate(value);
     }
 
     public async Task<object> ExecuteAsync(string command, JsonElement payload, CancellationToken cancellation)
     {
         if (!Commands.Contains(command, StringComparer.Ordinal)) throw new ArgumentException("不支持的命令：" + command);
-        using var lease = command is "applyChanges" or "verify" or "importFiles" or "restore" or "inspectConversion" or "repair" or "importTool" or "activateTool"
+        if (command == "flash" && !Flag(payload, "explicitFlash")) throw new ArgumentException("烧录需要明确确认，请使用烧录操作并确认目标与固件。");
+        using var lease = command is "applyChanges" or "verify" or "build" or "flash" or "importFiles" or "restore" or "inspectConversion" or "repair" or "importTool" or "activateTool"
             ? WorkspaceSafety.WriteLease(root) : null;
         cancellation.ThrowIfCancellationRequested();
         progress(0, "准备操作", null);
@@ -31,13 +32,16 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
             "previewTasks" => await PreviewTasksAsync(payload, cancellation),
             "applyChanges" => Apply(payload),
             "verify" => await VerifyAsync(payload, cancellation),
+            "build" => await BuildAsync(payload, cancellation, "build"),
+            "flash" => await BuildAsync(payload, cancellation, "flash"),
+            "memory" => await MemoryAsync(payload, cancellation),
             "scanSources" => ScanSources(payload),
             "previewSources" => PreviewSources(payload),
             "previewImport" => PreviewImport(payload),
             "importFiles" => await ImportFilesAsync(payload, cancellation),
             "inspectConversion" => await InspectConversionAsync(payload, cancellation),
             "previewConversion" => PreviewConversion(payload),
-            "history" => new { records = ChangeHistory.List(root) },
+            "history" => new { records = ChangeHistory.ListMetadata(root) },
             "previewRestore" => PreviewRestore(payload),
             "restore" => Restore(payload),
             "tools" => await ToolsAsync(payload, cancellation),
@@ -76,7 +80,8 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
             issues = issues.Select(issue => pending.FirstOrDefault(item => item.Key == issue.Key) is { } choice
                 ? new { issue.Key, choice.Title, action = choice.Instructions, issue.BlocksConfiguration }
                 : new { issue.Key, issue.Title, action = issue.Instructions, issue.BlocksConfiguration }),
-            targets = SourceFolderPlanner.FindTargets(root), toolsRoot = ManagedTools.Root };
+            targets = SourceFolderPlanner.FindTargets(root), configurations = CMakeConfigurations.Discover(project,
+                Text(payload, "buildDirectory") is { } selectedBuild ? WorkspaceSafety.Child(root, selectedBuild) : null), toolsRoot = ManagedTools.Root };
     }
 
     private sealed record VersionInfo(string Key, string? Path, string Version, bool Available, string? Problem);
@@ -91,7 +96,7 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
             progress(10 + versions.Count * 15, "检测 " + ToolVersionManager.DisplayName(key), path);
             try
             {
-                var run = await HostProcess.RunAsync(new(path!, ["--version"], root, ToolPrefix(tools)), TimeSpan.FromSeconds(8), cancellation);
+                var run = await HostProcess.RunAsync(new(path!, ["--version"], root, ToolPrefix(tools)), TimeSpan.FromSeconds(8), cancellation, display);
                 var line = run.Output.Split('\n').FirstOrDefault(x => !string.IsNullOrWhiteSpace(x))?.Trim() ?? "";
                 var pattern = key switch
                 {
@@ -111,7 +116,7 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
 
     private static string ToolPrefix(ToolPaths tools) => string.Join(Path.PathSeparator, new[] { tools.CMake, tools.Ninja, tools.Compiler, tools.OpenOcd }.Where(x => x != null).Select(x => Path.GetDirectoryName(x!)).Distinct(StringComparer.OrdinalIgnoreCase));
 
-    private async Task<SetupOptions> OptionsAsync(JsonElement payload, CancellationToken cancellation, bool requireTarget = false)
+    private async Task<SetupOptions> OptionsAsync(JsonElement payload, CancellationToken cancellation, bool requireTarget = false, bool useFirmware = false)
     {
         var project = Project(payload);
         if (!project.IsCMakeProject) throw new ArgumentException("当前工程没有根目录 CMakeLists.txt。");
@@ -125,8 +130,12 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
         if (target.Length != 0)
         {
             target = target.Replace('\\', '/');
-            if (!Regex.IsMatch(target, @"\Atarget/[a-zA-Z0-9_.-]+\.cfg\z")) throw new ArgumentException("Target 必须是 target/xxx.cfg。");
-            target = OpenOcdScripts.AvailableTarget(tools.Scripts, target);
+            if (!Regex.IsMatch(target, @"\Atarget/[a-zA-Z0-9_.-]+\.cfg\z"))
+            {
+                if (requireTarget) throw new ArgumentException("Target 必须是 target/xxx.cfg。");
+                target = "";
+            }
+            if (target.Length != 0) target = OpenOcdScripts.AvailableTarget(tools.Scripts, target);
         }
         if (requireTarget && target.Length == 0) throw new ArgumentException("请确认芯片并选择匹配的 OpenOCD Target。");
         if (requireTarget && !File.Exists(tools.OpenOcd)) throw new FileNotFoundException("请先补齐 OpenOCD 工具，再预览任务。");
@@ -141,47 +150,63 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
         var configured = preset?.ConfigureConfiguration;
         var built = preset?.BuildPresets.FirstOrDefault(x => x.Name == buildPreset)?.Configuration;
         foreach (var (kind, fixedConfiguration) in new[] { ("配置", configured), ("编译", built) })
-            if (!string.IsNullOrWhiteSpace(fixedConfiguration) && !fixedConfiguration.Equals(configuration, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(fixedConfiguration) && !fixedConfiguration.Equals(configuration, StringComparison.Ordinal))
                 throw new ArgumentException($"当前{kind}预设固定使用 {fixedConfiguration}，与所选 {configuration} 不一致。请选择 {fixedConfiguration} 配置或切换对应预设，然后重新预览。");
-        var firmware = Text(payload, "firmwareElfPath");
+        var firmware = useFirmware ? Text(payload, "firmwareElfPath") : null;
+        if (string.IsNullOrWhiteSpace(firmware)) firmware = null;
         if (firmware != null) firmware = WorkspaceSafety.Child(buildDirectory, WorkspaceSafety.Child(root, firmware));
-        return new(root, tools.CMake!, tools.Ninja!, tools.Compiler!, tools.OpenOcd ?? "", tools.Scripts!, target, project.ConfigurePreset,
-            buildPreset, buildDirectory, project.ToolchainFile, firmware) { BuildConfiguration = configuration };
+        var speed = 1000;
+        if (payload.TryGetProperty("adapterSpeed", out var speedValue) && (speedValue.ValueKind != JsonValueKind.Number || !speedValue.TryGetInt32(out speed)))
+            throw new ArgumentException("探针速度必须为 1–50000 kHz。");
+        var options = new SetupOptions(root, tools.CMake!, tools.Ninja!, tools.Compiler!, tools.OpenOcd ?? "", tools.Scripts!, target, project.ConfigurePreset,
+            buildPreset, buildDirectory, project.ToolchainFile, firmware) { BuildConfiguration = configuration, TaskLanguage = Text(payload, "language") == "en" ? "en" : "zh-CN",
+            ProbeType = Text(payload, "probeType") ?? "cmsis-dap", AdapterSpeed = speed, ResetMode = Text(payload, "resetMode") ?? "default" };
+        OpenOcdProbe.Validate(options);
+        return options;
     }
 
     private async Task<object> PreviewTasksAsync(JsonElement payload, CancellationToken cancellation)
     {
-        var options = await OptionsAsync(payload, cancellation, true);
-        var absent = OpenOcdScripts.MissingFiles(options.Scripts, options.TargetScript);
-        if (absent.Count != 0) throw new InvalidDataException("内置脚本缺少：" + string.Join("、", absent));
-        var changes = TaskPreview.Create(options, BuildPlan(options));
+        var buildOnly = Flag(payload, "buildOnly");
+        var options = await OptionsAsync(payload, cancellation, !buildOnly, !buildOnly);
+        if (!buildOnly)
+        {
+            var absent = OpenOcdScripts.MissingFiles(options.Scripts, options.TargetScript, OpenOcdProbe.Resolve(options).InterfaceScript);
+            if (absent.Count != 0) throw new InvalidDataException("内置脚本缺少：" + string.Join("、", absent));
+        }
+        var changes = TaskPreview.Create(options, BuildPlan(options), buildOnly);
         WorkspaceSafety.Changes(root, changes);
-        return new { changes, label = "配置 VS Code 编译与烧录任务", summary = "生成 CMake 配置、编译和显式固件烧录任务。预览不会运行编译或连接硬件。", issues = Array.Empty<object>() };
+        return new { changes, label = buildOnly ? "配置 VS Code 编译任务" : "配置 VS Code 编译与烧录任务", canonicalLabel = buildOnly ? "配置 VS Code 编译任务" : "配置 VS Code 编译与烧录任务", summary = buildOnly ?
+            "生成 CMake 配置和编译任务。预览不会运行编译或连接硬件。" : "生成 CMake 配置、编译和显式固件烧录任务。预览不会运行编译或连接硬件。", issues = Array.Empty<object>() };
     }
 
     private object Apply(JsonElement payload)
     {
         var changes = Read<List<FileChange>>(payload, "changes");
         WorkspaceSafety.Changes(root, changes);
-        var record = ChangeHistory.Apply(root, Text(payload, "label") ?? "应用预览修改", changes);
+        var record = ChangeHistory.Apply(root, DisplayLocalization.CanonicalActionLabel(Text(payload, "label") ?? "应用预览修改"), changes);
         return new { record, changedFiles = record?.Changes.Select(x => WorkspaceSafety.Child(root, x.Path)).ToArray() ?? [] };
     }
 
-    private async Task<object> VerifyAsync(JsonElement payload, CancellationToken cancellation)
+    private Task<object> VerifyAsync(JsonElement payload, CancellationToken cancellation) => BuildAsync(payload, cancellation, "verify");
+
+    private async Task<object> BuildAsync(JsonElement payload, CancellationToken cancellation, string operation)
     {
-        var options = await OptionsAsync(payload, cancellation);
+        var flashing = operation == "flash";
+        var options = await OptionsAsync(payload, cancellation, flashing, flashing);
         var plan = BuildPlan(options);
-        var output = new List<string>(); var problems = new List<BuildProblem>(); bool openOcdChecked = false;
-        async Task<bool> Run(ToolCommand command, string stage, TimeSpan limit)
+        var output = new List<string>(); var problems = new List<BuildProblem>(); var externalProblems = new HashSet<BuildProblem>(); bool openOcdChecked = false, flashed = false;
+        async Task<bool> Run(ToolCommand command, string stage, TimeSpan limit, bool openOcd = false)
         {
-            var run = await HostProcess.RunAsync(command, limit, cancellation);
-            output.Add(stage + Environment.NewLine + run.Output);
-            problems.AddRange(BuildDiagnostics.Parse(run.Output, root, stage));
-            if (run.ExitCode == 0) return true;
-            if (!problems.Any(x => x.Severity == "错误")) problems.Add(new(stage, "错误", "工具退出代码：" + run.ExitCode, null, null, null, "展开完整日志并修正工程配置。"));
+            var run = await HostProcess.RunAsync(command, limit, cancellation, display);
+            output.Add(display(stage) + Environment.NewLine + run.Output);
+            var parsed = openOcd ? OpenOcdDiagnostics.Parse(run.Output, root) : BuildDiagnostics.Parse(run.Output, root, stage);
+            problems.AddRange(parsed); externalProblems.UnionWith(parsed);
+            if (run.ExitCode == 0 && !parsed.Any(x => x.Severity == "错误")) return true;
+            if (!parsed.Any(x => x.Severity == "错误")) problems.Add(new(stage, "错误", "工具退出代码：" + run.ExitCode, null, null, null, "展开完整日志并修正工程配置。"));
             return false;
         }
-        var recovery = PrepareConfigure(plan);
+        var recovery = await PrepareConfigureAsync(plan, cancellation);
         if (recovery != null) output.Add(recovery);
         progress(15, "CMake 配置", plan.BuildDirectory);
         var success = await Run(plan.Configure, "CMake 配置", TimeSpan.FromMinutes(5));
@@ -193,47 +218,64 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
         IReadOnlyList<string> firmware = [];
         if (success)
         {
-            try { firmware = CMakeBuildPlan.FindElfs(plan.BuildDirectory, options.BuildConfiguration).Select(x => WorkspaceSafety.Child(plan.BuildDirectory, x)).ToArray(); }
+            try { firmware = CMakeBuildPlan.FindElfs(plan.BuildDirectory, options.BuildConfiguration, root).Select(x => WorkspaceSafety.Child(plan.BuildDirectory, x)).ToArray(); }
             catch (Exception ex) when (ex is IOException or InvalidOperationException or JsonException)
             { success = false; problems.Add(new("固件识别", "错误", ex.Message, null, null, null, "重新配置并核对当前构建目标。")); }
         }
-        if (success && Flag(payload, "checkOpenOcd", true))
+        if (success && (flashing || operation == "verify" && Flag(payload, "checkOpenOcd", true)))
         {
-            progress(85, "软件检查 OpenOCD 脚本", "未连接硬件。");
+            progress(85, flashing ? "准备烧录固件" : "软件检查 OpenOCD 脚本", flashing ? options.FirmwareElfPath : "未连接硬件。");
             try
             {
                 if (!File.Exists(options.OpenOcd)) throw new FileNotFoundException("OpenOCD 工具未找到。");
-                var absent = OpenOcdScripts.MissingFiles(options.Scripts, options.TargetScript);
+                var probe = OpenOcdProbe.Resolve(options);
+                var absent = OpenOcdScripts.MissingFiles(options.Scripts, options.TargetScript, probe.InterfaceScript);
                 if (absent.Count != 0) throw new InvalidDataException("脚本或依赖缺少：" + string.Join("、", absent));
-                success = await Run(new(options.OpenOcd, ["-s", options.Scripts, "-f", "interface/cmsis-dap.cfg", "-c", "transport select swd", "-f", options.TargetScript, "-c", "shutdown"], root, plan.Configure.PathPrefix), "OpenOCD 脚本", TimeSpan.FromSeconds(20));
-                openOcdChecked = success;
+                string? selected = null;
+                if (flashing)
+                {
+                    selected = options.FirmwareElfPath;
+                    if (selected != null && !firmware.Contains(selected, StringComparer.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("所选固件不是当前配置的目标产物，请重新选择。");
+                    if (selected == null && firmware.Count != 1)
+                        throw new InvalidOperationException($"当前配置找到 {firmware.Count} 个 ELF 产物，请明确选择要烧录的固件。");
+                    selected ??= firmware[0];
+                    progress(90, "烧录固件", selected);
+                }
+                var args = probe.Arguments(options).Concat(["-c", flashing ? "program " + OpenOcdProbe.TclPath(selected!) + " verify reset exit" : "shutdown"]).ToArray();
+                success = await Run(new(options.OpenOcd, args, root, plan.Configure.PathPrefix), flashing ? "OpenOCD 烧录" : "OpenOCD 脚本", flashing ? TimeSpan.FromMinutes(3) : TimeSpan.FromSeconds(20), true);
+                if (flashing) flashed = success; else openOcdChecked = success;
             }
             catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
             catch (Exception ex)
-            { success = false; problems.Add(new("OpenOCD 脚本", "错误", ex.Message, null, null, null, "核对 Target 和 OpenOCD 版本。脚本检查不会连接硬件。")); }
+            { success = false; problems.Add(new(flashing ? "OpenOCD 烧录" : "OpenOCD 脚本", "错误", ex.Message, null, null, null,
+                flashing ? "核对所选固件、探针、复位模式和 OpenOCD Target。" : "核对 Target 和 OpenOCD 版本。脚本检查不会连接硬件。")); }
         }
-        return new { success, firmware, problems, output = string.Join(Environment.NewLine, output), openOcdChecked };
+        return new { success, firmware, problems = problems.Select(p => new { p.Stage, p.Severity, p.Message, p.FilePath, p.Line, p.Column, p.Suggestion, rawMessage = externalProblems.Contains(p) }), output = string.Join(Environment.NewLine, output), openOcdChecked, flashed };
     }
 
     private CMakeBuildPlan BuildPlan(SetupOptions options)
     {
         var plan = CMakeBuildPlan.Create(options);
         WorkspaceSafety.Child(root, plan.BuildDirectory);
-        // An unspecified single-config preset must follow the explicitly selected configuration.
-        var project = ProjectInspector.Inspect(root, options.ConfigurePreset, options.ConfigurePreset != null);
-        var preset = project.ConfigurePresets.FirstOrDefault(x => x.Name == options.ConfigurePreset);
-        if (preset != null && string.IsNullOrWhiteSpace(preset.ConfigureConfiguration))
-            plan = plan with { Configure = plan.Configure with { Arguments = plan.Configure.Arguments.Append("-DCMAKE_BUILD_TYPE=" + options.BuildConfiguration).ToArray() } };
         return plan;
     }
 
-    private string? PrepareConfigure(CMakeBuildPlan plan)
+    private async Task<string?> PrepareConfigureAsync(CMakeBuildPlan plan, CancellationToken cancellation)
     {
         var recovery = RelocatedCache.Recover(root, plan.BuildDirectory, progress);
         WorkspaceSafety.Child(root, Path.Combine(plan.BuildDirectory, ".cmake", "api", "v1", "query", "client-cmake-daplink", "codemodel-v2"));
         var messages = new List<string>();
         if (recovery != null) messages.Add(recovery);
-        plan.PrepareArtifactQuery(message => { messages.Add(message); progress(12, "准备所选编译工具", message); });
+        var preparation = plan.PrepareToolSelection();
+        if (preparation != null)
+        {
+            progress(12, "准备所选编译工具", null);
+            var result = await HostProcess.RunAsync(preparation, TimeSpan.FromSeconds(30), cancellation, display);
+            if (!string.IsNullOrWhiteSpace(result.Output)) messages.Add(result.Output);
+            if (result.ExitCode != 0) throw new IOException("准备 CMake 工具选择失败：" + result.Output);
+        }
+        CurrentFirmwareArtifacts.PrepareQuery(plan.BuildDirectory);
         return messages.Count == 0 ? null : string.Join(Environment.NewLine, messages);
     }
 
@@ -253,7 +295,7 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
     {
         var plan = SourcePlan(payload, true);
         var changes = SourceFolderPlanner.Changes(plan); WorkspaceSafety.Changes(root, changes);
-        return new { changes, label = "更新 CMake 源文件：" + plan.Target, summary = $"{plan.Target} · {plan.SourceFiles.Count} 个源文件 · {plan.HeaderFiles.Count} 个头文件" };
+        return new { changes, label = "更新 CMake 源文件：" + plan.Target, canonicalLabel = "更新 CMake 源文件：" + plan.Target, summary = $"{plan.Target} · {plan.SourceFiles.Count} 个源文件 · {plan.HeaderFiles.Count} 个头文件" };
     }
     private object PreviewImport(JsonElement payload)
     {
@@ -292,9 +334,9 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
             var common = payload.TryGetProperty("commonOptions", out var nested) && nested.ValueKind == JsonValueKind.Object ? nested : payload;
             var options = await OptionsAsync(common, cancellation);
             var plan = BuildPlan(options);
-            PrepareConfigure(plan);
+            await PrepareConfigureAsync(plan, cancellation);
             progress(30, "解析 CMake 构建目标", "执行配置，不执行编译。");
-            var result = await HostProcess.RunAsync(plan.Configure, TimeSpan.FromMinutes(5), cancellation);
+            var result = await HostProcess.RunAsync(plan.Configure, TimeSpan.FromMinutes(5), cancellation, display);
             if (result.ExitCode != 0) throw new InvalidOperationException("CMake 配置未通过：" + result.Output);
             buildDirectory = plan.BuildDirectory;
             targets = ConfiguredTargets.Read(root, buildDirectory, options.BuildConfiguration);
@@ -308,9 +350,12 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
         if (buildDirectory != null) buildDirectory = WorkspaceSafety.Child(root, buildDirectory);
         var sourceProject = Text(payload, "sourceProject");
         if (sourceProject != null) sourceProject = WorkspaceSafety.Child(root, sourceProject);
-        var plan = CubeMxConverter.CreatePlan(new(root, Direction(payload), Required(payload, "target"), sourceProject, buildDirectory, Configuration(payload)));
+        var direction = Direction(payload);
+        var plan = CubeMxConverter.CreatePlan(new(root, direction, Required(payload, "target"), sourceProject, buildDirectory, Configuration(payload)));
+        if (direction == ConversionDirection.MdkToCMake)
+            plan = plan with { Issues = plan.Issues.Append(new ConversionIssue("MDK 转 CMake 生成 Debug 和 Release 预设；其他自定义配置请在生成后按工程需求添加。", "生成后检查优化与调试参数，再配置并编译所需配置。", false)).ToArray() };
         WorkspaceSafety.Changes(root, plan.Changes);
-        return new { plan.Changes, label = "工程转换：" + Required(payload, "target"), plan.Summary, plan.Issues, plan.CanApply, plan.OutputProject, plan.SourceCount, plan.IncludeCount };
+        return new { plan.Changes, label = "工程转换：" + Required(payload, "target"), canonicalLabel = "工程转换：" + Required(payload, "target"), plan.Summary, plan.Issues, plan.CanApply, plan.OutputProject, plan.SourceCount, plan.IncludeCount };
     }
 
     private object PreviewRestore(JsonElement payload)
@@ -318,8 +363,8 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
         var id = Required(payload, "id");
         var changes = ChangeHistory.GetRestoreChanges(root, id); WorkspaceSafety.Changes(root, changes);
         var conflicts = ChangeHistory.GetRestoreConflicts(root, id).Select(x => x.Path).ToArray();
-        var original = ChangeHistory.List(root).First(x => x.Id == id);
-        return new { changes, label = "恢复 · " + original.Label, conflicts };
+        var original = ChangeHistory.ListMetadata(root).First(x => x.Id == id);
+        return new { changes, label = "恢复 · " + DisplayLocalization.CanonicalActionLabel(original.Label), canonicalLabel = "恢复 · " + DisplayLocalization.CanonicalActionLabel(original.Label), conflicts };
     }
     private object Restore(JsonElement payload)
     {
@@ -347,7 +392,7 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
         var pending = PendingTools(discovery);
         if (pending.Length != 0)
         {
-            progress(100, "需要选择已安装工具", string.Join("；", pending.Select(item => item.Title)));
+            progress(100, "需要选择已安装工具", "待选择工具：" + string.Join("；", pending.Select(item => item.Title)));
             return new { tools, installed = Array.Empty<string>(), problems = pending.Select(item => item.Instructions).ToArray(), selectionRequired = pending };
         }
         var versions = await VersionsAsync(tools, cancellation);

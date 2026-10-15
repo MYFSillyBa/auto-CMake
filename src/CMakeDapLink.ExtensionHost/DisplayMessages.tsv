@@ -1,0 +1,574 @@
+准备操作	Preparing operation
+操作完成	Operation complete
+操作已取消。	Operation cancelled.
+配置	Configure
+编译	Build
+错误	Error
+警告	Warning
+链接	Link
+CMake 配置	CMake configure
+编译工程	Building project
+固件识别	Identifying firmware
+软件检查 OpenOCD 脚本	Checking OpenOCD scripts
+OpenOCD 脚本	OpenOCD scripts
+未连接硬件。	No hardware connection.
+执行配置，不执行编译。	Configuring the project without building.
+准备所选编译工具	Preparing selected build tools
+解析 CMake 构建目标	Reading CMake build targets
+检测本地工具安装	Detecting local tool installations
+加入文件	Adding files
+待选择	Selection required
+未安装	Not installed
+未通过版本验证	Version validation failed
+工具路径验证通过	Tool path validated
+需要选择已安装工具	Select an installed tool
+待选择工具：{0}	Tools awaiting selection: {0}	0
+STM32 工程助手	STM32 Project Helper
+CMake 配置（自动）	CMake Configure (automatic)
+一键编译	One-click Build
+一键烧录(DAPLINK)	One-click Flash (DAPLINK)
+由 STM32 工程助手管理	Managed by STM32 Project Helper
+配置 VS Code 编译与烧录任务	Configure VS Code build and flash tasks
+生成 CMake 配置、编译和显式固件烧录任务。预览不会运行编译或连接硬件。	Generate CMake configure, build, and explicit firmware flash tasks. Previewing does not build or connect to hardware.
+应用预览修改	Apply previewed changes
+更新 CMake 源文件：{0}	Update CMake sources: {0}
+工程转换：{0}	Project conversion: {0}
+恢复 · {0}	Restore · {0}	0
+{0} · {1} 个源文件 · {2} 个头文件	{0} · {1} source files · {2} header files
+{0} 个文件 → {1}；重复名称自动编号。	{0} files → {1}; duplicate names are numbered automatically.
+请提供一行 JSON 请求。	Provide a single-line JSON request.
+请求超过大小限制。	The request exceeds the size limit.
+请求 id 不能为空。	The request ID must not be empty.
+命令不能为空。	The command must not be empty.
+payload 必须是 JSON 对象。	The payload must be a JSON object.
+请先信任当前 VS Code 工作区，再使用工程工具。	Trust the current VS Code workspace before using project tools.
+本扩展宿主仅支持本机 Windows 工作区。	This extension host supports local Windows workspaces only.
+配置只能是 Debug 或 Release。	The configuration must be Debug or Release.
+不支持的命令。	Unsupported command.
+不支持的命令：{0}	Unsupported command: {0}
+请提供 {0}。	Provide {0}.
+{0} 数据为空。	The {0} data is empty.
+{0} 含无效条目。	The {0} data contains invalid entries.
+可执行工具未找到。	The tool executable was not found.
+检测 {0}	Checking {0}
+版本输出不匹配：{0}	Version output does not match: {0}
+当前工程没有根目录 CMakeLists.txt。	The project root does not contain CMakeLists.txt.
+请先补齐 {0}，再配置工程。	Install or select {0} before configuring the project.
+Target 必须是 target/xxx.cfg。	Target must be target/xxx.cfg.
+OpenOCD target 必须是 target/xxx.cfg。	OpenOCD target must be target/xxx.cfg.
+请确认芯片并选择匹配的 OpenOCD Target。	Confirm the chip and select the matching OpenOCD Target.
+请先补齐 OpenOCD 工具，再预览任务。	Install or select OpenOCD before previewing tasks.
+预设构建目录与所选目录不一致，请使用该预设的 binaryDir。	The preset build directory differs from the selected directory. Use the preset binaryDir.
+编译预设必须属于当前配置预设。	The build preset must belong to the current configure preset.
+当前配置预设固定使用 {0}，与所选 {1} 不一致。请选择 {2} 配置或切换对应预设，然后重新预览。	The configure preset requires {0}, which differs from {1}. Select {2} or switch the preset, then preview again.
+当前编译预设固定使用 {0}，与所选 {1} 不一致。请选择 {2} 配置或切换对应预设，然后重新预览。	The build preset requires {0}, which differs from {1}. Select {2} or switch the preset, then preview again.
+内置脚本缺少：{0}	Bundled scripts are missing: {0}
+脚本或依赖缺少：{0}	Scripts or dependencies are missing: {0}
+工具退出代码：{0}	Tool exit code: {0}
+展开完整日志并修正工程配置。	Expand the full log and correct the project configuration.
+重新配置并核对当前构建目标。	Reconfigure and check the current build targets.
+OpenOCD 工具未找到。	OpenOCD was not found.
+核对 Target 和 OpenOCD 版本。脚本检查不会连接硬件。	Check the Target and OpenOCD version. Script checking does not connect to hardware.
+导入预览不属于当前工程。	The import preview does not belong to the current project.
+一次导入不能超过 4096 个文件。	An import cannot contain more than 4096 files.
+导入计划与当前文件清单不一致，请重新预览。	The import plan differs from the current file list. Preview again.
+请选择 MDK 与 CMake 的转换方向。	Select the conversion direction between MDK and CMake.
+CMake 配置未通过：{0}	CMake configuration failed: {0}
+请选择完整工具 ZIP 安装包。	Select a complete tool ZIP package.
+所选工具版本不在当前安装清单中，请重新读取工具列表。	The selected tool version is no longer installed. Refresh the tool list.
+任务运行器的配置格式已变化，请更新扩展宿主。	The task runner configuration format has changed. Update the extension host.
+未找到当前托管任务运行器，请重新预览工程任务。	The managed task runner was not found. Preview project tasks again.
+{0} 检测到多个安装，待选择	Multiple {0} installations found; select one
+在工程配置或工具管理中点击“选择版本”，根据版本号和完整路径选择要使用的安装。验证通过后保存在当前工作区设置中。无需重新下载。	Choose Select version in Project configuration or Tools. Select an installation by its version and full path. Once validated, it is saved in workspace settings without another download.
+工具版本验证未通过。	Tool version validation failed.
+请选择本机工程的完整目录。	Select the full directory of a local project.
+请选择现有工程文件夹，不能使用磁盘根目录。	Select an existing project folder below the drive root.
+路径不能为空。	The path must not be empty.
+路径必须位于当前工程内：{0}	The path must be inside the current project: {0}
+路径不能包含数据流或设备名称：{0}	The path must not contain data streams or device names: {0}
+不能通过符号链接或联接目录访问工程或工具：{0}	Project and tool paths must not traverse symbolic links or junctions: {0}
+一次预览的文件数量超过限制。	The preview contains too many files.
+一次预览的文件总大小超过 64 MB。	The preview exceeds the 64 MB total size limit.
+请选择 {0} 的完整路径。	Select the full path to {0}.
+当前工程已有操作正在运行，请等待完成后再试。	An operation is already running in this project. Wait for it to finish.
+CMake File API 与当前工程/构建目录不一致。	CMake File API data does not match the current project or build directory.
+CMake File API 中没有配置：{0}	CMake File API does not contain configuration: {0}
+CMake 返回无效目标信息路径。	CMake returned an invalid target information path.
+CMake File API 文件过大。	The CMake File API file exceeds the size limit.
+无法启动工具：{0}	Unable to start tool: {0}
+工具运行超时：{0}	Tool execution timed out: {0}
+日志超过 4 MB，已截断。	The log exceeded 4 MB and was truncated.
+CMakeCache.txt 超过检查大小限制。	CMakeCache.txt exceeds the inspection size limit.
+CMakeFiles 已被文件占用，请核对当前构建目录。	A file occupies the CMakeFiles path. Check the build directory.
+恢复移动后的构建缓存	Recovering relocated build cache
+恢复移动后的构建缓存：旧 CMakeCache.txt/CMakeFiles 已保留到 {0}	Recovering relocated build cache: previous CMakeCache.txt/CMakeFiles preserved in {0}
+缺少 CMakeLists.txt。	CMakeLists.txt is missing.
+预设没有可用构建目录。	The preset has no usable build directory.
+所选 ELF 不存在或不在当前构建目录内。	The selected ELF is missing or outside the current build directory.
+现有 .vscode/tasks.json 不是 JSON 对象。	The existing .vscode/tasks.json is not a JSON object.
+现有 tasks.json 的 tasks 不是数组。	The tasks property in tasks.json is not an array.
+这条记录已经恢复。请选择对应的恢复记录以撤销恢复。	This record has already been restored. Select its restore record to undo the restoration.
+文件在这次操作之后又被修改，请先查看差异并决定是否覆盖。	Files changed after this operation. Review the differences before deciding whether to overwrite them.
+文件在恢复预览后发生变化，请重新预览。	Files changed after the restore preview. Preview again.
+一次操作不能多次修改同一文件。	An operation cannot modify the same file more than once.
+文件在预览后发生变化，请重新预览。	Files changed after previewing. Preview again.
+回滚期间文件被修改：{0}	A file changed during rollback: {0}
+操作未完成；快照已保留，部分文件需要从快照恢复。	The operation did not complete. Snapshots were preserved; some files need to be restored from them.
+找不到这条恢复记录。	The restore record was not found.
+无法读取恢复快照：{0}	Unable to read restore snapshot: {0}
+文件必须位于工程目录内：{0}	The file must be inside the project directory: {0}
+无法通过链接目录修改文件：{0}	Files cannot be modified through a linked directory: {0}
+工具选择目录已被其他文件占用，请重新生成配置。	The tool selection directory is occupied by another file. Regenerate the configuration.
+无法准备 CMake 工具选择。	Unable to prepare CMake tool selection.
+准备 CMake 工具选择超时。	Preparing CMake tool selection timed out.
+准备 CMake 工具选择失败：{0}	Preparing CMake tool selection failed: {0}
+构建目录中找到 {0} 个 ELF 文件；请明确选择要烧录的固件。	Found {0} ELF files in the build directory. Select the firmware to flash explicitly.
+未找到 CMake 构建目标信息，请使用配置并验证重新生成。不会从旧 ELF 文件中猜测固件。	CMake target information was not found. Use Configure and verify to regenerate it. Firmware is not inferred from old ELF files.
+CMake 尚未返回 codemodel-v2，请重新配置工程。	CMake has not returned codemodel-v2. Reconfigure the project.
+CMake 目标信息与当前构建目录不一致，请重新配置工程。	CMake target information does not match the build directory. Reconfigure the project.
+CMake 构建目标中没有 {0} 配置，请重新配置并编译所选配置。	CMake targets do not contain configuration {0}. Configure and build the selected configuration again.
+CMake 返回了无效的目标信息路径。	CMake returned an invalid target information path.
+请先选择当前工程。	Select the current project first.
+请至少选择一个要加入的文件。	Select at least one file to add.
+文件不存在或是链接：{0}	The file is missing or is a link: {0}
+目标文件夹在预览后发生变化，请重新预览后再加入文件。	The destination folder changed after previewing. Preview again before adding files.
+目标文件夹已存在，需要确认后才能追加文件。	The destination folder already exists. Confirm before appending files.
+来源文件在预览后发生变化：{0}	A source file changed after previewing: {0}
+目标文件名在预览后发生变化，请重新预览。	Destination filenames changed after previewing. Preview again.
+复制后的文件大小校验失败：{0}	Copied file size validation failed: {0}
+请输入有效的文件夹名称（不含路径分隔符、末尾空格或 Windows 保留名称）。	Enter a valid folder name without path separators, trailing spaces, or Windows reserved names.
+目标文件夹必须直接位于当前工程内。	The destination folder must be a direct child of the current project.
+工程或目标文件夹不能是符号链接或联接目录。	The project and destination folder must not be symbolic links or junctions.
+该名称已被文件占用，请更改文件夹名称。	A file already uses that name. Choose another folder name.
+未找到根目录 CMakeLists.txt。请选择 CMake 工程根目录。	CMakeLists.txt was not found at the root. Select the CMake project root.
+所选配置预设不可用：{0}。请重新选择可见预设。	Configure preset {0} is unavailable. Select an available preset again.
+芯片识别线索存在冲突（{0}），请根据证据确认目标芯片；未自动选择。	Chip identification evidence conflicts ({0}). Confirm the chip using the evidence; no chip was selected automatically.
+芯片型号无法可靠映射到 OpenOCD target，请手动填写 target/*.cfg。	The chip cannot be reliably mapped to an OpenOCD target. Enter target/*.cfg manually.
+未找到 toolchain 文件；将使用工程自身的 CMake 配置。	No toolchain file was found. The project CMake configuration will be used.
+目录无法读取：{0}；{1}	Unable to read directory: {0}; {1}
+compile_commands.json 无法读取：{0}	Unable to read compile_commands.json: {0}
+{0} / CMake 编译配置	{0} / CMake build configuration
+{0} / 启动文件引用	{0} / startup file reference
+{0} / 启动文件	{0} / startup file
+{0} / 实际编译宏	{0} / actual compiler macro
+工程根目录没有 CMakeLists.txt。	The project root does not contain CMakeLists.txt.
+所选文件夹必须位于当前工程目录内。	The selected folder must be inside the current project.
+不能选择符号链接或联接目录。	Symbolic links and junctions cannot be selected.
+无法唯一确定 CMake 目标，请先选择要添加文件的目标。	The CMake target cannot be determined uniquely. Select the target to receive these files.
+CMakeLists.txt 中托管块标记不完整，请先修复该块。	The managed block markers in CMakeLists.txt are incomplete. Repair the block first.
+所选文件夹中没有支持的 C/C++、汇编源文件或头文件。	The selected folder contains no supported C/C++, assembly, or header files.
+勾选清单包含未扫描到的文件，请重新选择文件夹。	The selection includes files not found by the scan. Select the folder again.
+请至少勾选一个源文件或头文件。	Select at least one source or header file.
+存在变量或生成表达式，部分现有文件是否已加入构建需要人工核对。	Variables or generator expressions are present. Check manually whether some existing files are already included in the build.
+CMakeLists.txt 在预览后发生变化，请重新预览再写入。	CMakeLists.txt changed after previewing. Preview again before writing.
+CMake 返回了无效的 File API 引用文件。	CMake returned an invalid File API reference file.
+{0}: 未找到 codemodel-v2；先对所选预设/配置执行 CMake 配置。 	{0}: codemodel-v2 was not found. Configure the selected preset/configuration first.
+{0}: 缺少 codemodel-v2，请重新配置。 	{0}: codemodel-v2 is missing. Reconfigure.
+{0}: File API 工程/构建目录与当前选择不匹配，请重新配置。 	{0}: File API project/build directories do not match the selection. Reconfigure.
+File API 中没有所选配置 {0}；请配置该配置。 	File API does not contain configuration {0}. Configure it first.
+找不到唯一目标 {0}。	Target {0} was not found uniquely.
+选择当前配置中明确的可执行目标。	Select an explicit executable target in the current configuration.
+所选目标不是可执行固件。	The selected target is not executable firmware.
+选择 EXECUTABLE 目标。	Select an EXECUTABLE target.
+目标依赖 {0}；直接展开会改变静态库选择或自定义构建语义。	Target dependency {0} cannot be expanded without changing static library selection or custom build behavior.
+为依赖保留独立的 Arm Compiler 6 库工程/构建步骤，再手工链接；自动转换仅展开对象库源码。	Keep separate Arm Compiler 6 library projects/build steps for dependencies and link them manually. Automatic conversion expands object library sources only.
+{0}: {1} 为 GCC 依赖/栈使用报告选项，生成的 MDK 使用自己的构建报告。	{0}: {1} is a GCC dependency/stack usage reporting option. Generated MDK projects use their own build reports.
+如需 .d/.su 文件，请在 MDK 单独启用等效报告。	Enable equivalent reports in MDK separately if .d/.su files are required.
+{0} 编译参数 {1} 无法安全映射到 Arm Compiler 6。	Compiler option {1} for {0} cannot be safely mapped to Arm Compiler 6.
+移除或明确迁移该参数到 MDK 相应的组/文件设置。	Remove the option or explicitly migrate it to the corresponding MDK group/file settings.
+目标包含无编译组的对象/自定义源码。	The target contains object/custom sources without a compile group.
+保留其生成或对象库依赖语义，再手工建立 MDK 构建步骤。	Preserve source generation or object library dependencies and create MDK build steps manually.
+源码由构建生成或当前不存在。	The source is generated during the build or is currently missing.
+先将生成过程迁移为可重现的 MDK BeforeMake 步骤；自动转换不把临时产物当作普通源码。	Migrate source generation to reproducible MDK BeforeMake steps first. Automatic conversion does not treat temporary artifacts as ordinary source files.
+不支持语言 {0}。	Language {0} is unsupported.
+使用 C/C++/标准 startup ASM 源码。	Use C/C++ or standard startup assembly sources.
+同一路径的独立对象编译具有不同语言/宏/包含目录/语义参数，不能合并。	Independent object compilations of the same path use different languages, defines, include directories, or semantic options and cannot be merged.
+同一路径产生多个独立对象；合并可能改变 weak 符号选择或构造函数调用次数。	The same path produces multiple independent objects. Merging them may change weak symbol selection or constructor invocation counts.
+保留独立对象库构建及对象链接；自动转换不去重独立编译对象。	Preserve independent object library builds and object linking. Automatic conversion does not deduplicate separately compiled objects.
+缺少一致的 -mcpu，或编译组核心/FPU/浮点 ABI 不一致。	A consistent -mcpu is missing, or compile groups use incompatible CPU/FPU/floating-point ABIs.
+对所选固件和对象库统一 CPU/FPU/ABI 并重新配置。	Use a consistent CPU/FPU/ABI for the selected firmware and object libraries, then reconfigure.
+不支持 CPU {0}。	CPU {0} is unsupported.
+选择已校核的单核 Cortex-M 配置。	Select a verified single-core Cortex-M configuration.
+浮点配置 {0}/{1} 不支持可靠转换。	Floating-point configuration {0}/{1} cannot be converted reliably.
+采用明确的 soft 无 FPU 或 hard 单/双精度设置；softfp 需要手工 ABI 校核。	Use an explicit soft configuration without an FPU, or hard single/double precision. softfp requires manual ABI verification.
+所选源中有 {0} 个 startup。	The selected sources contain {0} startup files.
+选择仅含一个标准 CubeMX startup 的单核固件目标。	Select a single-core firmware target with exactly one standard CubeMX startup file.
+额外 GCC 汇编源码不能自动变为 ARMASM。	Additional GCC assembly sources cannot be converted to ARMASM automatically.
+提供对应 Arm Compiler 6 汇编源码或手工配置集成汇编器。	Provide corresponding Arm Compiler 6 assembly sources or configure the integrated assembler manually.
+链接参数/库 {0} 不能直接用于 Arm Compiler 6。	Link option/library {0} cannot be used directly with Arm Compiler 6.
+保留库构建/链接顺序并验证 ABI，或明确迁移该链接选项。	Preserve library build/link order and verify the ABI, or migrate the link option explicitly.
+File API 中没有唯一可读的 -T 链接脚本。	File API does not contain a unique readable -T linker script.
+给所选固件显式指定现有 GCC .ld 并重新配置。	Assign an existing GCC .ld script explicitly to the selected firmware and reconfigure.
+{0}: 包含目录不存在，保留原路径。	{0}: the include directory is missing; the original path is preserved.
+可能是未使用模块的遗留路径，不阻止生成。实际编译如报告缺少头文件，请补齐对应模块或修正包含路径；程序不会创建空目录或删除此配置。	This may be a leftover path for an unused module and does not block generation. If compilation reports missing headers, supply the module or correct the include path. No empty directory is created and the setting is preserved.
+{0}: 内容为 GNU FreeRTOS port，保留现有位置。	{0}: the contents are a GNU FreeRTOS port; the current location is preserved.
+目录名 RVDS 不决定编译器。生成后实际编译检查 GNU 语法、头文件及 CPU/FPU 参数；软件验证不确认调度运行。	The RVDS directory name does not determine the compiler. Compile the generated project to verify GNU syntax, headers, and CPU/FPU options. Software checks do not verify scheduler operation.
+{0}: 使用工程内同版本 GNU FreeRTOS port → {1}	{0}: use the project GNU FreeRTOS port of the same version → {1}
+已同步对应包含路径；生成后实际编译检查核心/FPU 配置。	Corresponding include paths were synchronized. Compile the generated project to verify the CPU/FPU configuration.
+未找到可确认语法及版本的 GNU FreeRTOS port。	No GNU FreeRTOS port with verifiable syntax and version was found.
+提供与当前内核版本及核心/FPU 相同的 {0} 和 portmacro.h；不会仅按目录名替换或下载其他版本。	Provide {0} and portmacro.h matching the current kernel version and CPU/FPU. Ports are not replaced based solely on directory names, and other versions are not downloaded.
+二进制库不能自动匹配当前 CPU/FPU 的 CMSIS DSP 版本。	The binary library cannot be automatically matched to a CMSIS DSP variant for the current CPU/FPU.
+提供对应编译器、核心、大小端及浮点 ABI 的库，并手工确认链接；不会把 ARM 专用库直接交给 GCC。	Provide a library matching the compiler, CPU, endianness, and floating-point ABI, and verify linking manually. ARM-specific libraries are not passed directly to GCC.
+缺少可读的对应 CMSIS DSP ARM ELF 库。	The corresponding readable CMSIS DSP ARM ELF library is missing.
+补齐 {0}，使用同一 CMSIS DSP 版本、核心和浮点配置。	Provide {0} with the same CMSIS DSP version, CPU, and floating-point configuration.
+已按 CPU/FPU 匹配库名并检查 ARM ELF 容器，保留链接顺序。仍需实际编译验证 ABI 和符号；请确保两种库来自同一 CMSIS DSP 版本。	Library names were matched by CPU/FPU and ARM ELF containers checked; link order is preserved. Compile to verify the ABI and symbols, and ensure both libraries come from the same CMSIS DSP version.
+当前散布布局包含多个装载/读写区或特殊地址表达式；不能保留 .ANY 在多个 RAM 间的分配语义。	The scatter layout contains multiple load/read-write regions or special address expressions. .ANY allocation across multiple RAM regions cannot be preserved.
+为所选目标提供单个 FLASH 和单个 RAM 的显式 .sct，或先在现有 GCC 工程中确认每个命名段的地址，再使用该 GCC 工程。	Provide an explicit .sct with one FLASH and one RAM region, or verify each named section address in an existing GCC project and use that project.
+.RamFunc 选择器未位于 RAM 执行区。	The .RamFunc selector is outside the RAM execution region.
+将 RAM 函数放入同一 RW_IRAM 执行区并保留 FLASH 装载数据。	Place RAM functions in the same RW_IRAM execution region and preserve FLASH load data.
+存在对象/库/命名段选择器或非标准执行区属性。	Object/library/named-section selectors or nonstandard execution region attributes are present.
+将特殊段保留在手工校核的 GCC 链接脚本中；自动转换支持 RESET、InRoot$$Sections 和 .ANY 的简单 RO/RW/ZI 布局。	Preserve special sections in a manually verified GCC linker script. Automatic conversion supports simple RO/RW/ZI layouts with RESET, InRoot$$Sections, and .ANY.
+装载地址与执行地址不同。	The load and execution addresses differ.
+使用相同装载/执行地址的 FLASH 布局，或手工保留重定位逻辑。	Use a FLASH layout with identical load/execution addresses, or preserve relocation logic manually.
+链接脚本包含 INCLUDE、OVERLAY、PHDRS 或固定段地址。	The linker script contains INCLUDE, OVERLAY, PHDRS, or fixed section addresses.
+展开并校核链接布局后，提供简单 FLASH/RAM 链接脚本。	Expand and verify the layout, then provide a simple FLASH/RAM linker script.
+MEMORY 地址/容量包含非完整数字常量、表达式或重复区域名，不能按数字前缀推测容量。	MEMORY addresses/sizes contain incomplete numeric constants, expressions, or duplicate region names. Sizes cannot be inferred from numeric prefixes.
+将每个 ORIGIN/LENGTH 显式写为完整十进制/十六进制数字或 K/M 容量常量；先准确计算并保留所有保留区。	Write every ORIGIN/LENGTH as a complete decimal/hexadecimal number or K/M size constant. Calculate and preserve all reserved regions first.
+无法准确映射向量、数据和 BSS 到单个 FLASH/单个 RAM；可能有多个实际使用的区域。	Vectors, data, and BSS cannot be mapped accurately to one FLASH and one RAM region. Multiple regions may be in use.
+将所选目标的向量/RO 放入同一 FLASH，数据/BSS/栈放入同一 RAM；特殊区域请提供并校核手工 MDK scatter。	Place vectors/RO in one FLASH region and data/BSS/stack in one RAM region. Provide and verify a manual MDK scatter file for special regions.
+栈顶不是实际数据 RAM 的末端，存在自定义栈布局。	The stack top is not at the end of the data RAM region; a custom stack layout is present.
+提供同一 RAM 区末端的标准 CubeMX _estack，或手工校核 MDK 栈位置。	Provide standard CubeMX _estack at the end of the same RAM region, or verify the MDK stack location manually.
+包含特殊段或显式定位：{0}	Special sections or explicit locations are present: {0}
+手工建立 MDK 命名执行区并校核初始化行为；自动转换仅支持标准 CubeMX C/C++ 段布局。	Create named MDK execution regions and verify initialization manually. Automatic conversion supports standard CubeMX C/C++ section layouts only.
+.RamFunc 不在标准 .data RAM 执行/FLASH 装载区中。	.RamFunc is outside the standard .data RAM execution/FLASH load region.
+为 RAM 函数提供并校核同一 RAM 执行区和 FLASH 装载/初始化映射。	Provide and verify the same RAM execution region and FLASH load/initialization mapping for RAM functions.
+未识别标准 CubeMX 向量表，或存在地址/表达式向量。	A standard CubeMX vector table was not recognized, or address/expression vectors are present.
+提供标准 __Vectors/DCD 或 g_pfnVectors/.word 向量表，并保留中断顺序。	Provide a standard __Vectors/DCD or g_pfnVectors/.word vector table and preserve interrupt order.
+Reset_Handler 含非标准启动代码。	Reset_Handler contains nonstandard startup code.
+将自定义复位逻辑显式移入 SystemInit，或为 GCC 提供保持同一向量表的已校核 startup。	Move custom reset logic explicitly into SystemInit, or provide a verified GCC startup preserving the same vector table.
+向量处理函数 {0} 在 startup 中不是标准 weak 定义。	Vector handler {0} does not have a standard weak definition in the startup file.
+保留处理函数实现到独立源码，并提供标准 weak startup。	Preserve handler implementations in separate source files and provide a standard weak startup.
+startup 包含额外函数 {0}。	The startup file contains additional function {0}.
+把实现保留到独立源文件或提供匹配的 GCC startup。	Preserve the implementation in a separate source file or provide a matching GCC startup.
+{0} 含自定义处理逻辑，不能替换为默认 weak handler。	{0} contains custom logic and cannot be replaced with a default weak handler.
+保留该处理函数实现到独立源码，或提供含相同逻辑的 GCC startup。	Preserve the handler implementation in separate source code, or provide a GCC startup with the same logic.
+无法确认 {0} 是标准默认循环实现。	{0} cannot be verified as a standard default loop implementation.
+保留自定义处理逻辑到独立源码；默认 handler 必须位于标准 PROC 中。	Preserve custom handler logic in separate source code. The default handler must be in a standard PROC.
+startup 额外导出 {0}，不能省略。	The startup file additionally exports {0}, which must be preserved.
+保留该实现到独立源码或提供已校核的对应 startup。	Preserve the implementation in separate source code or provide a verified corresponding startup.
+GCC Reset_Handler 含不属于完整标准初始化模板的指令/控制流，不能丢弃。	GCC Reset_Handler contains instructions/control flow outside the complete standard initialization template; these must be preserved.
+保留自定义复位指令到独立 SystemInit 逻辑，或提供经校核的对应 Arm Compiler 6 startup；仅自动转换完整标准数据/BSS/构造初始化流程。	Preserve custom reset instructions in separate SystemInit logic, or provide a verified Arm Compiler 6 startup. Only complete standard data/BSS/constructor initialization is converted automatically.
+向量处理函数 {0} 不是标准 weak Default_Handler 别名。	Vector handler {0} is not a standard weak alias of Default_Handler.
+保留实现到独立源码，并使用标准 CubeMX weak 向量 startup。	Preserve implementations in separate source code and use a standard CubeMX weak-vector startup.
+Default_Handler 含非标准处理逻辑。	Default_Handler contains nonstandard handler logic.
+保留默认异常实现到独立源码，或手工迁移相同处理逻辑。	Preserve the default exception implementation in separate source code, or migrate the same logic manually.
+startup 含条件汇编或额外函数。	The startup file contains conditional assembly or additional functions.
+先展开所选配置的条件并保留额外函数到独立源文件，再转换标准 startup。	Expand conditions for the selected configuration and preserve additional functions in separate source files before converting the standard startup.
+未找到 MDK5 .uvprojx。	No MDK5 .uvprojx was found.
+选择包含 .ioc 和 MDK-ARM 工程的 CubeMX 工程根目录。	Select a CubeMX project root containing .ioc and MDK-ARM projects.
+根目录没有 CMake 工程。	The root directory does not contain a CMake project.
+选择 CubeMX ARM GCC CMake 工程根目录。	Select a CubeMX ARM GCC CMake project root.
+重新配置所选预设后刷新目标。	Reconfigure the selected preset, then refresh targets.
+目标将在所选 CMake 预设/配置完成 File API 配置后读取。	Targets will be read after File API configuration of the selected CMake preset/configuration.
+选择预设并读取构建目标。	Select a preset and read build targets.
+检查工程文件是否可读且格式正确，然后重新读取。	Check that project files are readable and correctly formatted, then read them again.
+工程识别需要处理。	Project identification requires attention.
+找到 {0} 个候选 MDK 工程。	Found {0} candidate MDK projects.
+明确选择 .uvprojx 文件；多个工程不能只根据同名目标猜测。	Select a .uvprojx file explicitly. Projects cannot be inferred solely from identical target names.
+请选择源工程。	Select the source project.
+没有所选配置的构建目录。	No build directory is available for the selected configuration.
+先对所选 CMake 预设执行 File API 配置，并传入其构建目录。	Configure File API for the selected CMake preset first and provide its build directory.
+请读取 CMake 构建目标。	Read CMake build targets.
+活动内存大小无效，或堆/栈超过 RAM。	Active memory sizes are invalid, or the heap/stack exceeds RAM.
+检查所选目标的显式内存配置。	Check explicit memory settings for the selected target.
+当前目标含需要显式处理的设置。	The target contains settings requiring explicit handling.
+转换保留源码与原构建格式；生成文件需要通过预览确认。	Conversion preserves source code and the original build format. Review generated files in the preview.
+配置并编译生成的目标以验证工具链行为。	Configure and build the generated target to verify toolchain behavior.
+补齐工程文件并重新配置所选目标后再转换。	Supply missing project files and reconfigure the selected target before converting.
+无法读取转换输入。	Unable to read conversion input.
+工程目录不存在。	The project directory does not exist.
+选择现有 CubeMX 工程目录。	Select an existing CubeMX project directory.
+根目录找到 {0} 个 .ioc，无法唯一识别 CubeMX 工程。	Found {0} .ioc files at the root; the CubeMX project cannot be identified uniquely.
+选择只有一个对应 .ioc 的工程根目录。	Select a project root with exactly one matching .ioc file.
+缺少准确的 STM32 Mcu.CPN。	An exact STM32 Mcu.CPN is missing.
+使用保留完整 Mcu.CPN 元数据的 CubeMX .ioc；不会根据名称猜测芯片。	Use a CubeMX .ioc preserving complete Mcu.CPN metadata. The chip is not inferred from names.
+缺少 CubeMX 固件生成元数据或 Core/Drivers 源目录。	CubeMX firmware generation metadata or Core/Drivers source directories are missing.
+选择保留 .ioc、CubeMX 固件包元数据和生成源目录的项目。	Select a project preserving .ioc, CubeMX firmware package metadata, and generated source directories.
+双核/多核工程的目标隔离和内存不能自动映射。	Target isolation and memory in dual/multiple-core projects cannot be mapped automatically.
+为每个核心建立独立源根及明确内存配置后手工迁移。	Create separate source roots and explicit memory settings for each core, then migrate manually.
+所选目标 {0} 不唯一或不存在。	Selected target {0} is missing or not unique.
+明确选择工程文件及目标。	Select the project file and target explicitly.
+不是 MDK5 ARM-ADS 工程。	This is not an MDK5 ARM-ADS project.
+选择 CubeMX 生成的 MDK5 STM32 .uvprojx。	Select a CubeMX-generated MDK5 STM32 .uvprojx.
+目标 Device={0} 与 .ioc 芯片 {1} 不匹配。	Target Device={0} does not match .ioc chip {1}.
+选择对应 .ioc 的 MDK 目标。	Select the MDK target matching the .ioc.
+所选目标生成静态库。	The selected target produces a static library.
+选择可执行固件目标；静态库需要独立 ABI 校核。	Select an executable firmware target. Static libraries require separate ABI verification.
+不支持或缺少 CPU 设置 {0}。	CPU setting {0} is unsupported or missing.
+提供明确的单核 Cortex-M 目标配置。	Provide an explicit single-core Cortex-M target configuration.
+不支持 FPU 选择 RvdsVP={0}。	FPU selection RvdsVP={0} is unsupported.
+选择已校核的无 FPU、单精度或双精度配置。	Select a verified configuration without an FPU, or with single/double precision.
+{0} 包含命令 {1}。	{0} contains command {1}.
+把生成源码/后处理步骤明确迁移到 CMake，再进行转换。	Migrate source generation/postprocessing steps explicitly to CMake before converting.
+{0}/{1}={2} 无法可靠映射。	{0}/{1}={2} cannot be mapped reliably.
+将编译器专用参数改为等效的可移植设置，或手工保留对应 GCC 参数。	Replace compiler-specific options with equivalent portable settings, or preserve corresponding GCC options manually.
+{0}/{1} 已启用。	{0}/{1} is enabled.
+关闭位置无关、LTO、特殊运行库或仅执行代码选项后转换，或手工迁移。	Disable position-independent code, LTO, special runtime, or execute-only options before converting, or migrate manually.
+LDads/{0}={1} 包含专用库或链接设置。	LDads/{0}={1} contains compiler-specific libraries or link settings.
+使用相同源码构建 GCC 库；不要直接链接 ARMCC/ArmClang 二进制库。	Build GCC libraries from the same sources. Do not link ARMCC/ArmClang binary libraries directly.
+启用了自定义文件构建步骤。	Custom file build steps are enabled.
+将该文件的自定义构建步骤显式迁移到 CMake。	Migrate this file's custom build steps explicitly to CMake.
+启用文件的类型不能自动编译。	The enabled file type cannot be compiled automatically.
+明确该文件是源码、头文件或自定义构建输入，并迁移构建步骤。	Identify the file as source, header, or custom build input, and migrate its build steps.
+启用源文件不存在。	An enabled source file is missing.
+补齐所选目标的源文件。	Supply the selected target's source files.
+启用源中找到 {0} 个 startup。	Found {0} startup files in the enabled sources.
+选择只有一个标准 CubeMX startup 的单核目标。	Select a single-core target with exactly one standard CubeMX startup.
+额外汇编源不是可直接交给 GCC 的 GNU unified 汇编。	Additional assembly sources are not GNU unified assembly that GCC can use directly.
+提供项目内对应 GCC 汇编源码；自动转换仅转换标准 CubeMX startup。	Provide matching GCC assembly sources within the project. Automatic conversion handles standard CubeMX startup files only.
+显式 scatter 文件不存在。	The explicit scatter file is missing.
+补齐文件后转换。	Supply the file before converting.
+存在 {0} 的组/文件级专用配置。	Group/file-specific settings for {0} are present.
+手工迁移该配置。	Migrate this setting manually.
+不支持 {0} 覆盖。	Override {0} is unsupported.
+手工迁移该覆盖设置。	Migrate this override manually.
+{0}/{1}={2} 有编译覆盖。	{0}/{1}={2} overrides compilation settings.
+仅可自动迁移继承值、优化、宏/包含目录及常见 -std/-O 参数；手工迁移此设置。	Only inherited values, optimization, defines/include directories, and common -std/-O options can be migrated automatically. Migrate this setting manually.
+组/文件级专用编译参数或取消宏不能自动迁移。	Group/file-specific compiler options or undefined macros cannot be migrated automatically.
+显式迁移这些参数到 GCC。	Migrate these options explicitly to GCC.
+组/文件选项 {0}={1} 不能忽略。	Group/file option {0}={1} cannot be ignored.
+移除或显式迁移该覆盖设置后转换。	Remove or explicitly migrate this override before converting.
+活动 MDK 内存选择为 {0} 个 ROM / {1} 个 RAM：{2}。	Active MDK memory selection: {0} ROM / {1} RAM regions: {2}.
+为目标配置一个实际使用的 ROM 和 RAM，或提供保留命名段分配的已校核 GCC 工程；不会使用 Device pack 的最大容量替代活动设置。	Configure one ROM and RAM region actually used by the target, or provide a verified GCC project preserving named-section allocation. Device pack maximum capacities do not replace active settings.
+工程重复定义了标准整数类型。GCC 与 Keil 对 int/long 的 typedef 选择可能不同，即使均为 32 位也会冲突。将该头文件中的 int8_t～int64_t、uint8_t～uint64_t 自定义 typedef 改为 #include <stdint.h>，保留 bool_t、fp32 等自定义别名；检查所有引用是否使用同一标准声明。	The project redefines standard integer types. GCC and Keil may use different int/long typedefs even when both are 32-bit. Replace custom int8_t–int64_t and uint8_t–uint64_t typedefs with #include <stdint.h>, preserve custom aliases such as bool_t and fp32, and check that all references use the same standard declarations.
+同一函数或变量的声明与实现类型不同。核对报错位置和日志中的 previous declaration；若从 MDK 迁移且自定义了 uint32_t/int32_t，先统一使用 <stdint.h>，再核对 HAL 回调与 CMSIS 声明。	Declarations and implementations use different types for the same function or variable. Check the reported location and previous declaration. If migrating from MDK with custom uint32_t/int32_t typedefs, use <stdint.h> consistently first, then check HAL callbacks and CMSIS declarations.
+参与链接的对象/库浮点 ABI 不一致。统一 -mfloat-abi（hard/soft/softfp）和 -mfpu，选择对应 CPU/FPU 的 GCC 库，并重新编译所有参与链接的对象；改文件名不能修正 ABI。	Linked objects/libraries use incompatible floating-point ABIs. Align -mfloat-abi (hard/soft/softfp) and -mfpu, select GCC libraries matching the CPU/FPU, and rebuild every linked object. Renaming files does not correct an ABI mismatch.
+对象与预编译库的 wchar_t/枚举 ABI 不同。转换保留了原 MDK 的短 wchar_t/短枚举设置，请核对 -fshort-wchar/-fshort-enums 与库配置；跨对象传递这些类型时不能忽略。使用统一 ABI 重编库，或在确认接口不依赖旧布局后调整工程参数。	Objects and precompiled libraries use different wchar_t/enum ABIs. Conversion preserved MDK short wchar_t/enum settings; check -fshort-wchar/-fshort-enums against library settings, especially when these types cross object boundaries. Rebuild libraries with a consistent ABI, or adjust project options after verifying interfaces do not depend on the original layout.
+可能原因：文件不存在、名称大小写不一致或搜索目录未加入。检查文件路径；头文件需要将所在目录加入 target_include_directories。	The file may be missing, its name may have different capitalization, or its search directory may be absent. Check the path and add header directories to target_include_directories.
+可能原因：实现该符号的源文件或库未参与链接，也可能是 C/C++ 链接声明不一致。检查 target_sources、target_link_libraries 及 extern "C"。	The source file or library implementing the symbol may not be linked, or C/C++ linkage declarations may differ. Check target_sources, target_link_libraries, and extern "C".
+可能原因：重复加入实现文件，或在头文件中定义了全局变量/函数。检查重复源码和定义位置；确认是否同时加入多个 main。	Implementation files may be included more than once, or global variables/functions may be defined in headers. Check duplicate sources, definition locations, and multiple main implementations.
+可能原因：代码或数据超出链接脚本定义的存储区域。核对芯片型号、链接脚本的 FLASH/RAM 容量及实际使用情况。	Code or data may exceed the memory regions in the linker script. Check the chip, FLASH/RAM capacities, and actual usage.
+检查对应声明是否被包含、声明是否受条件编译宏限制，以及函数名是否一致。	Check that declarations are included, conditional compilation does not hide them, and function names match.
+核对所选预设和 toolchain 文件，检查编译器路径及工具版本；配置有变化时使用独立构建目录。	Check the selected preset, toolchain file, compiler path, and tool versions. Use a separate build directory when configuration changes.
+先处理列表中的首个错误，核对该位置附近的代码和构建配置；展开完整日志查看上下文。	Resolve the first error first. Check nearby code and build settings, and expand the full log for context.
+未选择有效的 CMake 工程	No valid CMake project selected
+在“工程配置”选择含 CMakeLists.txt 的工程根目录。	Select a project root containing CMakeLists.txt in Project configuration.
+安装 CMake 或 STM32CubeCLT	Install CMake or STM32CubeCLT
+安装 Ninja 或 STM32CubeCLT	Install Ninja or STM32CubeCLT
+安装 Arm GNU Toolchain 或 STM32CubeCLT	Install Arm GNU Toolchain or STM32CubeCLT
+安装带 CMSIS-DAP 支持的 OpenOCD 完整包	Install a complete OpenOCD package with CMSIS-DAP support
+{0} 未找到	{0} not found
+{0} 无法运行	{0} cannot run
+点击“自动修复”，程序会下载完整工具包到 {0} 并补齐路径。可在“工具管理”更换安装目录。也可{1}，然后在配置详情的 {2} 行点“选择”，指定 {3}。	Choose Automatic repair to download complete tool packages to {0} and fill in paths. Change the installation directory in Tools. Alternatively, {1}, then choose Select in the {2} row to specify {3}.	1
+内置 OpenOCD 脚本尚未就绪	Bundled OpenOCD scripts are not ready
+重新检测环境以解压并校验程序内置的完整 Target、CMSIS-DAP 接口和 Tcl 依赖。若资源缺失，请重新安装完整程序。目标脚本无需搜索本机或下载。	Check the environment again to extract and validate bundled Target, CMSIS-DAP interface, and Tcl dependencies. If resources are missing, reinstall the complete application. Target scripts require no local search or download.
+芯片 Target 需要手动匹配	Chip Target requires manual selection
+OpenOCD Target 尚未补全	OpenOCD Target is incomplete
+先确认芯片具体型号。该型号尚无可靠自动映射，请手动选择程序内置目录中与芯片匹配的 target/*.cfg。	Confirm the exact chip model. Reliable automatic mapping is unavailable; manually select a matching target/*.cfg from the bundled directory.
+已识别芯片对应 {0}；重新检测环境会匹配程序内置的实际脚本。若内置版本尚未包含该型号，请核对芯片或使用更新的程序版本。	The chip maps to {0}. Checking the environment again matches the actual bundled script. If the bundled version lacks this model, verify the chip or update the application.
+OpenOCD Target 脚本缺失	OpenOCD Target script is missing
+OpenOCD 脚本依赖不完整	OpenOCD script dependencies are incomplete
+OpenOCD Target 脚本解析未通过	OpenOCD Target script parsing failed
+芯片型号需要手动核对	Chip model requires manual verification
+确认目标芯片的具体型号；CubeMX 工程可核对 .ioc 中的 Mcu.CPN，其他工程可核对 CMake 的芯片编译宏。根据该型号填写 OpenOCD Target 脚本。	Confirm the exact chip model using Mcu.CPN in a CubeMX .ioc or chip compiler macros in CMake for other projects. Enter the OpenOCD Target script for that model.
+构建预设需要补全	Build presets need completion
+OpenOCD 脚本或依赖缺失：{0}	OpenOCD scripts or dependencies are missing: {0}
+OpenOCD 可执行文件缺失。	The OpenOCD executable is missing.
+芯片型号尚未支持自动映射，请手动选择匹配芯片的 target/*.cfg。	Automatic mapping is unavailable for this chip. Select a matching target/*.cfg manually.
+已解析 {0} 及 CMSIS-DAP/SWD 脚本：{1}（未连接硬件）。	Parsed {0} and CMSIS-DAP/SWD scripts: {1} (without connecting to hardware).
+未找到可解析 {0} 的本机完整 OpenOCD 包；可自动补全或下载后重试。{1}	No complete local OpenOCD package can parse {0}. Repair automatically or download a package and retry. {1}
+预设 {0} 没有可解析的 binaryDir，请核对 {1}。	Preset {0} has no resolvable binaryDir. Check {1}.
+CMakePresets.json include 存在循环：{0}	CMakePresets.json include cycle: {0}
+CMakePresets.json include 路径无法解析：{0}	CMakePresets.json include path cannot be resolved: {0}
+CMakePresets.json include 文件不存在：{0}	CMakePresets.json include file is missing: {0}
+{0} 无法读取：{1}	Unable to read {0}: {1}
+CMakePresets.json 预设名称重复：{0}（{1}）。	Duplicate CMakePresets.json preset name: {0} ({1}).
+CMakePresets.json 预设继承存在循环：{0}	CMakePresets.json preset inheritance cycle: {0}
+CMakePresets.json 预设 {0} 无法继承 {1}，请检查 include。	CMakePresets.json preset {0} cannot inherit {1}. Check include files.
+CMakePresets.json 预设 {0} 的 condition 无法解析，未列入可选预设。	The condition of CMakePresets.json preset {0} cannot be resolved; it is excluded from available presets.
+自动修复构建环境	Repairing build environment
+修复 OpenOCD 可执行工具	Repairing OpenOCD executable
+使用程序内置的完整 Target、接口和 Tcl 脚本，不搜索本机脚本目录、不下载目标脚本。	Using complete bundled Target, interface, and Tcl scripts without searching local script directories or downloading target scripts.
+安装目录：{0}；只补齐缺失或无法运行的工具，保留已有可用工具。	Installation directory: {0}. Only missing or unusable tools are installed; working tools are preserved.
+查询 {0} 最新稳定版	Checking the latest stable {0} release
+正在查询发布方的最新稳定版本。	Checking the publisher's latest stable release.
+{0} 官方下载暂不可用：{1}；查询备用发行版。	Official {0} downloads are temporarily unavailable: {1}. Checking the alternative distribution.
+{0} 安装并验证完成：{1}	{0} installed and validated: {1}
+验证 OpenOCD Target 与 CMSIS-DAP 配置	Validating OpenOCD Target and CMSIS-DAP configuration
+验证工具链与 CMSIS-DAP 配置	Validating toolchain and CMSIS-DAP configuration
+{0} 验证：{1}	{0} validation: {1}
+CMake + Ninja + ARM GCC 实际编译通过（ARM ELF）。	CMake + Ninja + ARM GCC compilation passed (ARM ELF).
+工具链联合验证：{0}	Combined toolchain validation: {0}
+{0} 与 CMSIS-DAP/SWD 脚本解析通过（未连接硬件）。	{0} and CMSIS-DAP/SWD scripts parsed successfully (without connecting to hardware).
+OpenOCD 配置验证：{0}	OpenOCD configuration validation: {0}
+自动修复结束，查看待补全项	Automatic repair finished; review remaining items
+自动修复完成，路径已保存	Automatic repair complete; paths saved
+自动修复完成，工具已验证	Automatic repair complete; tools validated
+本机工具已可用，无需下载。	Local tools are ready; no download is required.
+已补齐：{0}	Installed missing tools: {0}
+安装包名称或 SHA-256 无效。	The package name or SHA-256 is invalid.
+下载 {0}	Downloading {0}
+下载源：{0}	Download source: {0}
+安装包超出 2 GB 限制。	The package exceeds the 2 GB limit.
+下载 {0} · {1} MB{2}	Downloading {0} · {1} MB{2}
+下载大小与服务器提供的长度不匹配。	The download size does not match the server-provided length.
+校验安装包 SHA-256	Verifying package SHA-256
+SHA-256 与发布方不一致。	The SHA-256 does not match the publisher's value.
+切换备用下载源	Switching to an alternative download source
+当前源不可用：{0}	The current source is unavailable: {0}
+所有下载源均未完成下载：{0}	No download source completed successfully: {0}
+使用已校验的缓存安装包	Using a validated cached package
+没有生成 ARM ELF。	No ARM ELF was generated.
+无法启动 {0}	Unable to start {0}
+清理路径不在工具安装目录内。	The cleanup path is outside the tool installation directory.
+请选择完整的工具安装目录。	Select the complete tool installation directory.
+请选择磁盘下的工具专用文件夹。	Select a dedicated tool folder below the drive root.
+请选择有效的 {0} 文件。	Select a valid {0} file.
+ARM GCC 缺少 {0}	ARM GCC is missing {0}
+OpenOCD 缺少完整 CMSIS-DAP 脚本。	OpenOCD is missing complete CMSIS-DAP scripts.
+选定工具已不存在，请重新选择。	The selected tool no longer exists. Select it again.
+镜像源需使用 HTTPS，并包含 {url}，例如 https://ghfast.top/{url}；留空则关闭加速镜像。	The mirror must use HTTPS and contain {url}, for example https://ghfast.top/{url}. Leave it empty to disable the mirror.
+工具目录不能是磁盘根目录。	The tool directory must not be a drive root.
+本地 ZIP	Local ZIP
+解压 {0}	Extracting {0}
+先在临时目录验证，完成后保存为独立版本。	Validate in a temporary directory first, then save as a separate version.
+安装包内容已变化，SHA-256 验证未通过。	The package contents changed; SHA-256 validation failed.
+安装包文件数量超出限制。	The package contains too many files.
+解压大小超出限制。	The extracted size exceeds the limit.
+安装包包含链接或无效文件名。	The package contains links or invalid filenames.
+安装包中没有 {0}	The package does not contain {0}
+验证 {0} 版本	Validating {0} version
+OpenOCD 脚本必须来自安装包内部。	OpenOCD scripts must come from inside the package.
+同名版本目录已存在且记录不匹配，请保留或清理后重试。	A directory with the same version name exists with a different record. Preserve or clean it up, then retry.
+{0} 已安装，选择后可启用	{0} installed; select it to activate
+版本验证通过，既有版本已保留。	Version validation passed; existing versions were preserved.
+ARM GCC 包缺少 {0}	The ARM GCC package is missing {0}
+OpenOCD 包缺少完整 CMSIS-DAP 脚本。	The OpenOCD package lacks complete CMSIS-DAP scripts.
+下载缓存 / {0}	Download cache / {0}
+清理目标已变化或正在启用，请重新查看清单。	The cleanup target changed or is active. Refresh the list.
+不能清理当前启用的工具或外部路径。	Active tools and external paths cannot be cleaned up.
+未知工具	Unknown tool
+未知工具：{0}	Unknown tool: {0}
+{0} 的 --version 输出不匹配。	The --version output of {0} does not match.
+工具目录不能包含链接：{0}	The tool directory must not contain links: {0}
+安装包或记录包含越界路径。	The package or record contains paths outside the allowed directory.
+清理路径不在工具目录内。	The cleanup path is outside the tool directory.
+版本记录的工具名称不匹配。	The tool name in the version record does not match.
+版本安装记录不完整，不能认定为受管理目录。	The version installation record is incomplete; the directory cannot be treated as managed.
+请先选择匹配芯片的有效 target/*.cfg，再补全 OpenOCD 脚本。	Select a valid target/*.cfg matching the chip before completing OpenOCD scripts.
+内置 OpenOCD 脚本尚不支持所选 Target：{0}；缺少：{1}。请核对芯片型号或选择内置的匹配 target/*.cfg；不会为缺失脚本下载工具包。	Bundled OpenOCD scripts do not support Target {0}; missing: {1}. Verify the chip model or select a matching bundled target/*.cfg. Missing scripts do not trigger tool package downloads.
+{0} 不能是链接目录，请使用普通文件夹。	{0} must not be a linked directory. Use an ordinary folder.
+GitHub API 暂不可用，改读同一发布方的正式发布页。	The GitHub API is temporarily unavailable. Reading the same publisher's official release page.
+发布页未返回稳定版本。	The release page returned no stable version.
+最新版本没有对应的 Windows ZIP 安装包。	The latest release has no matching Windows ZIP package.
+发布方未提供该文件的 SHA-256，不能验证安装包。	The publisher did not provide this file's SHA-256; the package cannot be validated.
+xPack OpenOCD（OpenOCD 官网列出的 Windows 发行包）	 xPack OpenOCD (Windows distribution listed by the OpenOCD website)
+CMake 官方发布索引	Official CMake release index
+正式发布页没有返回版本号。	The official release page returned no version number.
+正式发布页没有该安装包的 SHA-256。	The official release page has no SHA-256 for this package.
+{0} 官方发布页	Official {0} release page
+正式发布页没有对应 Windows ZIP。	The official release page has no matching Windows ZIP.
+Arm 官方发布索引中没有可识别的稳定版本。	The official Arm release index has no recognizable stable version.
+Arm 最新版本未提供 Windows arm-none-eabi ZIP。	The latest Arm release provides no Windows arm-none-eabi ZIP.
+Arm 官方 GitLab	Official Arm GitLab
+备用发行版索引切换到国内 npmmirror。	Switching the alternative distribution index to npmmirror.
+备用索引的包名不匹配。	The alternative index package name does not match.
+备用发行版的发布地址不匹配。	The alternative distribution release URL does not match.
+xPack 备用发行版（可能与官方最新版本不同）	Alternative xPack distribution (may differ from the latest official release)
+没有找到安装包的 SHA-256。	No package SHA-256 was found.
+发布索引返回了空内容。	The release index returned empty content.
+程序缺少内置 OpenOCD 脚本资源，请重新安装完整程序。	Bundled OpenOCD script resources are missing. Reinstall the complete application.
+内置脚本压缩包超出限制。	The bundled scripts archive exceeds the limit.
+内置脚本文件数量超出限制。	The bundled scripts contain too many files.
+内置脚本清单缺失。	The bundled scripts manifest is missing.
+内置脚本清单超出限制。	The bundled scripts manifest exceeds the limit.
+内置脚本清单无效。	The bundled scripts manifest is invalid.
+内置脚本清单与压缩包不一致。	The bundled scripts manifest does not match the archive.
+内置脚本不能包含链接或重复路径。	Bundled scripts must not contain links or duplicate paths.
+内置脚本文件与清单不一致。	Bundled script files do not match the manifest.
+内置脚本内容校验失败：{0}	Bundled script content validation failed: {0}
+内置脚本包含越界路径。	Bundled scripts contain paths outside the allowed directory.
+内置脚本缓存路径越界。	The bundled scripts cache path is outside the allowed directory.
+内置脚本解压长度超出清单限制。	The extracted bundled script size exceeds the manifest limit.
+内置脚本解压长度与清单不一致。	The extracted bundled script size does not match the manifest.
+内置脚本缓存目录层级异常。	The bundled scripts cache directory depth is invalid.
+内置脚本缓存条目数量异常。	The bundled scripts cache entry count is invalid.
+当前文件：{0}\n检测结果：{1}\n点击“自动修复”安装完整工具包，或手动选择可正常运行 --version 的 {2}。	Current file: {0}\nCheck result: {1}\nChoose Automatic repair to install a complete tool package, or select {2} with working --version output.	1
+当前 Target：{0}\n内置目录缺少或无法读取：{1}\n重新检测环境会校验并恢复内置资源；型号尚未包含时请核对型号或升级程序。缺失 Target 不触发工具下载。	Current Target: {0}\nMissing or unreadable bundled files: {1}\nChecking the environment again validates and restores bundled resources. Verify the chip or update if the model is unavailable. Missing Targets do not trigger tool downloads.
+当前 Target：{0}\n检测结果：{1}\n请核对当前 OpenOCD 可执行工具对所选内置脚本的支持，并通过“工具管理”选择合适版本。脚本验证不连接硬件。	Current Target: {0}\nCheck result: {1}\nCheck OpenOCD support for the bundled script and select a suitable version in Tools. Script validation does not connect to hardware.	1
+{0}\n在工程 CMakePresets.json 中修正 JSON，并为配置预设提供可解析的 binaryDir，或为它设置对应的 buildPreset，然后重新选择工程。	{0}\nCorrect CMakePresets.json and provide a resolvable binaryDir or matching buildPreset, then select the project again.	0
+{0} · {1} 个源文件 · {2} 个库。	{0} · {1} source files · {2} libraries.
+{0} / {1} 编译缓存 {2}	{0} / {1} build cache {2}
+target/*.cfg（需要匹配芯片的 Target）	target/*.cfg (select a Target matching the chip)
+{0}（依赖数量超出检查限制）	{0} (dependency count exceeds the inspection limit)
+{0}（依赖超出 scripts 目录）	{0} (dependency is outside the scripts directory)
+{0}（脚本大小超出检查限制）	{0} (script size exceeds the inspection limit)
+{0}（无法读取：{1}）	{0} (unable to read: {1})
+{0}。请先在工程配置或工具管理中选择版本，再重新预览。	{0}. Select a version in Project configuration or Tools, then preview again.	0
+一键启动（DAPLINK）	One-click Run (DAPLINK)
+一键启动(DAPLINK)	One-click Run (DAPLINK)
+由 CMake · DAPLink 配置助手管理	Managed by CMake · DAPLink Configuration Helper
+下载 {0} · {1} MB / 大小未知	Downloading {0} · {1} MB / unknown size
+下载 {0} · {1} MB / 大小未知 · {2} MB/s	Downloading {0} · {1} MB / unknown size · {2} MB/s
+下载 {0} · {1} MB / {2} MB · {3} MB/s	Downloading {0} · {1} MB / {2} MB · {3} MB/s
+配置名称须为 1–128 个安全字符，不能包含控制字符、分号或路径分隔符。	Use 1–128 safe characters for the configuration name, without control characters, semicolons, or path separators.
+请选择 CMSIS-DAP、ST-Link 或 J-Link 探针。	Choose a CMSIS-DAP, ST-Link, or J-Link probe.
+探针速度必须为 1–50000 kHz。	The probe speed must be between 1 and 50000 kHz.
+请选择有效的复位模式。	Choose a valid reset mode.
+探针接口脚本未找到：{0}	Probe interface script not found: {0}
+探针接口脚本超过大小限制。	The probe interface script exceeds the size limit.
+探针脚本的驱动或 SWD 传输无法确认，请选择兼容的完整 OpenOCD 脚本包。	The probe script's driver or SWD transport could not be confirmed. Choose a compatible complete OpenOCD scripts package.
+当前 ST-Link HLA 驱动不支持 sysresetreq，请使用默认复位或更新 OpenOCD。	The current ST-Link HLA driver does not support sysresetreq. Use the default reset mode or update OpenOCD.
+CMake 目标信息与当前工程目录不一致，请重新配置工程。	The CMake target information does not match the current project directory. Configure the project again.
+CMake 目标信息超过读取大小限制。	The CMake target information exceeds the read size limit.
+烧录需要明确确认，请使用烧录操作并确认目标与固件。	Flashing requires explicit confirmation. Use the Flash action and confirm the target and firmware.
+准备烧录固件	Preparing to flash firmware
+烧录固件	Flashing firmware
+OpenOCD 烧录	OpenOCD flash
+所选固件不是当前配置的目标产物，请重新选择。	The selected firmware is not a target artifact of the current configuration. Select it again.
+当前配置找到 {0} 个 ELF 产物，请明确选择要烧录的固件。	Found {0} ELF artifacts in the current configuration. Explicitly select the firmware to flash.
+核对所选固件、探针、复位模式和 OpenOCD Target。	Check the selected firmware, probe, reset mode, and OpenOCD Target.
+生成 CMake 配置和编译任务。预览不会运行编译或连接硬件。	Generate CMake configure and build tasks. Preview does not compile the project or connect to hardware.
+MDK 转 CMake 生成 Debug 和 Release 预设；其他自定义配置请在生成后按工程需求添加。	MDK to CMake conversion generates Debug and Release presets. Add other custom configurations afterward as required by the project.
+生成后检查优化与调试参数，再配置并编译所需配置。	Check optimization and debug options after generation, then configure and build the required configuration.
+Ninja 缺少输入文件或生成规则。检查日志中的文件路径及 add_custom_command 的 OUTPUT/DEPENDS；若移动了工程或更改了生成器，请重新配置当前构建目录。	Ninja is missing an input file or generation rule. Check the reported path and add_custom_command OUTPUT/DEPENDS. Reconfigure the current build directory after moving the project or changing its generator.
+当前目录没有可用的 Ninja 构建文件。先对所选工程、预设和构建目录执行 CMake 配置，再编译。	No usable Ninja build file exists in this directory. Configure the selected project, preset, and build directory with CMake before building.
+Ninja 只报告了子命令停止。展开完整日志，查找它前面的首个编译器、链接器或自定义命令错误。	Ninja only reported that a subcommand stopped. Expand the full log and find the first preceding compiler, linker, or custom command error.
+构建目录的 CMake 缓存属于其他生成器或工程路径。核对当前预设和 binaryDir，使用匹配的独立构建目录后重新配置。	The CMake cache belongs to another generator or project path. Check the selected preset and binaryDir, then configure a matching separate build directory.
+CMake 没有找到所需依赖。核对日志中的包名、安装位置及 CMAKE_PREFIX_PATH 或对应的 <Package>_DIR，然后重新配置。	CMake could not find a required dependency. Check its reported package name, installation, and CMAKE_PREFIX_PATH or matching <Package>_DIR, then configure again.
+当前工具不支持该参数。核对实际编译器/链接器及版本，并检查是否混入其他工具链参数。	This tool does not support the option. Check the actual compiler/linker and version, and look for options from another toolchain.
+可能是脚本路径、依赖或 OpenOCD 版本不匹配。核对 -s 脚本目录、interface/target 脚本和原始报错位置；这条信息不能证明硬件连接状态。	The script path, dependencies, or OpenOCD version may not match. Check the -s scripts directory, interface/target scripts, and original error location. This message does not establish hardware connection status.
+可能是探针未连接、被其他程序占用、驱动不匹配或探针类型选择错误。核对所选探针、USB 连接和驱动，并关闭占用探针的调试会话。	The probe may be disconnected, busy, using an incompatible driver, or configured with the wrong probe type. Check the selected probe, USB connection, and driver, then close debugging sessions using it.
+目标标识与脚本预期可能不一致。根据实际芯片完整型号核对 target 脚本，并检查 SWD/JTAG 接线和目标供电；不要仅凭这条信息修改预期标识。	The target ID may differ from the script's expectation. Check the target script against the full chip model, SWD/JTAG wiring, and target power. Do not change the expected ID based only on this message.
+目标可能启用了读写保护。先查阅芯片保护状态及解锁步骤，确认数据保留要求；部分解锁操作会擦除芯片，不能自动执行。	Read/write protection may be enabled. Check the chip's protection status, unlock procedure, and data retention requirements. Some unlock operations erase the chip and must not run automatically.
+可能是 Flash 驱动、目标容量、镜像地址或保护状态不匹配。核对实际固件、链接地址、芯片型号及完整日志，再决定是否重新烧录。	The Flash driver, target capacity, image address, or protection status may not match. Check the actual firmware, link addresses, chip model, and full log before deciding to flash again.
+可能是目标供电、调试接线、接口速度或复位方式不合适。核对供电与地线、SWD/JTAG 引脚，尝试较低接口速度，并按硬件条件选择复位方式。	Target power, debug wiring, interface speed, or reset mode may be unsuitable. Check power, ground, and SWD/JTAG pins, try a lower interface speed, and choose a reset mode that matches the hardware.
+OpenOCD 报告了异常。先核对原始日志中的首个错误、探针类型和芯片脚本；软件日志不足以确认具体硬件故障。	OpenOCD reported a problem. Check the first error in the original log, probe type, and chip script. Software logs alone cannot confirm a specific hardware fault.
+固件不是支持的 ELF32/ELF64 文件。	The firmware is not a supported ELF32/ELF64 file.
+内存分析需要已链接的 ELF 可执行文件。	Memory analysis requires a linked ELF executable.
+ELF 缺少可读取的段表，无法可靠统计静态内存。	The ELF has no readable section table, so static memory cannot be measured reliably.
+ELF 段表或程序头无效。	The ELF section table or program headers are invalid.
+ELF 段名称表超过安全读取范围。	The ELF section name table exceeds the safe read limit.
+ELF 装载段地址或大小无效。	An ELF load segment has an invalid address or size.
+ELF 分配段地址或大小无效。	An allocated ELF section has an invalid address or size.
+ELF 段名称索引无效。	An ELF section name index is invalid.
+ELF 段名称未结束。	An ELF section name is not terminated.
+ELF 文件中的偏移或大小超出文件范围。	An ELF offset or size extends beyond the file.
+链接脚本的部分 MEMORY 声明无法解析；不推测区域容量。	Some linker MEMORY declarations could not be parsed. Region capacities are not estimated.
+链接脚本包含 OVERLAY；重叠地址按并集统计，装载映像依据 ELF 程序头分别计入。	The linker script uses OVERLAY. Overlapping addresses are counted once; load images are counted separately using the ELF program headers.
+链接脚本区域地址无法可靠求值；对应容量和分类汇总显示为未知。	A linker region address could not be evaluated reliably. Its capacity and classified totals are unknown.
+链接脚本区域容量包含未支持的表达式；保留实际地址，用未知容量显示。	A linker region capacity uses an unsupported expression. Its actual address is retained and its capacity is unknown.
+未找到可可靠求值的实际链接脚本 MEMORY 区域；仅列出 ELF 分配段，不推测芯片容量。	No reliably evaluated MEMORY regions were found in the actual linker scripts. Only allocated ELF sections are shown; chip capacity is not estimated.
+链接脚本 INCLUDE 数量超过分析范围；未解析部分保持未知。	The number of linker INCLUDE files exceeds the analysis limit. Unparsed information remains unknown.
+实际链接脚本或 INCLUDE 文件不可读取；未解析部分保持未知。	An actual linker script or INCLUDE file is unreadable. Unparsed information remains unknown.
+链接脚本包含符号链接或联接目录；未解析部分保持未知。	A linker script uses a symbolic link or directory junction. Unparsed information remains unknown.
+链接脚本超过分析读取范围；未解析部分保持未知。	A linker script exceeds the analysis read limit. Unparsed information remains unknown.
+链接脚本 INCLUDE 路径无法唯一解析；未解析部分保持未知。	A linker INCLUDE path could not be resolved uniquely. Unparsed information remains unknown.
+部分分配段无法唯一映射到链接脚本区域；容量、剩余空间和分类汇总显示为未知。	Some allocated sections could not be uniquely mapped to linker regions. Their capacity, remaining space, and classified totals are unknown.
+未发现独立的初始化数据装载映像；若 ELF 缺少对应程序头，Flash 初始化数据用量无法确认。	A load image could not be established for some initialized sections. Without the corresponding ELF program headers, their Flash initialization data usage is unknown.
+分配段或装载映像存在重叠；用量按地址并集统计，同一字节不会重复累计。	Allocated sections or load images overlap. Usage is calculated from the union of address ranges, so each byte is counted once.
+仅统计 ELF 的静态分配及初始化装载映像，不包含调试信息；堆栈预留计入静态占用，不代表运行时峰值。	Only static ELF allocations and initialization load images are counted; debug information is excluded. Reserved heap/stack space is static allocation, not a measured runtime peak.
+请先编译所选配置，再分析生成的 ELF。	Build the selected configuration before analyzing its ELF.
+请选择一个实际编译生成的 ELF，再分析内存。	Select one ELF produced by the actual build before analyzing memory.
+内存分析需要当前构建目录内现有的 ELF 文件。	Memory analysis requires an existing ELF file in the current build directory.
+分析 ELF 静态内存	Analyzing static ELF memory
+构建缓存与当前工程或目录不一致；请重新配置并编译后分析内存。	The build cache does not match the current project or directory. Configure and build again before analyzing memory.
+File API 工程或构建目录不匹配；请重新配置并编译后分析内存。	The File API project or build directory does not match. Configure and build again before analyzing memory.
+File API 中没有当前配置；请编译所选配置后分析内存。	The File API does not contain the current configuration. Build the selected configuration before analyzing memory.
+ELF 对应多个链接目标；不推测链接脚本和区域容量。	The ELF matches multiple link targets. Its linker scripts and region capacities are not estimated.
+未找到与所选 ELF 唯一匹配的实际链接命令；链接区域容量显示为未知。	No actual link command uniquely matching the selected ELF was found. Linker region capacities are unknown.
+链接响应文件无法读取；未解析部分保持未知。	A linker response file is unreadable. Unparsed information remains unknown.
+链接响应文件超过分析范围；未解析部分保持未知。	A linker response file exceeds the analysis limit. Unparsed information remains unknown.
+实际链接命令中的脚本路径无法唯一解析；未解析区域容量保持未知。	A script path in the actual link command could not be resolved uniquely. Unparsed region capacities remain unknown.
+构建元数据超过内存分析读取范围。	The build metadata exceeds the memory analysis read limit.
+配置 VS Code 编译任务	Configure VS Code build tasks
