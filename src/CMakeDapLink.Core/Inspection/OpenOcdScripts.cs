@@ -27,10 +27,10 @@ public static class OpenOcdScripts
         return "target/" + script + ".cfg";
     }
 
-    public static IReadOnlyList<string> MissingFiles(string? scripts, string? target)
+    public static IReadOnlyList<string> MissingFiles(string? scripts, string? target, string interfaceScript = "interface/cmsis-dap.cfg")
     {
         var missing = new List<string>();
-        var pending = new Queue<string>(); pending.Enqueue("interface/cmsis-dap.cfg");
+        var pending = new Queue<string>(); pending.Enqueue(interfaceScript);
         if (string.IsNullOrWhiteSpace(target) || !ValidTarget(target)) missing.Add("target/*.cfg（需要匹配芯片的 Target）");
         else pending.Enqueue(target.Replace('\\', '/'));
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase); long bytes = 0;

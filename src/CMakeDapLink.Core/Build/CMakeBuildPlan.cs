@@ -14,11 +14,16 @@ public sealed record CMakeBuildPlan(ToolCommand Configure, ToolCommand Build)
         CurrentFirmwareArtifacts.PrepareQuery(BuildDirectory);
     }
 
+    public ToolCommand? PrepareToolSelection() => ToolSelection?.PrepareCommand(Configure);
+
     public static CMakeBuildPlan Create(SetupOptions options)
     {
+        CMakeConfigurations.Validate(options.BuildConfiguration);
+        OpenOcdProbe.Validate(options);
         var root = Path.GetFullPath(options.Root);
-        var buildDirectory = options.BuildDirectory ??
-            (options.ConfigurePreset == null ? null : ProjectInspector.Inspect(root, options.ConfigurePreset).BuildDirectory) ??
+        var project = options.ConfigurePreset == null ? null : ProjectInspector.Inspect(root, options.ConfigurePreset);
+        var preset = project?.ConfigurePresets.FirstOrDefault(x => x.Name == options.ConfigurePreset);
+        var buildDirectory = options.BuildDirectory ?? project?.BuildDirectory ??
             Path.Combine(root, "build", "daplink-debug");
         var pathPrefix = string.Join(Path.PathSeparator,
             new[] { options.Compiler, options.Ninja, options.CMake }.Select(Path.GetDirectoryName)
@@ -31,7 +36,12 @@ public sealed record CMakeBuildPlan(ToolCommand Configure, ToolCommand Build)
         // --toolchain overrides even a preset's toolchainFile field. The wrapper
         // retains the original chain and binds compilers to the user's selection.
         configureArgs.AddRange(["--toolchain", selection.ToolchainPath]);
-        if (options.ConfigurePreset != null) configureArgs.Add("-DCMAKE_MAKE_PROGRAM=" + options.Ninja);
+        if (options.ConfigurePreset != null)
+        {
+            configureArgs.Add("-DCMAKE_MAKE_PROGRAM=" + options.Ninja);
+            if (preset != null && !preset.IsMultiConfig && string.IsNullOrWhiteSpace(preset.ConfigureConfiguration))
+                configureArgs.Add("-DCMAKE_BUILD_TYPE=" + options.BuildConfiguration);
+        }
         var buildArgs = options.BuildPreset != null
             ? new List<string> { "--build", "--preset", options.BuildPreset }
             : new List<string> { "--build", buildDirectory, "--parallel" };
@@ -48,8 +58,8 @@ public sealed record CMakeBuildPlan(ToolCommand Configure, ToolCommand Build)
         };
     }
 
-    public static IReadOnlyList<string> FindElfs(string buildDirectory, string configuration = "Debug") =>
-        CurrentFirmwareArtifacts.Find(buildDirectory, configuration);
+    public static IReadOnlyList<string> FindElfs(string buildDirectory, string configuration = "Debug", string? sourceRoot = null) =>
+        CurrentFirmwareArtifacts.Find(buildDirectory, configuration, sourceRoot);
 
     public static string FindSingleElf(string buildDirectory)
     {

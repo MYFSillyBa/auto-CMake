@@ -195,7 +195,7 @@ file(WRITE "${_stm32_state}/selection.txt" "${_stm32_signature}")
 """;
     }
 
-    public void Prepare(ToolCommand configure, Action<string>? report)
+    public ToolCommand PrepareCommand(ToolCommand configure)
     {
         ToolVersionManager.EnsureOrdinaryPath(stateDirectory);
         Directory.CreateDirectory(stateDirectory);
@@ -207,12 +207,18 @@ file(WRITE "${_stm32_state}/selection.txt" "${_stm32_signature}")
         var script = Path.Combine(stateDirectory, "prepare.cmake");
         ToolVersionManager.EnsureOrdinaryPath(script);
         File.WriteAllText(script, PreparationScript(), new UTF8Encoding(false));
-        var info = new ProcessStartInfo(configure.Executable)
+        return configure with { Arguments = ["-P", script] };
+    }
+
+    public void Prepare(ToolCommand configure, Action<string>? report)
+    {
+        var command = PrepareCommand(configure);
+        var info = new ProcessStartInfo(command.Executable)
         {
             UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = configure.WorkingDirectory,
             RedirectStandardOutput = true, RedirectStandardError = true
         };
-        info.ArgumentList.Add("-P"); info.ArgumentList.Add(script);
+        foreach (var argument in command.Arguments) info.ArgumentList.Add(argument);
         using var process = Process.Start(info) ?? throw new IOException("无法准备 CMake 工具选择。");
         var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
         if (!process.WaitForExit(30000)) { process.Kill(true); throw new TimeoutException("准备 CMake 工具选择超时。"); }

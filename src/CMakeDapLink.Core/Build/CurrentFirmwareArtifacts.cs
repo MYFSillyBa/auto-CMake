@@ -11,7 +11,7 @@ public static class CurrentFirmwareArtifacts
         File.WriteAllText(Path.Combine(query, "codemodel-v2"), "");
     }
 
-    public static IReadOnlyList<string> Find(string buildDirectory, string configuration)
+    public static IReadOnlyList<string> Find(string buildDirectory, string configuration, string? sourceRoot = null)
     {
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(buildDirectory));
         var reply = Path.Combine(root, ".cmake", "api", "v1", "reply");
@@ -30,15 +30,18 @@ public static class CurrentFirmwareArtifacts
         var modelRoot = model.RootElement;
         if (!Path.TrimEndingDirectorySeparator(Path.GetFullPath(modelRoot.GetProperty("paths").GetProperty("build").GetString()!)).Equals(root, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("CMake 目标信息与当前构建目录不一致，请重新配置工程。");
+        if (sourceRoot != null && !Path.TrimEndingDirectorySeparator(Path.GetFullPath(modelRoot.GetProperty("paths").GetProperty("source").GetString()!)).Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(sourceRoot)), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("CMake 目标信息与当前工程目录不一致，请重新配置工程。");
         var configurations = modelRoot.GetProperty("configurations").EnumerateArray().ToArray();
-        var selected = configurations.FirstOrDefault(x => string.Equals(x.GetProperty("name").GetString(), configuration, StringComparison.OrdinalIgnoreCase));
+        var selected = configurations.FirstOrDefault(x => string.Equals(x.GetProperty("name").GetString(), configuration, StringComparison.Ordinal));
         if (selected.ValueKind == JsonValueKind.Undefined && configurations.Length == 1 &&
             string.IsNullOrEmpty(configurations[0].GetProperty("name").GetString()))
             selected = configurations[0];
         if (selected.ValueKind == JsonValueKind.Undefined)
             throw new InvalidOperationException($"CMake 构建目标中没有 {configuration} 配置，请重新配置并编译所选配置。");
         var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var reference in selected.GetProperty("targets").EnumerateArray())
+        if (!selected.TryGetProperty("targets", out var targets)) return [];
+        foreach (var reference in targets.EnumerateArray())
         {
             using var target = Read(ReplyPath(reply, reference));
             var data = target.RootElement;
@@ -46,13 +49,23 @@ public static class CurrentFirmwareArtifacts
             foreach (var artifact in artifacts.EnumerateArray())
             {
                 var path = Path.GetFullPath(artifact.GetProperty("path").GetString()!, root);
-                if (Path.GetExtension(path).Equals(".elf", StringComparison.OrdinalIgnoreCase) && File.Exists(path)) files.Add(path);
+                if (Path.GetExtension(path).Equals(".elf", StringComparison.OrdinalIgnoreCase) && File.Exists(path) &&
+                    path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                {
+                    ToolVersionManager.EnsureOrdinaryPath(path);
+                    files.Add(path);
+                }
             }
         }
         return files.Order(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
-    private static JsonDocument Read(string path) => JsonDocument.Parse(File.ReadAllText(path));
+    private static JsonDocument Read(string path)
+    {
+        ToolVersionManager.EnsureOrdinaryPath(path);
+        if (new FileInfo(path).Length > 16 * 1024 * 1024) throw new InvalidDataException("CMake 目标信息超过读取大小限制。");
+        return JsonDocument.Parse(File.ReadAllText(path));
+    }
 
     private static string ReplyPath(string reply, JsonElement reference)
     {

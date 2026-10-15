@@ -9,7 +9,7 @@ public static class BuildDiagnostics
 {
     private static readonly Regex Ansi = new(@"\x1B\[[0-?]*[ -/]*[@-~]", RegexOptions.Compiled);
     private static readonly Regex Compiler = new(@"^(?<file>.+?):(?<line>\d+)(?::(?<column>\d+))?:\s*(?<severity>fatal error|error|warning):\s*(?<message>.+)$", RegexOptions.Compiled);
-    private static readonly Regex CMake = new(@"^CMake (?<severity>Error|Warning)(?: \([^)]*\))? at (?<file>.+?):(?<line>\d+)(?: \([^)]*\))?:?", RegexOptions.Compiled);
+    private static readonly Regex CMake = new(@"^CMake (?<severity>Error|Warning)(?: \([^)]*\))?(?: at (?<file>.+?):(?<line>\d+)(?: \([^)]*\))?| in (?<file>.+?))?:", RegexOptions.Compiled);
     private static readonly Regex LinkLocation = new(@"^(?<file>.+?):(?<line>\d+):\s*(?<message>.*(?:undefined reference|multiple definition).*)$", RegexOptions.Compiled);
     private static readonly Regex LinkDiagnostic = new(@"^.+[/\\](?:ld(?:\.exe)?|ld\.lld|lld(?:\.exe)?):\s*(?<severity>warning|error):\s*(?<message>.+)$", RegexOptions.Compiled);
 
@@ -24,34 +24,47 @@ public static class BuildDiagnostics
             var match = Compiler.Match(line);
             if (match.Success)
             {
-                Add(match.Groups["message"].Value, match.Groups["severity"].Value.Contains("error") ? "错误" : "警告",
+                Add(line, match.Groups["severity"].Value.Contains("error") ? "错误" : "警告",
                     match.Groups["file"].Value, Number(match, "line"), Number(match, "column"), stage);
                 continue;
             }
             match = CMake.Match(line);
             if (match.Success)
             {
-                var details = new List<string>();
-                for (var j = i + 1; j < lines.Length && j <= i + 8; j++)
+                var details = new List<string> { line };
+                for (var j = i + 1; j < lines.Length && j <= i + 40; j++)
                 {
-                    if (string.IsNullOrWhiteSpace(lines[j])) { if (details.Count > 0) break; continue; }
-                    if (!char.IsWhiteSpace(lines[j][0])) break;
-                    details.Add(lines[j].Trim());
+                    if (string.IsNullOrWhiteSpace(lines[j])) { if (details.Count > 1) break; details.Add(lines[j]); continue; }
+                    if (!char.IsWhiteSpace(lines[j][0]) && (match.Groups["file"].Success || CMake.IsMatch(lines[j]) ||
+                        Compiler.IsMatch(lines[j]) || lines[j].StartsWith("ninja:", StringComparison.OrdinalIgnoreCase) ||
+                        lines[j].StartsWith("-- ", StringComparison.Ordinal) || lines[j].StartsWith('['))) break;
+                    details.Add(lines[j]);
                 }
-                Add(details.Count == 0 ? line : string.Join(" ", details), match.Groups["severity"].Value == "Error" ? "错误" : "警告",
+                Add(string.Join("\n", details).TrimEnd(), match.Groups["severity"].Value == "Error" ? "错误" : "警告",
                     match.Groups["file"].Value, Number(match, "line"), null, "CMake 配置");
                 continue;
             }
             match = LinkLocation.Match(line);
             if (match.Success)
             {
-                Add(match.Groups["message"].Value, "错误", match.Groups["file"].Value, Number(match, "line"), null, "链接");
+                Add(line, "错误", match.Groups["file"].Value, Number(match, "line"), null, "链接");
                 continue;
             }
             match = LinkDiagnostic.Match(line);
             if (match.Success)
             {
-                Add(match.Groups["message"].Value, match.Groups["severity"].Value == "warning" ? "警告" : "错误", null, null, null, "链接");
+                Add(line, match.Groups["severity"].Value == "warning" ? "警告" : "错误", null, null, null, "链接");
+                continue;
+            }
+            if (line.StartsWith("ninja: error:", StringComparison.OrdinalIgnoreCase))
+            {
+                Add(line, "错误", null, null, null, "Ninja");
+                continue;
+            }
+            if (line.StartsWith("ninja: build stopped:", StringComparison.OrdinalIgnoreCase))
+            {
+                // A stopped subcommand is a consequence; keep it only when no actual cause was captured.
+                if (!result.Any(x => x.Severity == "错误")) Add(line, "错误", null, null, null, "Ninja");
                 continue;
             }
             if (line.Contains("undefined reference", StringComparison.OrdinalIgnoreCase) || line.Contains("multiple definition", StringComparison.OrdinalIgnoreCase)
@@ -79,6 +92,18 @@ public static class BuildDiagnostics
 
     public static string Advice(string message)
     {
+        if (message.Contains("missing and no known rule", StringComparison.OrdinalIgnoreCase))
+            return "Ninja 缺少输入文件或生成规则。检查日志中的文件路径及 add_custom_command 的 OUTPUT/DEPENDS；若移动了工程或更改了生成器，请重新配置当前构建目录。";
+        if (message.Contains("loading 'build.ninja'", StringComparison.OrdinalIgnoreCase) || message.Contains("loading build.ninja", StringComparison.OrdinalIgnoreCase))
+            return "当前目录没有可用的 Ninja 构建文件。先对所选工程、预设和构建目录执行 CMake 配置，再编译。";
+        if (message.Contains("build stopped", StringComparison.OrdinalIgnoreCase) || message.Contains("subcommand failed", StringComparison.OrdinalIgnoreCase))
+            return "Ninja 只报告了子命令停止。展开完整日志，查找它前面的首个编译器、链接器或自定义命令错误。";
+        if (message.Contains("does not match the generator", StringComparison.OrdinalIgnoreCase) || message.Contains("used to generate cache", StringComparison.OrdinalIgnoreCase))
+            return "构建目录的 CMake 缓存属于其他生成器或工程路径。核对当前预设和 binaryDir，使用匹配的独立构建目录后重新配置。";
+        if (message.Contains("Could not find a package configuration file", StringComparison.OrdinalIgnoreCase) || message.Contains("Could NOT find", StringComparison.OrdinalIgnoreCase))
+            return "CMake 没有找到所需依赖。核对日志中的包名、安装位置及 CMAKE_PREFIX_PATH 或对应的 <Package>_DIR，然后重新配置。";
+        if (message.Contains("unrecognized command-line option", StringComparison.OrdinalIgnoreCase) || message.Contains("unrecognized option", StringComparison.OrdinalIgnoreCase))
+            return "当前工具不支持该参数。核对实际编译器/链接器及版本，并检查是否混入其他工具链参数。";
         if (message.Contains("conflicting types", StringComparison.OrdinalIgnoreCase) && Regex.IsMatch(message, @"\b(?:u?int(?:8|16|32|64)_t)\b"))
             return "工程重复定义了标准整数类型。GCC 与 Keil 对 int/long 的 typedef 选择可能不同，即使均为 32 位也会冲突。将该头文件中的 int8_t～int64_t、uint8_t～uint64_t 自定义 typedef 改为 #include <stdint.h>，保留 bool_t、fp32 等自定义别名；检查所有引用是否使用同一标准声明。";
         if (message.Contains("conflicting types", StringComparison.OrdinalIgnoreCase))

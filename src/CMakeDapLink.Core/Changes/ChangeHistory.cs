@@ -23,6 +23,40 @@ public static class ChangeHistory
         return ReadRecords(root);
     }
 
+    public static IReadOnlyList<ChangeRecordMetadata> ListMetadata(string root)
+    {
+        root = NormalizeRoot(root);
+        using var gate = Gate(root);
+        var directory = HistoryDirectory(root);
+        if (!Directory.Exists(directory)) return [];
+        var records = new List<ChangeRecordMetadata>();
+        foreach (var path in Directory.EnumerateFiles(directory, "record.json", SearchOption.AllDirectories))
+        {
+            using var stream = File.OpenRead(path);
+            using var manifest = JsonDocument.Parse(stream);
+            var data = manifest.RootElement;
+            var status = data.GetProperty("Status").GetString()!;
+            var record = data.GetProperty("Record");
+            if (status is not ("Complete" or "Pending" or "RecoveryNeeded") || !string.Equals(record.GetProperty("Root").GetString(), root, StringComparison.OrdinalIgnoreCase)) continue;
+            var changes = record.GetProperty("Changes").EnumerateArray().Select(change =>
+            {
+                var before = change.GetProperty("Before"); var after = change.GetProperty("After");
+                return new FileChangeMetadata(change.GetProperty("Path").GetString()!, before.ValueKind == JsonValueKind.Null ? "add" : after.ValueKind == JsonValueKind.Null ? "delete" : "modify", EncodedSize(before), EncodedSize(after));
+            }).ToArray();
+            records.Add(new(record.GetProperty("Id").GetString()!, record.GetProperty("Label").GetString()!, record.GetProperty("CreatedUtc").GetDateTimeOffset(),
+                record.TryGetProperty("RestoredUtc", out var restored) && restored.ValueKind != JsonValueKind.Null ? restored.GetDateTimeOffset() : null,
+                status, record.TryGetProperty("RestorationOf", out var restoration) ? restoration.GetString() : null, changes));
+        }
+        return records.OrderByDescending(record => record.CreatedUtc).ToArray();
+    }
+
+    private static long EncodedSize(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Null) return 0;
+        var encoded = value.GetString()!;
+        return (long)encoded.Length / 4 * 3 - (encoded.EndsWith("==", StringComparison.Ordinal) ? 2 : encoded.EndsWith('=') ? 1 : 0);
+    }
+
     public static IReadOnlyList<FileChange> GetRestoreChanges(string root, string id)
     {
         root = NormalizeRoot(root);

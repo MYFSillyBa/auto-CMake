@@ -9,26 +9,30 @@ public sealed record SetupOptions(string Root, string CMake, string Ninja, strin
     string? ToolchainFile = null, string? FirmwareElfPath = null)
 {
     public string BuildConfiguration { get; init; } = "Debug";
+    public string TaskLanguage { get; init; } = "zh-CN";
+    public string ProbeType { get; init; } = "cmsis-dap";
+    public int AdapterSpeed { get; init; } = 1000;
+    public string ResetMode { get; init; } = "default";
 }
 
 public static class ConfigurationWriter
 {
     private const string ConfigureLabel = "CMake 配置（自动）";
     private const string BuildLabel = "一键编译";
-    private const string FlashLabel = "一键烧录(DAPLINK)";
 
     public static void Write(SetupOptions options) => ChangeHistory.Apply(options.Root, "配置 VS Code 编译与烧录任务", Preview(options));
 
-    public static IReadOnlyList<FileChange> Preview(SetupOptions options)
+    public static IReadOnlyList<FileChange> Preview(SetupOptions options, bool buildOnly = false)
     {
-        if (!Regex.IsMatch(options.TargetScript, @"\Atarget/[a-zA-Z0-9_.-]+\.cfg\z"))
+        if (!buildOnly && !Regex.IsMatch(options.TargetScript, @"\Atarget/[a-zA-Z0-9_.-]+\.cfg\z"))
             throw new ArgumentException("OpenOCD target 必须是 target/xxx.cfg。", nameof(options));
         var root = Path.GetFullPath(options.Root);
         if (!File.Exists(Path.Combine(root, "CMakeLists.txt"))) throw new ArgumentException("缺少 CMakeLists.txt。", nameof(options));
         if (options.ConfigurePreset != null && options.BuildDirectory == null)
             throw new ArgumentException("预设没有可用构建目录。", nameof(options));
         var plan = CMakeBuildPlan.Create(options);
-        var elf = options.FirmwareElfPath == null ? null : Path.GetFullPath(options.FirmwareElfPath);
+        var probe = buildOnly ? null : OpenOcdProbe.Resolve(options);
+        var elf = buildOnly || options.FirmwareElfPath == null ? null : Path.GetFullPath(options.FirmwareElfPath);
         if (elf != null && (!File.Exists(elf) || !IsInside(plan.BuildDirectory, elf)))
             throw new ArgumentException("所选 ELF 不存在或不在当前构建目录内。", nameof(options));
 
@@ -43,44 +47,49 @@ public static class ConfigurationWriter
             for (var suffix = 2; userLabels.Contains(candidate); suffix++) candidate = label + " · CMake DAPLink " + suffix;
             return candidate;
         }
-        var configureLabel = AvailableLabel(ConfigureLabel);
-        var buildLabel = AvailableLabel(BuildLabel);
-        var flashLabel = AvailableLabel(FlashLabel);
+        var english = options.TaskLanguage == "en";
+        var configureLabel = AvailableLabel(english ? "CMake Configure (automatic)" : ConfigureLabel);
+        var buildLabel = AvailableLabel(english ? "One-click Build" : BuildLabel);
+        var flashLabel = probe == null ? "" : AvailableLabel(english ? $"One-click Flash ({probe.DisplayName})" : $"一键烧录({probe.DisplayName})");
+        var detail = english ? JsoncTaskEditor.ManagedDetailEnglish : JsoncTaskEditor.ManagedDetail;
         var managed = new List<JsonObject>();
-        var runnerPath = DapLinkTaskScript.AvailablePath(root);
-        managed.Add(MakeProcessTask(configureLabel, plan.Configure with { Arguments = ["-DACTION=configure", "-P", runnerPath] }, hidden: true));
-        var build = MakeProcessTask(buildLabel, plan.Build);
+        var runnerPath = DapLinkTaskScript.AvailablePath(root, buildOnly);
+        managed.Add(MakeProcessTask(configureLabel, plan.Configure with { Arguments = ["-DACTION=configure", "-P", runnerPath] }, detail, hidden: true));
+        var build = MakeProcessTask(buildLabel, plan.Build, detail);
         build["dependsOn"] = configureLabel;
         build["dependsOrder"] = "sequence";
         build["group"] = new JsonObject { ["kind"] = "build", ["isDefault"] = true };
         build["problemMatcher"] = new JsonArray("$gcc");
         managed.Add(build);
 
-        var flashArgs = new List<string> { "-DACTION=flash" };
-        if (elf != null) flashArgs.Add("-DFIRMWARE_ELF=" + elf);
-        flashArgs.AddRange(["-P", runnerPath]);
-        var flash = MakeProcessTask(flashLabel, new(options.CMake, flashArgs, root, plan.Configure.PathPrefix));
-        flash["dependsOn"] = buildLabel;
-        flash["dependsOrder"] = "sequence";
-        managed.Add(flash);
-        var after = JsoncTaskEditor.Update(before, managed);
+        if (!buildOnly)
+        {
+            var flashArgs = new List<string> { "-DACTION=flash" };
+            if (elf != null) flashArgs.Add("-DFIRMWARE_ELF=" + elf);
+            flashArgs.AddRange(["-P", runnerPath]);
+            var flash = MakeProcessTask(flashLabel, new(options.CMake, flashArgs, root, plan.Configure.PathPrefix), detail);
+            flash["dependsOn"] = buildLabel;
+            flash["dependsOrder"] = "sequence";
+            managed.Add(flash);
+        }
+        var after = JsoncTaskEditor.Update(before, managed, preserveFlashTasks: buildOnly);
         var changes = new List<FileChange>();
         if (before == null || !before.AsSpan().SequenceEqual(after)) changes.Add(new(tasksPath, before, after));
         var runnerBefore = File.Exists(runnerPath) ? File.ReadAllBytes(runnerPath) : null;
-        var runnerAfter = DapLinkTaskScript.Create(options, plan);
+        var runnerAfter = DapLinkTaskScript.Create(options, plan, buildOnly);
         if (runnerBefore == null || !runnerBefore.AsSpan().SequenceEqual(runnerAfter)) changes.Add(new(runnerPath, runnerBefore, runnerAfter));
-        AddLegacyRemoval(vscode, changes);
+        if (!buildOnly) AddLegacyRemoval(vscode, changes);
         return changes;
     }
 
-    private static JsonObject MakeProcessTask(string label, ToolCommand command, bool hidden = false)
+    private static JsonObject MakeProcessTask(string label, ToolCommand command, string detail, bool hidden = false)
     {
         var args = new JsonArray();
         foreach (var argument in command.Arguments) args.Add(argument);
         var envPath = string.IsNullOrEmpty(command.PathPrefix) ? "${env:PATH}" : command.PathPrefix + Path.PathSeparator + "${env:PATH}";
         var task = new JsonObject
         {
-            ["label"] = label, ["detail"] = JsoncTaskEditor.ManagedDetail, ["type"] = "process", ["command"] = command.Executable, ["args"] = args,
+            ["label"] = label, ["detail"] = detail, ["type"] = "process", ["command"] = command.Executable, ["args"] = args,
             ["options"] = new JsonObject { ["cwd"] = "${workspaceFolder}", ["env"] = new JsonObject { ["PATH"] = envPath } },
             ["presentation"] = new JsonObject { ["reveal"] = "always", ["panel"] = "shared", ["clear"] = true },
             ["problemMatcher"] = new JsonArray()

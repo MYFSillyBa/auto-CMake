@@ -8,6 +8,8 @@ public sealed record ConfigurePresetInfo(string Name, string DisplayName, string
     string? BinaryDirectory, string? ToolchainFile, string? BuildPreset, string? BuildConfiguration, string SourceFile)
 {
     public string? ConfigureConfiguration { get; init; }
+    public IReadOnlyList<string> Configurations { get; init; } = [];
+    public bool IsMultiConfig { get; init; }
     public IReadOnlyList<BuildPresetInfo> BuildPresets { get; init; } = [];
 }
 
@@ -66,6 +68,10 @@ internal sealed class CMakePresetReader(string root, List<string> notes)
             var configField = resolved.Cache.GetValueOrDefault("CMAKE_BUILD_TYPE");
             var configuration = configField == null ? null : Expand(CacheText(configField.Value), resolved, configField.File, new(StringComparer.Ordinal));
             var configureConfiguration = configuration;
+            var typesField = resolved.Cache.GetValueOrDefault("CMAKE_CONFIGURATION_TYPES");
+            var types = typesField == null ? null : Expand(CacheText(typesField.Value), resolved, typesField.File, new(StringComparer.Ordinal));
+            var multiConfig = types != null || Text(resolved.Fields, "generator") is { } generatorName &&
+                (generatorName.Contains("Multi-Config", StringComparison.OrdinalIgnoreCase) || generatorName.StartsWith("Visual Studio", StringComparison.OrdinalIgnoreCase) || generatorName == "Xcode");
             var buildChoices = new List<BuildPresetInfo>();
             string? matchingBuild = null;
             foreach (var buildEntry in build.Values.Where(e => !IsHidden(e)))
@@ -89,7 +95,7 @@ internal sealed class CMakePresetReader(string root, List<string> notes)
             if (binaryDir == null) notes.Add($"预设 {entry.Name} 没有可解析的 binaryDir，请核对 {Path.GetFileName(entry.File)}。");
             result.Add(new(entry.Name, Text(entry.Fields, "displayName") ?? entry.Name,
                 Text(entry.Fields, "description"), binaryDir, chain, matchingBuild, configuration, entry.File)
-                { ConfigureConfiguration = configureConfiguration, BuildPresets = buildChoices });
+                { ConfigureConfiguration = configureConfiguration, Configurations = types?.Split(';', StringSplitOptions.RemoveEmptyEntries) ?? [], IsMultiConfig = multiConfig, BuildPresets = buildChoices });
         }
         return result;
     }

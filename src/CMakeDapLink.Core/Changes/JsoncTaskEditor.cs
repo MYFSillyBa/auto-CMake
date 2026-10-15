@@ -9,10 +9,11 @@ namespace CMakeDapLink.Core;
 internal static class JsoncTaskEditor
 {
     internal const string ManagedDetail = "由 STM32 工程助手管理";
+    internal const string ManagedDetailEnglish = "Managed by STM32 Project Helper";
     private static readonly JsonDocumentOptions DocumentOptions = new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
     private static readonly JsonSerializerOptions PrintOptions = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
-    public static byte[] Update(byte[]? original, IReadOnlyList<JsonObject> managed)
+    public static byte[] Update(byte[]? original, IReadOnlyList<JsonObject> managed, bool preserveFlashTasks = false)
     {
         if (original == null)
         {
@@ -45,6 +46,7 @@ internal static class JsoncTaskEditor
         else
         {
             var replacements = managed.ToDictionary(t => t["label"]!.GetValue<string>(), StringComparer.Ordinal);
+            var preservedLabels = preserveFlashTasks ? FlashDependencies(root["tasks"] as JsonArray) : new HashSet<string>(StringComparer.Ordinal);
             var present = new HashSet<string>(StringComparer.Ordinal);
             var kept = new List<(Span Span, string Value)>();
             foreach (var span in tokens.Elements)
@@ -54,7 +56,12 @@ internal static class JsoncTaskEditor
                 var label = node is JsonObject obj && obj["label"] is JsonValue labelNode && labelNode.TryGetValue<string>(out var value) ? value : null;
                 if (label != null && IsManagedTask(node))
                 {
-                    if (!replacements.TryGetValue(label, out var replacement) || !present.Add(label)) continue;
+                    if (!replacements.TryGetValue(label, out var replacement))
+                    {
+                        if (preservedLabels.Contains(label)) kept.Add((span, raw));
+                        continue;
+                    }
+                    if (!present.Add(label)) continue;
                     var indent = LineIndent(text, span.Start);
                     if (indent.Length == 0) indent = "    ";
                     var formatted = Format(replacement, indent, newline);
@@ -115,9 +122,11 @@ internal static class JsoncTaskEditor
     {
         if (node is not JsonObject task) return false;
         string? Text(string key) => task[key] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
-        if (Text("detail") is ManagedDetail or "由 CMake · DAPLink 配置助手管理") return true;
+        if (Text("detail") is ManagedDetail or ManagedDetailEnglish or "由 CMake · DAPLink 配置助手管理") return true;
         var label = Text("label");
-        if (label is not ("CMake 配置（自动）" or "一键编译" or "一键烧录(DAPLINK)" or "一键启动（DAPLINK）" or "一键启动(DAPLINK)")) return false;
+        if (label is not ("CMake 配置（自动）" or "一键编译" or "一键烧录(DAPLINK)" or "一键启动（DAPLINK）" or "一键启动(DAPLINK)" or
+            "CMake Configure (automatic)" or "One-click Build" or "One-click Flash (DAPLINK)" or "一键烧录(ST-Link)" or "一键烧录(J-Link)" or
+            "One-click Flash (ST-Link)" or "One-click Flash (J-Link)")) return false;
         if (Text("type") != "process" || task["args"] is not JsonArray arguments) return false;
         var command = Path.GetFileName(Text("command")?.Replace('\\', '/'));
         if (!new[] { "powershell", "powershell.exe", "pwsh", "pwsh.exe" }.Contains(command, StringComparer.OrdinalIgnoreCase)) return false;
@@ -141,6 +150,32 @@ internal static class JsoncTaskEditor
             && string.Equals(values[scriptIndex + 1], "-Action", StringComparison.OrdinalIgnoreCase)
             && (string.Equals(values[scriptIndex + 2], "build", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(values[scriptIndex + 2], "flash", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsFlashTask(JsonNode? node)
+    {
+        if (node is not JsonObject task) return false;
+        var label = task["label"] is JsonValue labelValue && labelValue.TryGetValue<string>(out var text) ? text : "";
+        if (label.StartsWith("One-click Flash (", StringComparison.Ordinal) || label.StartsWith("一键烧录(", StringComparison.Ordinal) || label.StartsWith("一键启动", StringComparison.Ordinal)) return true;
+        return task["args"] is JsonArray args && args.OfType<JsonValue>().Any(value => value.TryGetValue<string>(out var argument) &&
+            (argument.Equals("-DACTION=flash", StringComparison.OrdinalIgnoreCase) || argument.Equals("flash", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static HashSet<string> FlashDependencies(JsonArray? tasks)
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        var all = (tasks ?? new JsonArray()).OfType<JsonObject>().ToArray();
+        string? Label(JsonObject task) => task["label"] is JsonValue value && value.TryGetValue<string>(out var label) ? label : null;
+        void Preserve(JsonObject task)
+        {
+            if (Label(task) is not { } label || !result.Add(label)) return;
+            var dependency = task["dependsOn"];
+            IEnumerable<JsonValue> dependencies = dependency is JsonArray array ? array.OfType<JsonValue>() : dependency is JsonValue value ? [value] : [];
+            foreach (var item in dependencies)
+                if (item.TryGetValue<string>(out var name) && all.FirstOrDefault(candidate => Label(candidate) == name) is { } referenced) Preserve(referenced);
+        }
+        foreach (var task in all.Where(task => IsManagedTask(task) && IsFlashTask(task))) Preserve(task);
+        return result;
     }
 
     internal static (string Text, Encoding Encoding, byte[] Preamble) Decode(byte[] bytes)
