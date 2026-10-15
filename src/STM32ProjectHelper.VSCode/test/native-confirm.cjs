@@ -3,7 +3,8 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 
 // Only confirms the dialog belonging to the isolated test profile.
-async function confirmWrite() {
+async function confirmWrite(label = '确认写入') {
+  if (!['确认写入', 'Confirm write'].includes(label)) throw new Error('Unknown write confirmation label.');
   const script = `Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -TypeDefinition @'
@@ -22,7 +23,7 @@ public static class IsolatedDialogInput {
 $instance = Get-CimInstance Win32_Process -Filter "Name = 'Code.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($env:STM32_SMOKE_PROFILE) -and $_.CommandLine -notmatch '--type=' } | Select-Object -First 1
 if (-not $instance) { throw 'Isolated VS Code window not found.' }
 $processCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, [int]$instance.ProcessId)
-$nameCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, '确认写入')
+$nameCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $env:STM32_SMOKE_CONFIRM_LABEL)
 $deadline = [DateTime]::UtcNow.AddSeconds(45)
 while ([DateTime]::UtcNow -lt $deadline) {
   $windows = New-Object 'System.Collections.Generic.List[System.Windows.Automation.AutomationElement]'
@@ -36,13 +37,16 @@ while ([DateTime]::UtcNow -lt $deadline) {
       if ($button.Current.IsEnabled -and -not $button.Current.IsOffscreen) {
         $pattern = $null
         if ($button.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern,[ref]$pattern)) { $pattern.Invoke() }
+        elseif ($button.TryGetCurrentPattern([System.Windows.Automation.LegacyIAccessiblePattern]::Pattern,[ref]$pattern) -and $pattern.Current.DefaultAction) { $pattern.DoDefaultAction() }
         else {
           if ($button.Current.ClassName -ne 'CCPushButton' -or $button.Current.ProcessId -ne $instance.ProcessId) { continue }
-          [void][IsolatedDialogInput]::SetForegroundWindow($handle)
+          $dialogHandle = [IntPtr]$window.Current.NativeWindowHandle
+          if ($dialogHandle -eq [IntPtr]::Zero) { $dialogHandle = $handle }
+          [void][IsolatedDialogInput]::SetForegroundWindow($dialogHandle)
           Start-Sleep -Milliseconds 100
           $foregroundProcess = [uint32]0
           [void][IsolatedDialogInput]::GetWindowThreadProcessId([IsolatedDialogInput]::GetForegroundWindow(),[ref]$foregroundProcess)
-          if ($foregroundProcess -ne $instance.ProcessId) { throw 'Isolated confirmation window is not foreground.' }
+          if ($foregroundProcess -ne $instance.ProcessId) { continue }
           $point = $button.GetClickablePoint()
           $previous = New-Object IsolatedDialogInput+POINT
           [void][IsolatedDialogInput]::GetCursorPos([ref]$previous)
@@ -60,7 +64,7 @@ while ([DateTime]::UtcNow -lt $deadline) {
   Start-Sleep -Milliseconds 100
 }
 throw 'Native write confirmation dialog was not found.'`;
-  return promisify(execFile)('powershell.exe', ['-NoProfile', '-Command', script], { windowsHide: true, timeout: 55000 });
+  return promisify(execFile)('powershell.exe', ['-NoProfile', '-Command', script], { windowsHide: true, timeout: 55000, env: { ...process.env, STM32_SMOKE_CONFIRM_LABEL: label } });
 }
 
 module.exports = { confirmWrite };

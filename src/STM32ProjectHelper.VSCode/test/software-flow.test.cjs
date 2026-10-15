@@ -79,7 +79,11 @@ test('validated local tool choices are used by software checks and generated tas
   }
 });
 
-test('local extension backend configures current firmware, selected sources, import and recovery', { timeout: 180000 }, async () => {
+for (const language of ['zh-CN', 'en']) {
+const localizedRequest = request;
+const requestInLanguage = (root, command, payload = {}, events = []) => localizedRequest(root, command, { ...payload, language }, events);
+test(`${language}: local backend configures firmware, selected sources, import and recovery`, { timeout: 180000 }, async () => {
+  const request = requestInLanguage;
   const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'stm32-extension-flow-')));
   const root = path.join(base, '当前工程');
   const options = createProject(root);
@@ -98,7 +102,7 @@ test('local extension backend configures current firmware, selected sources, imp
     assert.equal(fs.existsSync(path.join(root, 'build')), false);
     const written = fs.readFileSync(path.join(root, '.vscode', 'tasks.json'), 'utf8');
     assert.ok(written.includes('user-task') && written.includes('// User task remains unchanged.'));
-    assert.ok(written.includes('一键烧录(DAPLINK)'));
+    assert.ok(written.includes(language === 'en' ? 'One-click Flash (DAPLINK)' : '一键烧录(DAPLINK)'));
     const events = [];
     const verification = await request(root, 'verify', options, events);
     assert.equal(verification.success, true, verification.output);
@@ -149,7 +153,8 @@ test('local extension backend configures current firmware, selected sources, imp
   }
 });
 
-test('CubeMX-shaped MDK and CMake conversion works through the extension protocol', { timeout: 180000 }, async () => {
+test(`${language}: CubeMX-shaped MDK and CMake conversion works through the extension protocol`, { timeout: 180000 }, async () => {
+  const request = requestInLanguage;
   const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'stm32-extension-conversion-')));
   const root = path.join(base, 'project');
   createCubeMxProject(root);
@@ -183,6 +188,7 @@ test('CubeMX-shaped MDK and CMake conversion works through the extension protoco
     fs.rmSync(resolved, { recursive: true, force: true });
   }
 });
+}
 
 test('a moved project backs up stale build cache and recompiles without modifying source files', { timeout: 180000 }, async () => {
   const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'stm32-extension-relocation-')));

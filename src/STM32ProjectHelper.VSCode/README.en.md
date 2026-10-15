@@ -1,0 +1,165 @@
+# STM32 Project Helper · VS Code Extension
+
+[English](README.en.md) · [简体中文](README.md)
+
+STM32 Project Helper provides toolchain detection, CMake build and DAPLink flash task configuration, source management, STM32CubeMX MDK-ARM/CMake conversion, and change restoration inside VS Code. It operates on the current local workspace and does not upload projects.
+
+## v1.2.0 features
+
+- **Build and flash controls:** Project Setup shows the configuration, build directory, actual firmware, progress and results. Task changes are confirmed before building. Building works without a probe or OpenOCD; flashing requires native confirmation and an explicit target when several ELF files exist.
+- **Probe settings:** Choose DAPLink/CMSIS-DAP, ST-Link or J-Link. Advanced settings provide SWD speed, default reset, connect under reset and SYSRESETREQ. Actual support depends on the probe, OpenOCD and chip. Configuration does not automatically check hardware connectivity.
+- **First setup wizard:** Review the project, tools, chip/probe and task changes in four steps. Continue manually or reopen the wizard from Project Setup or the Command Palette. Convert MDK projects to CMake first.
+- **Custom configurations:** Suggestions come from presets, the build cache and matching File API metadata; safe custom names can also be entered. Fixed preset configurations are respected. MDK conversion still generates Debug/Release presets by default.
+- **Error explanations:** GCC, CMake, Ninja and OpenOCD diagnostics retain raw messages and offer targeted suggestions. Connection issues that logs cannot determine require inspection of the actual device.
+- **Static Flash/RAM analysis:** Uses the selected ELF's allocated sections, load images and linker regions to show occupancy, capacity, remaining space and section distribution. Unknown or complex layouts stay unknown. ELF file length is not memory usage, and reserved heap/stack is not a runtime measurement.
+- **Large projects and editing:** Read-only inspection and previews use saved files without requiring source saves. Writes and builds retain dirty-file checks. Virtual source lists preserve search, selection and scroll. Comparisons are selected per file and released when closed. Webview messages omit file snapshots and raw build logs; history uses metadata only.
+- **Environment and cleanup:** Automatic opening requires STM32 evidence and supports nested project selection. Missing saved tool paths are rediscovered. Cancellation, timeouts and extension closure use process-tree termination and Windows jobs to clean up child processes.
+
+Building the extension and inspecting its UI does not validate hardware flashing, tool installation or every project environment. Confirm operation using your own project and device.
+
+## Release integration status
+
+All v1.2.0 features listed above are integrated into the published VSIX: Webview controls, backend requests, task generation and Chinese/English messages. The original six pages remain available. Desktop EXEs are not republished by this extension release.
+
+This release does not add clangd setup, Cortex-Debug integration, serial monitoring, HardFault or live FreeRTOS debugging, hardware connectivity detection, recent-project memory or telemetry. Local Windows x64 only; WSL, Remote SSH and virtual workspaces are unsupported. SWD speeds accept 1–50000 kHz but depend on hardware. Unsupported reset/transport combinations are rejected. Unknown memory layouts remain unknown; static analysis does not measure runtime stack usage.
+
+Packaging and Chinese/English UI viewing were completed before delivery. Functional regression and hardware tests were not run for this batch; no additional checks were performed for this documentation/publication update. Integrated functionality must not be read as validated across all projects or devices.
+
+## Download and requirements
+
+| Item | Requirement |
+| --- | --- |
+| Extension version | 1.2.0 |
+| Operating system | Local Windows x64 |
+| Editor | VS Code 1.95 or newer |
+| Workspace | A trusted local folder |
+| .NET | Included in the VSIX; no separate runtime installation |
+| Build tools | CMake, Ninja and ARM GCC; OpenOCD for script checks and flash tasks |
+
+Download the [v1.2.0 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.2.0/stm32-project-helper-1.2.0-win32-x64.vsix) (about 8.6 MB) from the [release page](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.2.0). The local build output is `artifacts/vsix/stm32-project-helper-1.2.0-win32-x64.vsix`. The package includes a trimmed, self-contained backend and the complete bundled OpenOCD scripts.
+
+## Installation and updating
+
+1. Download `stm32-project-helper-1.2.0-win32-x64.vsix`.
+2. Press `Ctrl+Shift+X` in VS Code to open Extensions.
+3. Open the Extensions panel's `…` menu and select **Install from VSIX…**.
+4. Select the downloaded file and reload the window. If no prompt appears, run **Developer: Reload Window** from the Command Palette or restart VS Code.
+5. Open and trust a local project folder containing `CMakeLists.txt`, `.ioc`, or an MDK `.uvprojx` file.
+
+The workbench opens automatically by default. You can also click the blue chip icon in the Activity Bar or run **STM32 Project Helper: Open**.
+
+To update, install the newer VSIX through the same menu and reload. Uninstalling the previous version is unnecessary. The identifier remains `myfsillyba.stm32-project-helper`; existing workspace tool settings and change records are retained.
+
+The desktop application and VS Code extension have independent version numbers and releases. Desktop downloads are `.exe` files; extension downloads are `.vsix` files.
+
+## Language
+
+By default, the extension follows the VS Code display language: Chinese locales use Chinese, and other locales use English. The language selector at the top of the workbench offers **Follow VS Code / 中文 / English**. The same preference is available as `stm32ProjectHelper.language`.
+
+Both languages cover all six pages, navigation, buttons, native confirmation dialogs, progress, software-generated inspection and compatibility messages, build results, and problem suggestions. Switching preserves form values and file selections and does not write project files. Language changes are deferred until an active operation finishes.
+
+Newly written managed tasks use the selected language: **One-click Build / One-click Flash (DAPLINK)** in English and **一键编译 / 一键烧录(DAPLINK)** in Chinese. User tasks and comments are preserved. Switching the interface language alone does not rename existing tasks.
+
+Project paths, chip and target names, user code, and original compiler output remain unchanged. Static Command Palette and extension settings titles follow the VS Code display language.
+
+## Workflows
+
+### Project Setup
+
+1. Check the current project, chip evidence, configure/build presets, build directory, OpenOCD target script and tool versions.
+2. If multiple installations are detected, choose **Select version…** and select by version and full path, or browse to the executable. Validated paths are saved in the current workspace.
+3. Click **Confirm write…**. Fresh changes and affected files are listed in a native confirmation dialog. Confirm to save tasks and the required CMake helper file.
+4. Run the software check to configure and compile the project and parse OpenOCD scripts. Results appear in Problems and the **STM32 Project Helper** output channel.
+5. After a successful build, select an ELF from the current build targets and confirm the flash task binding.
+
+Change previews and native file diffs are optional. If tasks are missing when a software check starts, the extension requests confirmation and writes them before building. Written tasks remain available if compilation does not pass.
+
+Use the build, flash and Flash/RAM controls at the top of Project Setup; build and flash commands are also available in the Command Palette. Direct flashing builds first, selects an actual ELF and requests native confirmation. **Terminal → Run Task** remains available; managed task names follow the selected language and probe. Software checks do not connect hardware.
+
+### Add Sources
+
+Choose a folder inside the project and a CMake target. Scan, search and select individual C/C++, assembly and header files. Unselected files are excluded. Confirm the write to update source files and include directories in `CMakeLists.txt`. Return to Project Setup for a software check when needed.
+
+### Import Files
+
+Enter the project subfolder name, select local files, preview the copy plan and confirm copying. Existing destination folders require confirmation before appending. Same-name files receive a new name, and originals are retained. Register copied files for compilation through Add Sources.
+
+### Project Conversion
+
+Conversion supports single-core STM32CubeMX projects that retain `.ioc` metadata and generated sources. It does not install or invoke CubeMX.
+
+- **MDK-ARM → CMake**: inspect the project, select the `.uvprojx` file and build target, review compatibility information, then confirm the write.
+- **CMake → MDK-ARM**: confirm running CMake configuration to read actual targets, select a target and confirm the write. Inspection creates cache and build files in the build directory.
+
+Blocking issues provide completion instructions. Generation and compilation are separate steps. Automatic startup and memory-layout conversion supports reliably parsed standard structures using one FLASH and one RAM region. Complex memory layouts, dual-core projects, unmatched libraries and unverified FreeRTOS ports require manual completion. See [support details](https://github.com/MYFSillyBa/auto-CMake#支持范围).
+
+### Tool Management
+
+Select local tools, repair missing tools, import offline ZIP packages and activate installed versions. Downloads begin only after an explicit confirmation. Multiple existing installations require a version selection before repair. Bundled OpenOCD script paths are displayed as read-only information.
+
+Tool selection and repair results are saved to the current workspace. They preserve already selected valid tools and do not overwrite the desktop application's global tool paths.
+
+### Change History
+
+Select a record, preview restoration and confirm. Files changed after the recorded operation are listed as conflicts and require a separate overwrite confirmation. Restoration creates another record.
+
+## Project protection
+
+- Existing tasks, JSONC comments and original toolchain files are preserved. Only helper-managed tasks are updated.
+- ELF files come from executable targets in the current build configuration, not obsolete files selected by modification time or folder-name guesses.
+- Selected CMake, Ninja and ARM GCC use absolute paths. Stale caches from tool changes or project relocation are backed up before reconfiguration.
+- Fixed preset configurations are respected; otherwise discovered or manually entered custom configurations are accepted.
+- Writes, builds and other operations requiring disk content check unsaved workspace documents and request **Save and continue**. Read-only inspection and previews do not require saving. Import also checks explicitly selected external documents. Cancelling retains edits.
+- Multiple workspaces can be selected from the sidebar. Opening another workspace's source file follows that project; automatic switching pauses during operations.
+- Long operations support cancellation and display progress and output. No `.ps1` files are generated.
+
+## Settings
+
+| Setting | Purpose |
+| --- | --- |
+| `stm32ProjectHelper.autoOpen` | Open after project detection; enabled by default |
+| `stm32ProjectHelper.language` | `auto`, `zh-CN` or `en`; global interface preference |
+| `stm32ProjectHelper.tools.cMake` | CMake executable; empty enables detection |
+| `stm32ProjectHelper.tools.ninja` | Ninja executable |
+| `stm32ProjectHelper.tools.compiler` | `arm-none-eabi-gcc` executable |
+| `stm32ProjectHelper.tools.openOcd` | OpenOCD executable |
+
+## Common questions
+
+**The workbench is not visible.** Use a local Windows x64 window, trust the workspace and open a supported project. Run **STM32 Project Helper: Open**. Automatic opening can be adjusted in settings.
+
+**A tool needs selection.** Multiple installations were found. Select a version explicitly; downloading it again is unnecessary.
+
+**The ELF name differs from the folder.** CMake targets and properties such as `OUTPUT_NAME` determine the filename. The flash task uses the actual firmware.
+
+**Compilation did not pass after writing tasks.** Tasks remain available. Use Problems or the output channel to locate the issue, fix the project and rerun the check or build task.
+
+**A target script is available.** This confirms software configuration only. Probe and chip connectivity are not checked by the extension.
+
+## Building and checking
+
+Requirements: Windows x64, .NET 9 SDK and Node.js 22 or newer. From the repository root:
+
+```powershell
+cd src/STM32ProjectHelper.VSCode
+npm ci
+npm run check
+npm run package
+```
+
+VSIX output is written to `artifacts/vsix`. Packaging builds the backend and extension, not desktop EXEs. Generated artifacts, dependencies and backend binaries are excluded from Git.
+
+With CMake, Ninja, ARM GCC and OpenOCD installed locally:
+
+```powershell
+npm test
+npm run smoke
+```
+
+Tests use temporary projects for real ARM compilation, tasks, tool selection, file management, restoration and conversion. The smoke check uses an isolated ordinary VS Code window and confirms dialogs belonging to that window. Set `VSCODE_EXECUTABLE_PATH` to override the installed VS Code path. Checks do not connect hardware.
+
+## Feedback and license
+
+Use [GitHub Issues](https://github.com/MYFSillyBa/auto-CMake/issues) and include extension, VS Code and Windows versions, steps and output. For conversion, include the direction, chip and target.
+
+Source is distributed under the [MIT License](https://github.com/MYFSillyBa/auto-CMake/blob/main/LICENSE). Bundled OpenOCD scripts retain original copyright and license notices. Third-party tools follow their respective licenses.

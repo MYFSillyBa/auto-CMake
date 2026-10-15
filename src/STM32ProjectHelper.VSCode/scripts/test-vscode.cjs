@@ -14,6 +14,8 @@ async function main() {
   const secondary = path.join(temporary, 'secondary');
   createProject(primary); createProject(secondary);
   const workspace = path.join(temporary, 'probe.code-workspace');
+  const settingsDirectory = path.join(temporary, 'profile', 'User'); fs.mkdirSync(settingsDirectory, { recursive: true });
+  fs.writeFileSync(path.join(settingsDirectory, 'settings.json'), JSON.stringify({ 'stm32ProjectHelper.language': process.env.STM32_SMOKE_LANGUAGE || 'zh-CN' }));
   fs.writeFileSync(workspace, JSON.stringify({ folders: [{ path: primary }, { path: secondary }] }));
   const driver = path.join(temporary, 'driver'); fs.mkdirSync(driver);
   const done = path.join(temporary, 'driver-result.json');

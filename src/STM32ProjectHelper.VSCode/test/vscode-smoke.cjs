@@ -5,6 +5,8 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const vscode = require('vscode');
 const { confirmWrite } = require('./native-confirm.cjs');
+const { createTranslator } = require('../media/i18n.js');
+const controllerCatalog = require('../locales/controller.json');
 
 async function waitReady(api, root) {
   const deadline = Date.now() + 30000;
@@ -18,6 +20,8 @@ async function waitReady(api, root) {
 
 async function run() {
   const root = process.env.STM32_SMOKE_ROOT;
+  const language = process.env.STM32_SMOKE_LANGUAGE || 'zh-CN';
+  const t = createTranslator(controllerCatalog, language);
   const secondary = process.env.STM32_SMOKE_SECONDARY;
   const originalTasks = fs.readFileSync(path.join(root, '.vscode', 'tasks.json'));
   const extension = vscode.extensions.getExtension('myfsillyba.stm32-project-helper');
@@ -26,8 +30,20 @@ async function run() {
   let snapshot = await waitReady(api, root);
   assert.equal(snapshot.panelOpen, true);
   assert.equal(snapshot.trusted, true);
-  assert.deepEqual(snapshot.navigation, ['工程配置', '添加源文件', '加入文件', '工程转换', '工具管理', '修改记录']);
+  assert.equal(snapshot.language, language);
+  assert.deepEqual(snapshot.navigation, ['工程配置', '添加源文件', '加入文件', '工程转换', '工具管理', '修改记录'].map(label => t(label)));
   assert.equal(snapshot.state.inspection.project.chip, 'STM32H723VGT6');
+  await api.request('previewTasks');
+  const selectedOptions = JSON.stringify(api.getSnapshot().state.options);
+  const alternate = language === 'en' ? 'zh-CN' : 'en';
+  await api.request('setLanguage', { value: alternate });
+  assert.equal(api.getSnapshot().language, alternate);
+  assert.equal(api.getSnapshot().state.preview, undefined, 'Locale-dependent task preview is invalidated.');
+  assert.equal(JSON.stringify(api.getSnapshot().state.options), selectedOptions);
+  assert.deepEqual(fs.readFileSync(path.join(root, '.vscode', 'tasks.json')), originalTasks);
+  assert.equal(fs.existsSync(path.join(root, 'build')), false);
+  await api.request('setLanguage', { value: language });
+  assert.equal(api.getSnapshot().language, language);
   const fullFlow = !process.env.STM32_SMOKE_DIRECT_ONLY;
   if (fullFlow) {
   const commands = await vscode.commands.getCommands(true);
@@ -43,8 +59,8 @@ async function run() {
   await api.openPage('configure');
   const selectedTool = api.request('pickTool', { key: 'ninja' });
   const pickerDeadline = Date.now() + 30000;
-  while (api.getSnapshot().state.status !== '请选择 Ninja 版本。' && Date.now() < pickerDeadline) await new Promise(resolve => setTimeout(resolve, 100));
-  assert.equal(api.getSnapshot().state.status, '请选择 Ninja 版本。');
+  while (api.getSnapshot().state.status !== t('请选择 {0} 版本。', 'Ninja') && Date.now() < pickerDeadline) await new Promise(resolve => setTimeout(resolve, 100));
+  assert.equal(api.getSnapshot().state.status, t('请选择 {0} 版本。', 'Ninja'));
   assert.ok(commands.includes('workbench.action.acceptSelectedQuickOpenItem'));
   await new Promise(resolve => setTimeout(resolve, 250));
   await vscode.commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
@@ -75,16 +91,17 @@ async function run() {
   const beforeWriteTabs = vscode.window.tabGroups.all.flatMap(group => group.tabs).length;
   const writing = api.request('writeTasks');
   const writeDeadline = Date.now() + 90000;
-  while (!api.getSnapshot().state.status.startsWith('等待确认写入') && Date.now() < writeDeadline) {
+  const waitingPrefix = t('等待确认写入 {0} 个文件。').split('{0}')[0];
+  while (!api.getSnapshot().state.status.startsWith(waitingPrefix) && Date.now() < writeDeadline) {
     await new Promise(resolve => setTimeout(resolve, 200));
   }
-  assert.ok(api.getSnapshot().state.status.startsWith('等待确认写入'), api.getSnapshot().state.status);
-  const [written] = await Promise.all([writing, confirmWrite()]);
+  assert.ok(api.getSnapshot().state.status.startsWith(waitingPrefix), api.getSnapshot().state.status);
+  const [written] = await Promise.all([writing, confirmWrite(t('确认写入'))]);
   assert.equal(written, true, '直接写入按钮通过原生确认完成保存');
   assert.equal(vscode.window.tabGroups.all.flatMap(group => group.tabs).length, beforeWriteTabs, '写入过程不会自动打开差异页');
   const savedTasks = fs.readFileSync(path.join(root, '.vscode', 'tasks.json'), 'utf8');
   assert.ok(savedTasks.includes('user-task') && savedTasks.includes('// User task remains unchanged.'));
-  assert.ok(savedTasks.includes('一键编译') && savedTasks.includes('一键烧录(DAPLINK)'));
+  assert.ok(savedTasks.includes(language === 'en' ? 'One-click Build' : '一键编译') && savedTasks.includes(language === 'en' ? 'One-click Flash (DAPLINK)' : '一键烧录(DAPLINK)'));
   assert.deepEqual(fs.readFileSync(path.join(secondary, '.vscode', 'tasks.json')), originalTasks);
   assert.equal(fs.existsSync(path.join(root, 'build')), false);
   snapshot = api.getSnapshot();
@@ -102,6 +119,8 @@ async function run() {
   await vscode.commands.executeCommand('workbench.view.extension.stm32ProjectHelper');
   await new Promise(resolve => setTimeout(resolve, 1200));
   const capture = `Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -116,17 +135,22 @@ public static class ExtensionWindowCapture {
 $instance = Get-CimInstance Win32_Process -Filter "Name = 'Code.exe'" | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($env:STM32_SMOKE_PROFILE) -and $_.CommandLine -notmatch '--type=' } | Select-Object -First 1
 if (-not $instance) { throw '未找到隔离检查窗口。' }
 $windowProcess = Get-Process -Id $instance.ProcessId
+$condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, [int]$instance.ProcessId)
+$windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $condition)
+$window = $windows | Where-Object { $_.Current.NativeWindowHandle -ne 0 -and $_.Current.BoundingRectangle.Width -gt 600 -and $_.Current.BoundingRectangle.Height -gt 400 } | Sort-Object { $_.Current.BoundingRectangle.Width * $_.Current.BoundingRectangle.Height } -Descending | Select-Object -First 1
+if (-not $window) { throw 'Isolated workbench window not found for capture.' }
+$windowHandle = [IntPtr]$window.Current.NativeWindowHandle
 $rectangle = New-Object ExtensionWindowCapture+RECT
-[void][ExtensionWindowCapture]::GetWindowRect($windowProcess.MainWindowHandle, [ref]$rectangle)
+[void][ExtensionWindowCapture]::GetWindowRect($windowHandle, [ref]$rectangle)
 $bitmap = New-Object System.Drawing.Bitmap(($rectangle.Right - $rectangle.Left), ($rectangle.Bottom - $rectangle.Top))
 $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
 $context = $graphics.GetHdc()
-try { if (-not [ExtensionWindowCapture]::PrintWindow($windowProcess.MainWindowHandle, $context, 2)) { throw '窗口截图未完成。' } }
+try { if (-not [ExtensionWindowCapture]::PrintWindow($windowHandle, $context, 2)) { throw '窗口截图未完成。' } }
 finally { $graphics.ReleaseHdc($context); $graphics.Dispose() }
 try { $bitmap.Save($env:STM32_SMOKE_SCREENSHOT, [System.Drawing.Imaging.ImageFormat]::Png) }
 finally { $bitmap.Dispose() }`;
   execFileSync('powershell.exe', ['-NoProfile', '-Command', capture], { windowsHide: true, timeout: 15000 });
-  const report = { success: true, version: extension.packageJSON.version, vscode: vscode.version,
+  const report = { success: true, language, languageSwitchPreservesState: true, languageSwitchWritesProject: false, version: extension.packageJSON.version, vscode: vscode.version,
     currentWorkspace: root, pages: snapshot.navigation, autoOpen: true, nativeDiff: fullFlow || undefined,
     previewIsReadOnly: fullFlow || undefined, multiRootEditorSwitch: fullFlow || undefined, nativeToolSelection: fullFlow || undefined, workspaceToolPathSaved: fullFlow || undefined,
     directWrite: true, nativeWriteConfirmation: true, writeOpensNoDiffTabs: true, tasksWrittenBeforeBuild: true, firmwarePath, hardwareOperations: 0 };
