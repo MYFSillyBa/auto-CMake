@@ -21,7 +21,7 @@
 
 ## 功能
 
-- 选择或拖入 CMake 工程，显示 STM32 型号的识别依据及冲突，选择构建预设和 Debug/Release 配置；多个 ELF 时自行选择固件。
+- 选择或拖入 CMake 工程，显示 STM32 型号的识别依据及冲突，选择构建预设与构建配置；插件 v1.2.0 支持从工程读取或填写自定义配置，多个 ELF 时自行选择固件。
 - 检查 CMake、Ninja、ARM GCC、OpenOCD、CMSIS-DAP 脚本，提示待补全项，可展开具体处理说明。
 - 桌面程序和 VS Code 扩展均内置完整 OpenOCD Target 及配套脚本，识别 STM32 后自动选择配置并验证，无需查找或下载 Target；保留手动指定的 Target。
 - 自动下载缺失工具，校验 SHA-256 后安装；支持自选安装目录、镜像源、离线 ZIP、版本切换和旧版本清理。
@@ -33,6 +33,43 @@
 - 按钮显示悬停、按下、键盘焦点及运行状态，操作期间防止重复执行，禁用时说明原因。
 - 显示当前操作步骤和用时，详细日志默认收起；完成后保留结果卡，展示实际固件路径、大小、时间和下一步入口。
 - 文件列表显示已引用、待加入和未选择状态，统计过滤后隐藏的勾选项；复制完成后可直接预选新增文件参与构建。
+
+## VS Code 插件 v1.2.0 更新说明
+
+**以下功能已写入插件前端、后台及本次发布的 VSIX，不是待实现清单。桌面 EXE 未重新发布，不能据此认为桌面版同步增加了这些功能。**
+
+| 更新项目 | 插件中的入口与行为 |
+| --- | --- |
+| 直接编译与烧录 | 工程配置页显示配置、构建目录、实际 ELF、进度和结果；也可通过命令面板执行。缺少任务时先确认写入，编译失败仍保留任务；多个 ELF 需要明确选择，烧录前再次确认。 |
+| 下载器与高级设置 | 可选 DAPLink/CMSIS-DAP、ST-Link、J-Link；高级设置提供 SWD 速度（1–50000 kHz）和默认复位、Connect Under Reset、SYSRESETREQ。不支持的组合明确提示，不自动探测硬件连接。 |
+| 首次配置向导 | 按工程、工具、芯片与下载器、任务四步配置，可退出手动操作或重新打开。只有 MDK 的工程先转换为 CMake。 |
+| 自定义构建配置 | 从 CMake Presets、缓存和匹配的 File API 信息读取建议，允许 Profile、CustomDebug、RelWithDebInfo、MinSizeRel 等安全配置名；固定预设优先，不再只接受 Debug/Release。 |
+| 错误分析 | 为 GCC、CMake、Ninja 和 OpenOCD 日志提供原因及处理建议，保留原始报错，并显示在问题面板与输出频道；建议不会自动修改业务源码。 |
+| Flash/RAM 静态分析 | 对当前实际 ELF 与链接脚本分析区域占用、容量、剩余及段分布；初始化数据同时考虑 RAM 运行地址和 Flash 装载映像。无法确认的容量显示未知，不把 ELF 文件大小当成内存占用。 |
+| 只读操作不强制保存 | 重新检测、预览等基于磁盘已保存内容；实际写入、编译等仍检查未保存文件，保留冲突确认。 |
+| STM32 工程识别 | 自动打开需要 STM32 特征，支持嵌套工程、多候选选择与当前源文件关联，避免普通 CMake 工程误触发。 |
+| 大工程交互 | 页面只接收当前所需摘要，不传输 Base64 文件快照及完整构建日志；源文件列表使用虚拟滚动和局部勾选更新，保留搜索、选择与滚动位置。 |
+| 差异与进程清理 | 按文件选择差异，限制并释放差异缓存；取消、超时与关闭时通过 Windows Job 和进程树终止清理后台及子进程。 |
+| 工具路径兼容 | 失效的已保存工具路径重新检测，保留有效的明确选择；构建沿用选定工具的绝对路径和缓存迁移处理。 |
+| 中英文界面 | 六个页面、向导、按钮、原生确认、进度与新增诊断提示均提供双语；路径、用户代码与原始工具输出保留原文。 |
+
+### 完整性与边界
+
+- 上表功能已集成进本次插件安装包；原有源文件管理、加入文件、双向转换、工具管理和修改恢复继续保留。
+- v1.2.0 面向**本地 Windows x64 / VS Code 1.95+**，不支持 WSL、Remote SSH 或虚拟工作区。转换仍限定文档支持的 STM32CubeMX 单核工程；MDK 转换默认生成 Debug/Release，不等于工作台只能使用这两种配置。
+- 静态 Flash/RAM 分析不测量运行时堆栈；复杂或未解析的链接布局不会推测容量。Connect Under Reset 等设置取决于探针、复位接线、芯片及 OpenOCD，HLA 与 SYSRESETREQ 等不支持组合会被拒绝。
+- 本批未包含 clangd 自动配置、Cortex-Debug 调试集成、串口、HardFault、FreeRTOS 在线调试、硬件连通性检测、最近工程记忆或使用统计。
+- **发布状态：已构建打包，并查看过中英文界面；未运行本批功能回归、硬件烧录或跨电脑兼容性测试。此次文档与发布同步不追加检查，实际验证由使用者完成。**“已集成”不代表所有工程和设备组合均已验证。
+
+### 新功能的使用顺序
+
+1. 安装本页链接的 v1.2.0 VSIX 并重新加载窗口，打开可信任的本地 STM32 工程。
+2. 首次使用按向导核对工程、工具、芯片、下载器及任务；已配置工程可直接展开“工程配置详情”调整。
+3. 选择预设或输入自定义配置，确认任务写入后点击编译；不需要先打开差异预览。只编译不要求 OpenOCD 或探针。
+4. 编译完成后核对实际 ELF，查看 Flash/RAM 分析；多个固件时先选择目标。
+5. 需要下载时选择下载器及高级参数，再点击烧录并确认。失败时查看问题面板和输出频道的原始日志与建议。
+
+English details and release scope: [VS Code extension guide](src/STM32ProjectHelper.VSCode/README.en.md).
 
 ## 下载与安装
 
@@ -54,13 +91,15 @@
 
 本地扩展提供工程配置、添加源文件、加入文件、工程转换、工具管理和修改记录，直接操作当前工作区，无需启动桌面程序。扩展适用于本地 Windows x64、VS Code 1.95 及以上版本，自带经过裁剪的后台运行时，无需另装 .NET。
 
-- **插件安装包 v1.0.3**：[stm32-project-helper-1.0.3-win32-x64.vsix](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.0.3/stm32-project-helper-1.0.3-win32-x64.vsix)。安装包约 **8.5 MB**，较初版约 32.2 MB 减少约 74%。
-- **版本说明**：[VS Code 扩展 v1.0.3](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.0.3)。
+- **插件安装包 v1.2.0**：[stm32-project-helper-1.2.0-win32-x64.vsix](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.2.0/stm32-project-helper-1.2.0-win32-x64.vsix)。安装包约 **8.6 MB**，自带后台运行时及 OpenOCD 脚本，无需另装 .NET。
+- **版本说明**：[VS Code 扩展 v1.2.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.2.0)。
 - **完整操作指南**：[安装、更新、使用流程与常见问题](src/STM32ProjectHelper.VSCode/README.md)。
 
-1. 下载 VSIX，按 `Ctrl+Shift+X` 打开 VS Code 扩展面板，在右上角的 `…` 菜单选择“从 VSIX 安装…”，选择下载的 `stm32-project-helper-1.0.3-win32-x64.vsix`；从源码打包的文件位于 `artifacts/vsix`。
+**双语插件 v1.2.0**：安装包位于 `artifacts/vsix/stm32-project-helper-1.2.0-win32-x64.vsix`。提供直接编译/烧录、下载器选择与高级设置、首次配置向导、错误说明和 Flash/RAM 静态分析；支持自定义配置、嵌套 STM32 工程及大文件列表。默认跟随 VS Code 显示语言，工作台右上角可切换中文 / English；也可设置 `stm32ProjectHelper.language`。双语覆盖六个页面、确认弹窗、进度、检测说明和结果建议；语言切换保留配置与文件选择。新写入的托管任务使用当前语言，用户任务、路径、代码和原始编译输出保持原文。使用方法参见 [中文指南](src/STM32ProjectHelper.VSCode/README.md) / [English guide](src/STM32ProjectHelper.VSCode/README.en.md)。
+
+1. 下载 VSIX，按 `Ctrl+Shift+X` 打开 VS Code 扩展面板，在右上角的 `…` 菜单选择“从 VSIX 安装…”，选择下载的 `stm32-project-helper-1.2.0-win32-x64.vsix`；从源码打包的文件位于 `artifacts/vsix`。
 2. 打开并信任包含 `CMakeLists.txt`、`.ioc` 或 `.uvprojx` 的工程文件夹，工作台自动打开；也可点击活动栏的芯片图标，或执行“STM32 工程助手：打开”。
-3. 核对检测结果，点击“确认写入”，在弹窗中确认受影响文件，然后执行软件检查。也可先点“预览改动”查看原生文件差异。检查不连接硬件；烧录通过“终端 → 运行任务 → 一键烧录(DAPLINK)”自行执行。
+3. 首次配置可使用四步向导；核对检测结果及下载器设置后确认写入任务。也可先点“预览改动”查看原生文件差异。工程配置页直接提供编译与烧录按钮；缺少任务时先确认写入，再编译。烧录会再次要求明确确认，软件检查不连接硬件。
 
 多个工程使用侧栏的“选择工作区”按钮切换；编辑另一工作区的源文件时自动切换当前工程。设置 `stm32ProjectHelper.autoOpen` 可关闭自动打开。扩展不上传工程，不保存最近工程列表。
 
@@ -71,7 +110,7 @@
 - 工程转换：保留 `.ioc` 和生成源码的 STM32CubeMX 单核 STM32 MDK5 / ARM GCC CMake 工程；标准启动代码及实际使用一个 FLASH、一个 RAM 的布局。
 - CMake 工作台：检测、配置和编译工程已有的构建目标，使用当前 CMake 配置声明的固件，避免选中旧 ELF。
 - 软件要求：配置/编译需要对应 CMake、Ninja、ARM GCC；生成 MDK 工程不要求安装 Keil，实际 MDK 编译验证需要 Keil、对应芯片 Pack 和编译器。
-- 烧录任务：DAPLink / CMSIS-DAP，OpenOCD SWD。应用验证阶段只检查软件和脚本；用户执行 VS Code 烧录任务时才连接并下载硬件。
+- 烧录任务：桌面端保持原有 DAPLink / CMSIS-DAP 流程；插件 v1.2.0 增加 DAPLink/CMSIS-DAP、ST-Link、J-Link，使用 OpenOCD/SWD。软件检查只检查软件和脚本，用户明确执行烧录时才连接硬件。探针、芯片与 OpenOCD 的实际组合仍需使用者确认。
 
 ### 相关关键词
 
