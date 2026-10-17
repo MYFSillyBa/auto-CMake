@@ -8,7 +8,7 @@
 
 ## 本地新版：插件 v1.3.0 / 桌面 v1.6.0
 
-以下十项已包含在本地插件 v1.3.0 中，安装包为 `artifacts/vsix/stm32-project-helper-1.3.0-win32-x64.vsix`。桌面 v1.6.0 在“开发与分析”入口提供其余九项，**桌面端不包含 PostHog**；桌面生成的 Cortex-Debug 配置在 VS Code 中使用。桌面发布目录为 `artifacts/publish/v1.6.0/portable`（自带运行时）和 `artifacts/publish/v1.6.0/lite`（依赖 .NET 9 Desktop Runtime）。旧安装包保留，本次未上传 GitHub。插件覆盖安装新版 VSIX 后重载窗口即可。
+以下十项已包含在插件 v1.3.0 中，安装包为 `artifacts/vsix/stm32-project-helper-1.3.0-win32-x64.vsix`，已随 [vscode-v1.3.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.3.0) 发布。桌面 v1.6.0 在“开发与分析”入口提供其余九项，**桌面端不包含 PostHog**；桌面生成的 Cortex-Debug 配置在 VS Code 中使用。桌面发布目录为 `artifacts/publish/portable`（自带运行时）和 `artifacts/publish/lite`（依赖 .NET 9 Desktop Runtime），对应 [v1.6.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.6.0)。旧安装包保留。插件覆盖安装新版 VSIX 后重载窗口即可。
 
 | 功能 | 入口与使用方法 |
 | --- | --- |
@@ -32,7 +32,7 @@
 - 内置脚本缓存采用有限并发校验，在单次校验中共享祖先目录检查；继续逐文件校验哈希、恢复损坏或缺失文件、拒绝链接并清除多余文件。工具清单复用本次发现结果，避免同一请求重复扫描。
 - 后台取消回执及启动前取消保留统一的取消标志。
 
-本地安装包：`artifacts/vsix/stm32-project-helper-1.2.1-win32-x64.vsix`。此修复版尚未上传 GitHub；下文 v1.2.0 链接为此前公开版本。
+本地安装包：`artifacts/vsix/stm32-project-helper-1.2.1-win32-x64.vsix`。该修复版未单独发布，其改动已包含在 v1.3.0 中。
 
 ## 功能入口
 
@@ -119,13 +119,13 @@ English details and release scope: [VS Code extension guide](src/STM32ProjectHel
 
 本地扩展提供工程配置、添加源文件、加入文件、工程转换、工具管理和修改记录，直接操作当前工作区，无需启动桌面程序。扩展适用于本地 Windows x64、VS Code 1.95 及以上版本，自带经过裁剪的后台运行时，无需另装 .NET。
 
-- **插件安装包 v1.2.0**：[stm32-project-helper-1.2.0-win32-x64.vsix](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.2.0/stm32-project-helper-1.2.0-win32-x64.vsix)。安装包约 **8.6 MB**，自带后台运行时及 OpenOCD 脚本，无需另装 .NET。
-- **版本说明**：[VS Code 扩展 v1.2.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.2.0)。
+- **插件安装包 v1.3.0**：[stm32-project-helper-1.3.0-win32-x64.vsix](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.3.0/stm32-project-helper-1.3.0-win32-x64.vsix)。安装包约 **8.3 MB**，自带后台运行时及 OpenOCD 脚本，无需另装 .NET。
+- **版本说明**：[VS Code 扩展 v1.3.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.3.0)。
 - **完整操作指南**：[安装、更新、使用流程与常见问题](src/STM32ProjectHelper.VSCode/README.md)。
 
-**双语插件 v1.2.0**：安装包位于 `artifacts/vsix/stm32-project-helper-1.2.0-win32-x64.vsix`。提供直接编译/烧录、下载器选择与高级设置、首次配置向导、错误说明和 Flash/RAM 静态分析；支持自定义配置、嵌套 STM32 工程及大文件列表。默认跟随 VS Code 显示语言，工作台右上角可切换中文 / English；也可设置 `stm32ProjectHelper.language`。双语覆盖六个页面、确认弹窗、进度、检测说明和结果建议；语言切换保留配置与文件选择。新写入的托管任务使用当前语言，用户任务、路径、代码和原始编译输出保持原文。使用方法参见 [中文指南](src/STM32ProjectHelper.VSCode/README.md) / [English guide](src/STM32ProjectHelper.VSCode/README.en.md)。
+**双语插件 v1.3.0**：安装包位于 `artifacts/vsix/stm32-project-helper-1.3.0-win32-x64.vsix`。提供直接编译/烧录、下载器选择与高级设置、首次配置向导、错误说明和 Flash/RAM 静态分析；支持自定义配置、嵌套 STM32 工程及大文件列表。默认跟随 VS Code 显示语言，工作台右上角可切换中文 / English；也可设置 `stm32ProjectHelper.language`。双语覆盖六个页面、确认弹窗、进度、检测说明和结果建议；语言切换保留配置与文件选择。新写入的托管任务使用当前语言，用户任务、路径、代码和原始编译输出保持原文。使用方法参见 [中文指南](src/STM32ProjectHelper.VSCode/README.md) / [English guide](src/STM32ProjectHelper.VSCode/README.en.md)。
 
-1. 下载 VSIX，按 `Ctrl+Shift+X` 打开 VS Code 扩展面板，在右上角的 `…` 菜单选择“从 VSIX 安装…”，选择下载的 `stm32-project-helper-1.2.0-win32-x64.vsix`；从源码打包的文件位于 `artifacts/vsix`。
+1. 下载 VSIX，按 `Ctrl+Shift+X` 打开 VS Code 扩展面板，在右上角的 `…` 菜单选择“从 VSIX 安装…”，选择下载的 `stm32-project-helper-1.3.0-win32-x64.vsix`；从源码打包的文件位于 `artifacts/vsix`。
 2. 打开并信任包含 `CMakeLists.txt`、`.ioc` 或 `.uvprojx` 的工程文件夹，工作台自动打开；也可点击活动栏的芯片图标，或执行“STM32 工程助手：打开”。
 3. 首次配置可使用四步向导；核对检测结果及下载器设置后确认写入任务。也可先点“预览改动”查看原生文件差异。工程配置页直接提供编译与烧录按钮；缺少任务时先确认写入，再编译。烧录会再次要求明确确认，软件检查不连接硬件。
 
