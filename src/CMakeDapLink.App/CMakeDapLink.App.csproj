@@ -11,11 +11,17 @@
     <AssemblyName>STM32ProjectHelper</AssemblyName>
     <Title>STM32 工程助手 · CMake / Keil MDK / DAPLink</Title>
     <Description>STM32 工程转换与构建、clangd/Cortex-Debug 配置、CubeMX 同步、固件分析、硬件检查与串口工具。</Description>
+    <!-- Portable is self-contained while ExtensionHost is not; the host assembly is linked
+         as a library, so suppress NETSDK1150 for that reference only. -->
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resources/chip.ico" LogicalName="CMakeDapLink.ChipIcon" />
     <Content Include="$(RepositoryRoot)LICENSE" Link="LICENSE" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
     <ProjectReference Include="../CMakeDapLink.Core/CMakeDapLink.Core.csproj" />
+    <!-- ExtensionHost is an executable project that also serves as a library for this app.
+         Its assemblies are embedded into the single-file build, so the self-contained
+         mismatch check (NETSDK1150) does not apply here. -->
     <ProjectReference Include="../CMakeDapLink.ExtensionHost/CMakeDapLink.ExtensionHost.csproj" />
   </ItemGroup>
 </Project>
