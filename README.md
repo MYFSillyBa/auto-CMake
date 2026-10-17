@@ -6,6 +6,34 @@
 
 **STM32 Project Helper** provides a Windows desktop application and a local VS Code extension for STM32CubeMX project conversion between Keil MDK5 (`.uvprojx`) and ARM GCC CMake, embedded toolchain setup, build/flash tasks, CMSIS-DAP/DAPLink and source-file management. Project conversion does not invoke STM32CubeMX.
 
+## 本地新版：插件 v1.3.0 / 桌面 v1.6.0
+
+以下十项已包含在本地插件 v1.3.0 中，安装包为 `artifacts/vsix/stm32-project-helper-1.3.0-win32-x64.vsix`。桌面 v1.6.0 在“开发与分析”入口提供其余九项，**桌面端不包含 PostHog**；桌面生成的 Cortex-Debug 配置在 VS Code 中使用。桌面发布目录为 `artifacts/publish/v1.6.0/portable`（自带运行时）和 `artifacts/publish/v1.6.0/lite`（依赖 .NET 9 Desktop Runtime）。旧安装包保留，本次未上传 GitHub。插件覆盖安装新版 VSIX 后重载窗口即可。
+
+| 功能 | 入口与使用方法 |
+| --- | --- |
+| clangd 自动配置 | 开发配置 → 配置并生成编译数据库，再确认写入 `.clangd` 与 `.vscode/settings.json`。使用实际 CMake 编译命令获取宏和包含路径，合并查询编译器参数，关闭 C/C++ IntelliSense 引擎以避免冲突；保留已有注释和其他参数。需要安装 clangd 扩展，可通过“查看 clangd 扩展”打开安装入口。 |
+| Cortex-Debug 配置 | 先编译并选择当前实际 ELF，再写入调试配置或启动调试。保留用户 `launch.json` 配置，使用所选 GDB、OpenOCD、探针、SWD 速度和复位方式。需要 Cortex-Debug 扩展；生成配置使用 attach，连接与加载符号，不自动下载固件。 |
+| CubeMX 重新生成后的同步 | 监视 `.ioc`、MDK、CMake 和链接配置变化，在页面提示；预览后确认写入。有 CubeMX MDK 来源时重新计算 CMake 转换；CMake 来源已重新生成时恢复助手管理的源文件块。不运行 CubeMX、不重新生成外设源码、不猜测复杂用户构建逻辑。管理块保存于本机 VS Code 工作区状态，用于重启后的恢复，不保存最近工程列表。 |
+| 硬件连接检测 | 开发配置 → 连接并检查硬件，分别显示脚本、探针和芯片状态。直接烧录默认先检查，可取消勾选。仅明确执行后连接硬件，可能暂停或复位目标；不在检测中烧录固件。 |
+| 增强 ELF/MAP 分析 | 固件与故障分析 → 选择 ELF 和可选 GNU MAP，查看函数/变量大小排行、目标文件贡献及内存区域。符号排行不直接相加当作总用量；未知布局保持未知，MAP 不替代完整 ELF 装载映像统计。 |
+| 一键故障报告 | 从分析页导出，自动整理工具版本、构建/烧录结果和最近输出，替换常见本地路径、IP、邮箱和令牌。先在本地编辑器预览，检查后选择保存位置，不自动上传；自定义敏感信息仍需人工核对。 |
+| 串口调试助手 | 设备与诊断 → 刷新 COM 列表、选择波特率、手动连接；支持 ASCII/HEX、可选 LF/CRLF、收发时间戳和本地日志导出。当前为 8N1，DTR/RTS 默认关闭。显示与保留日志有容量上限，关闭工作台或切换工程会释放端口。 |
+| HardFault 分析 | 输入捕获的寄存器 JSON 或 `CFSR=0x...` 文本，按核心解释有效故障位，使用所选 GCC 旁的 addr2line 和 ELF 定位 PC/LR。M0/M0+ 不虚构 CFSR/HFSR；EXC_RETURN、不精确故障与缺失调试信息明确提示。没有运行时自动栈回溯。 |
+| FreeRTOS 任务监控 | 输入已运行的本机 GDB Server 地址，手动连接刷新任务快照。使用 ELF 调试符号读取真实 TCB 名称、状态及优先级；能核实栈边界、增长方向与填充条件时显示剩余高水位（StackType_t 单位），否则显示未知。需要支持 Python 的 GDB、匹配 ELF 与目标固件；只读快照可能暂停目标，读取后尝试分离，不自动轮询。 |
+| PostHog 匿名使用统计 | 默认关闭。设备与诊断中填写自己的 HTTPS 项目地址和项目令牌，令牌存入 VS Code 凭据存储；原生弹窗明确同意后才发送。仅允许随机匿名标识、版本、语言、功能与成功状态，尊重 VS Code 总遥测开关；不发送路径、代码、日志、串口数据或芯片序列号。服务仍可看到网络来源 IP；关闭后停止发送并清除本机匿名标识。 |
+
+编译数据库的一键导出作用于当前 CMake 构建目录；另填的数据库目录用于选择已有数据库。不要同时启动多个会争用同一目标的调试/检查会话。新功能已做针对性软件样例检查；真实 SWD、串口收发、FreeRTOS 目标读取和实际 PostHog 服务发送尚未验证。
+
+## v1.2.1 本地修复
+
+- 补齐仅含 CMake 文件工程的插件激活条件；自动打开工作台仍需通过 STM32 特征识别。
+- 操作优先复用用户明确选择且仍有效的工具路径，避免重复扫描；版本清单保留完整发现，所选路径缺失时重新检测。
+- 内置脚本缓存采用有限并发校验，在单次校验中共享祖先目录检查；继续逐文件校验哈希、恢复损坏或缺失文件、拒绝链接并清除多余文件。工具清单复用本次发现结果，避免同一请求重复扫描。
+- 后台取消回执及启动前取消保留统一的取消标志。
+
+本地安装包：`artifacts/vsix/stm32-project-helper-1.2.1-win32-x64.vsix`。此修复版尚未上传 GitHub；下文 v1.2.0 链接为此前公开版本。
+
 ## 功能入口
 
 | 使用需求 | 功能入口 | 输出内容 |

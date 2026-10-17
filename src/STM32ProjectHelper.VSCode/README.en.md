@@ -4,6 +4,34 @@
 
 STM32 Project Helper provides toolchain detection, CMake build and DAPLink flash task configuration, source management, STM32CubeMX MDK-ARM/CMake conversion, and change restoration inside VS Code. It operates on the current local workspace and does not upload projects.
 
+## Local release: VS Code extension v1.3.0
+
+All ten features below are included in the local v1.3.0 VSIX: `artifacts/vsix/stm32-project-helper-1.3.0-win32-x64.vsix`. Desktop v1.6.0 includes the other nine features through its Development and Analysis entry; PostHog is exclusive to the extension. Desktop Cortex-Debug configuration is used in VS Code. Earlier installers are retained; this release has not been uploaded to GitHub. Install the newer VSIX and reload the window to update.
+
+| Feature | Workflow and limits |
+| --- | --- |
+| clangd setup | Development Setup → generate the real compilation database, then confirm `.clangd` and workspace settings. Preserves comments/custom arguments, merges compiler query drivers and disables C/C++ IntelliSense to avoid competing engines. Install the clangd extension through the provided search entry. |
+| Cortex-Debug setup | Build/select the current actual ELF, then write or start the managed OpenOCD/GDB configuration. User configurations remain intact. Generated sessions use attach and load symbols without automatically flashing firmware. Cortex-Debug must be installed. |
+| CubeMX regeneration sync | Watches IOC/MDK/CMake/linker configuration and offers a reviewed diff. Recomputes CMake conversion from a CubeMX MDK source or restores helper-managed source blocks after native CMake regeneration. Does not invoke CubeMX or regenerate peripheral code. Managed blocks are retained in local VS Code workspace state for recovery, without a recent-project list. |
+| Hardware checks | Explicit probe/chip connection check; direct flashing checks first by default, with an option to disable. Script availability is separate from real probe/chip evidence. May halt/reset a target; checks do not flash. |
+| ELF/MAP analysis | Ranked function/variable sizes, GNU MAP object contributions and regions. ELF and MAP can be combined when from the same build. Aliases are not summed as total usage; unknown layout stays unknown. |
+| Diagnostic report | Locally previews redacted tool versions, results and recent output, then saves to a chosen file. Common paths, IPs, emails and tokens are replaced. Review project-specific secrets before sharing; no automatic upload. |
+| Serial assistant | Explicit COM connection with baud rate, ASCII/HEX, LF/CRLF, timestamped RX/TX and log export. Currently 8N1 with DTR/RTS off. Bounded logs; closing the workbench or switching projects releases the port. |
+| HardFault analysis | Register JSON or assignment text, core-aware valid-bit decoding, optional ELF PC/LR source mapping through the selected GCC's addr2line. M0/M0+, EXC_RETURN and imprecise faults retain uncertainty. No automatic runtime stack unwinding. |
+| FreeRTOS task snapshots | Manual refresh through an existing local GDB server. Reads real TCB names/state/priority; reports stack high-water in StackType_t units only when bounds, growth and fill conditions are verified. Matching ELF/firmware and Python-enabled GDB required; unknown data stays unknown. May halt the target and attempts detach afterward; no polling. |
+| PostHog statistics | Off by default; requires your HTTPS project host/token and native consent. Token stays in VS Code secret storage. Sends only random anonymous ID, version, language, feature and outcome, subject to VS Code telemetry settings. Excludes paths/code/logs/serial/device identifiers. The endpoint still sees the source IP. Disabling stops transmission and clears the local anonymous ID. |
+
+One-click database generation uses the active CMake build directory; an alternative database directory selects an existing database. Avoid concurrent sessions competing for a target. Focused software fixtures were checked; real SWD, serial RX/TX, live FreeRTOS and real PostHog ingestion were not exercised.
+
+## v1.2.1 local fixes
+
+- CMake-only workspaces now activate the extension; automatic workbench opening still requires STM32 evidence.
+- Operations reuse valid, explicitly selected tool paths; installation listing still performs discovery, and missing selections fall back to detection.
+- Bounded parallel validation of bundled script caches shares ancestor checks within each validation pass while retaining per-file hashes, repair, link rejection and extra-file cleanup. Tool listings reuse the discovery result within a request.
+- Backend cancellation acknowledgements and requests cancelled before startup retain the cancellation flag.
+
+Local installer: `artifacts/vsix/stm32-project-helper-1.2.1-win32-x64.vsix`. This patch has not been uploaded to GitHub.
+
 ## v1.2.0 features
 
 - **Build and flash controls:** Project Setup shows the configuration, build directory, actual firmware, progress and results. Task changes are confirmed before building. Building works without a probe or OpenOCD; flashing requires native confirmation and an explicit target when several ELF files exist.

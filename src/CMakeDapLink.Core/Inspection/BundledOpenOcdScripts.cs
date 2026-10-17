@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text.Json;
 
@@ -52,9 +53,22 @@ public static class BundledOpenOcdScripts
         var lease = Path.Combine(cache, contentHash + ".lock");
         await using var operation = await AcquireLockAsync(lease, cancellation);
         ToolVersionManager.EnsureOrdinaryPath(root); Directory.CreateDirectory(root);
+        var checkedDirectories = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+        checkedDirectories.TryAdd(root, 0);
+        // Validate independent cached files concurrently; archive reads and replacements remain serial.
+        // Keep full hashes and ordinary-path checks even when a cache was validated by a prior request.
+        var validFiles = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
+        await Parallel.ForEachAsync(expected, new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = cancellation },
+            async (entry, token) =>
+            {
+                var destination = ResolveChild(root, entry.Key);
+                EnsureCachePath(destination, checkedDirectories);
+                if (await MatchesAsync(destination, entry.Value.Length, entry.Value.Hash, token)) validFiles.TryAdd(entry.Key, 0);
+            });
         foreach (var (relative, item) in expected)
         {
             cancellation.ThrowIfCancellationRequested();
+            if (validFiles.ContainsKey(relative)) continue;
             var destination = ResolveChild(root, relative);
             ToolVersionManager.EnsureOrdinaryPath(destination);
             if (await MatchesAsync(destination, item.Length, item.Hash, cancellation)) continue;
@@ -86,7 +100,7 @@ public static class BundledOpenOcdScripts
             }
         }
         var allowed = expected.Keys.Append("bundle-manifest.json").ToHashSet(StringComparer.OrdinalIgnoreCase);
-        RemoveExtraFiles(root, allowed, cancellation);
+        RemoveExtraFiles(root, allowed, cancellation, checkedDirectories);
         return Path.Combine(root, "scripts");
     }
 
@@ -94,6 +108,24 @@ public static class BundledOpenOcdScripts
     {
         if (string.IsNullOrWhiteSpace(relative) || relative.Contains('\\') || relative.Contains(':') || relative.StartsWith('/') ||
             relative.Split('/').Any(p => p is "" or "." or "..")) throw new InvalidDataException("内置脚本包含越界路径。");
+    }
+
+    private static void EnsureCachePath(string path, ConcurrentDictionary<string, byte> checkedDirectories)
+    {
+        // Inspect every entry itself. Share ancestor checks only within this locked validation pass.
+        if ((File.Exists(path) || Directory.Exists(path)) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+            throw new IOException("工具目录不能包含链接：" + path);
+        for (var parent = Path.GetDirectoryName(path); parent != null; parent = Path.GetDirectoryName(parent))
+        {
+            if (checkedDirectories.ContainsKey(parent)) break;
+            if (!Directory.Exists(parent)) continue;
+            if ((File.GetAttributes(parent) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException("工具目录不能包含链接：" + parent);
+            // Only cache after the complete ancestor chain has been checked.
+            ToolVersionManager.EnsureOrdinaryPath(parent);
+            checkedDirectories.TryAdd(parent, 0);
+            break;
+        }
     }
 
     private static string ResolveChild(string root, string relative)
@@ -135,7 +167,7 @@ public static class BundledOpenOcdScripts
         }
     }
 
-    private static void RemoveExtraFiles(string root, HashSet<string> allowed, CancellationToken cancellation)
+    private static void RemoveExtraFiles(string root, HashSet<string> allowed, CancellationToken cancellation, ConcurrentDictionary<string, byte> checkedDirectories)
     {
         var pending = new Stack<(string Path, int Depth)>(); pending.Push((root, 0)); var count = 0;
         while (pending.TryPop(out var item))
@@ -146,7 +178,7 @@ public static class BundledOpenOcdScripts
             {
                 if (++count > MaximumEntries * 2) throw new IOException("内置脚本缓存条目数量异常。");
                 var relative = Path.GetRelativePath(root, entry).Replace('\\', '/');
-                var contained = ResolveChild(root, relative); ToolVersionManager.EnsureOrdinaryPath(contained);
+                var contained = ResolveChild(root, relative); EnsureCachePath(contained, checkedDirectories);
                 if (Directory.Exists(contained)) pending.Push((contained, item.Depth + 1));
                 else if (!allowed.Contains(relative)) File.Delete(contained);
             }

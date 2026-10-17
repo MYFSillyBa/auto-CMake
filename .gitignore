@@ -33,3 +33,6 @@ live-buttons.png
 **/node_modules/
 src/STM32ProjectHelper.VSCode/server/
 *.vsix
+
+# Local assistant workspace data
+/.workbuddy-ai/

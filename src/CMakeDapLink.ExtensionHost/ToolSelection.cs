@@ -7,12 +7,19 @@ internal sealed partial class RequestHandler
 {
     private sealed record PendingTool(string Key, string Title, string Instructions, IReadOnlyList<ToolCandidate> Candidates);
 
-    private async Task<ToolDiscoveryResult> DiscoverToolsAsync(JsonElement payload, CancellationToken cancellation)
+    private async Task<ToolDiscoveryResult> DiscoverToolsAsync(JsonElement payload, CancellationToken cancellation, bool enumerateAll = false)
     {
         var preferred = payload.TryGetProperty("tools", out var value) && value.ValueKind == JsonValueKind.Object ? value.Deserialize<ToolPaths>(json) : null;
         if (preferred != null) WorkspaceSafety.Tools(preferred);
         progress(5, "检测本地工具安装", null);
-        var discovery = await Task.Run(() => EnvironmentScanner.Discover(preferred, new ToolDiscoveryOptions(ManagedRoot: Manager(payload).Root), cancellation), cancellation);
+        // Explicit workspace selections need existence checks, not another installation-tree scan.
+        // Inspection and the version picker still enumerate installations; missing paths fall back to discovery.
+        var completeSelection = !enumerateAll && preferred != null && ToolVersionManager.Keys.All(key =>
+            File.Exists(ToolVersionManager.GetPath(preferred, key)));
+        var options = completeSelection
+            ? new ToolDiscoveryOptions(PathValue: "", IncludeDefaultRoots: false, LoadSavedPaths: false)
+            : new ToolDiscoveryOptions(ManagedRoot: Manager(payload).Root);
+        var discovery = await Task.Run(() => EnvironmentScanner.Discover(preferred, options, cancellation), cancellation);
         var tools = discovery.Selected with { Scripts = await BundledOpenOcdScripts.GetDirectoryAsync(cancellation) };
         WorkspaceSafety.Tools(tools);
         return discovery with { Selected = tools };

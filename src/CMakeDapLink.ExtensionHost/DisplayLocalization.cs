@@ -7,7 +7,7 @@ namespace CMakeDapLink.ExtensionHost;
 internal sealed class DisplayLocalization
 {
     private static readonly HashSet<string> Roles = new(StringComparer.Ordinal)
-    { "stage", "message", "suggestion", "summary", "label", "title", "action", "instructions", "problem", "problems", "severity", "version", "chipEvidence", "notes", "errors", "warnings" };
+    { "stage", "message", "detail", "suggestion", "summary", "label", "title", "action", "instructions", "problem", "problems", "severity", "version", "chipEvidence", "notes", "errors", "warnings" };
     private sealed record Template(string Source, string English, Regex Pattern, HashSet<string> HelperArguments);
     private static readonly Template[] Catalog = LoadCatalog();
     public string Language { get; set; } = "zh-CN";

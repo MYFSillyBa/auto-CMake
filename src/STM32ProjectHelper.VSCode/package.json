@@ -2,7 +2,7 @@
   "name": "stm32-project-helper",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "publisher": "myfsillyba",
   "license": "MIT",
   "repository": {
@@ -37,6 +37,7 @@
     "workspace"
   ],
   "activationEvents": [
+    "workspaceContains:**/CMakeLists.txt",
     "workspaceContains:**/*.ioc",
     "workspaceContains:**/*.uvprojx",
     "workspaceContains:**/startup_stm32*.s",
@@ -168,7 +169,7 @@
     }
   },
   "scripts": {
-    "check": "node --check extension.js && node --check bridge.js && node --check project-discovery.js && node --check view-state.js && node --check process-tree.js && node --check media/workbench.js && node --check media/i18n.js && node --check media/ui-messages.js",
+    "check": "node --check extension.js && node --check bridge.js && node --check project-discovery.js && node --check view-state.js && node --check process-tree.js && node --check development-tools.js && node --check serial-session.js && node --check usage-statistics.js && node --check fault-report.js && node --check cubemx-sync.js && node --check media/workbench.js && node --check media/i18n.js && node --check media/ui-messages.js",
     "build": "node scripts/package.mjs",
     "package": "node scripts/package.mjs",
     "smoke": "node scripts/test-vscode.cjs",

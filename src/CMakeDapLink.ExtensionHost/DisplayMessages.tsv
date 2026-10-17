@@ -572,3 +572,186 @@ ELF 对应多个链接目标；不推测链接脚本和区域容量。	The ELF m
 实际链接命令中的脚本路径无法唯一解析；未解析区域容量保持未知。	A script path in the actual link command could not be resolved uniquely. Unparsed region capacities remain unknown.
 构建元数据超过内存分析读取范围。	The build metadata exceeds the memory analysis read limit.
 配置 VS Code 编译任务	Configure VS Code build tasks
+ELF 文件超过 256 MB 分析范围。	ELF file exceeds the 256 MB analysis limit.
+ELF 段数量超过符号分析范围。	ELF section count exceeds the symbol analysis limit.
+ELF 符号表或字符串表链接无效。	ELF symbol table or string table link is invalid.
+ELF 符号数量超过分析范围。	ELF symbol count exceeds the analysis limit.
+ELF 符号地址或大小无效。	ELF symbol address or size is invalid.
+ELF 没有符号表，可能已被 strip；请使用未剥离符号的 ELF 获取函数和变量排行。	ELF has no symbol table and may have been stripped. Use an unstripped ELF to rank functions and variables.
+ELF 中没有具有已知大小的已分配函数或变量；不根据地址差推测符号大小。	ELF has no allocated functions or variables with known sizes. Symbol sizes are not inferred from address differences.
+大小为零的符号未参与排行；符号别名和重叠地址不能相加作为总内存用量。	Zero-size symbols are omitted. Symbol aliases and overlapping addresses cannot be added to obtain total memory use.
+符号排行使用 ELF 中的真实大小，只包含已分配函数和变量；不包含未定义符号或调试段。	Symbol ranking uses actual ELF sizes and includes allocated functions and variables. Undefined symbols and debug sections are excluded.
+ELF 符号表或名称表超过 64 MB 分析范围。	ELF symbol or name table exceeds the 64 MB analysis limit.
+ELF 名称索引无效。	ELF name index is invalid.
+ELF 名称未结束或超过分析范围。	ELF name is unterminated or exceeds the analysis limit.
+排行数量必须为 1–100。	Ranking count must be between 1 and 100.
+MAP 文件超过 32 MB 分析范围。	MAP file exceeds the 32 MB analysis limit.
+MAP 行数或行长度超过分析范围。	MAP line count or line length exceeds the analysis limit.
+MAP 内存区域数量超过分析范围。	MAP memory region count exceeds the analysis limit.
+未识别到 GNU MAP 中的有效分配段；不支持此 MAP 格式或文件没有已分配段。	No valid allocated sections were recognized in this GNU MAP. The format is unsupported or the file has no allocated sections.
+GNU MAP 区域用量按输出段的运行地址并集统计；输入目标文件贡献不会再次累计，调试段和 load address 行不计入。	GNU MAP region usage is the union of output sections at runtime addresses. Input object contributions are not added again; debug sections and load-address rows are excluded.
+MAP 的初始化数据装载映像未单独计入区域用量；完整 Flash 静态占用请分析对应 ELF。	MAP region usage does not separately include initialization load images. Analyze the matching ELF for complete static Flash use.
+MAP 未提供可识别的 Memory Configuration；区域容量和剩余空间未知。	MAP has no recognized Memory Configuration. Region capacities and remaining space are unknown.
+部分 MAP 输出段不属于已知内存区域；区域汇总不包含这些段。	Some MAP output sections are outside known memory regions and are excluded from region totals.
+MAP 没有可识别的目标文件贡献；仅列出输出段大小。	MAP has no recognized object-file contributions. Only output section sizes are listed.
+仅显示指定数量的最大 MAP 贡献；区域用量仍根据全部输出段统计。	Only the requested number of largest MAP contributions is shown. Region usage still includes all output sections.
+MAP 输出段数量超过分析范围。	MAP output section count exceeds the analysis limit.
+MAP 目标文件贡献数量超过分析范围。	MAP object-file contribution count exceeds the analysis limit.
+MAP 地址或大小无效。	MAP address or size is invalid.
+MAP 段地址或大小溢出。	MAP section address or size overflows.
+Cortex-M0/M0+ 等基线内核没有这里使用的 CFSR、HFSR、MMFAR、BFAR；已忽略这些值，请结合异常栈帧和反汇编分析。	Baseline cores such as Cortex-M0/M0+ lack the CFSR, HFSR, MMFAR and BFAR used here. These values are ignored; examine the exception stack frame and disassembly.
+未指定内核，按 Cortex-M3/M4/M7 通用故障位解释；可选扩展位以芯片手册为准，Cortex-M0/M0+ 不适用。	No core was specified. Common Cortex-M3/M4/M7 fault bits are used; consult the device manual for optional extensions. This interpretation does not apply to Cortex-M0/M0+.
+CFSR 包含未解释的保留位或内核扩展位；请查阅所选内核与芯片手册。	CFSR contains undecoded reserved or core extension bits. Consult the selected core and device manuals.
+有效内存管理故障地址	Valid memory-management fault address
+MMARVALID 已置位，MMFAR = {0}。	MMARVALID is set; MMFAR = {0}.
+MMARVALID 已置位，但未提供 MMFAR，故障地址未知。	MMARVALID is set but MMFAR was not supplied. The fault address is unknown.
+MMARVALID 未置位，MMFAR 可能是旧值，未将其作为故障地址。	MMARVALID is clear. MMFAR may be stale and is not treated as the fault address.
+有效总线故障地址	Valid bus-fault address
+BFARVALID 已置位，BFAR = {0}。	BFARVALID is set; BFAR = {0}.
+BFARVALID 已置位，但未提供 BFAR，故障地址未知。	BFARVALID is set but BFAR was not supplied. The fault address is unknown.
+BFARVALID 未置位，BFAR 可能是旧值，未将其作为故障地址。	BFARVALID is clear. BFAR may be stale and is not treated as the fault address.
+未提供 CFSR，无法确认 MemManage、BusFault 或 UsageFault 的状态位及地址有效性。	CFSR was not supplied. MemManage, BusFault and UsageFault status and fault-address validity cannot be confirmed.
+异常向量读取总线错误	Bus error while reading an exception vector
+异常入口读取向量表时发生总线错误；检查 VTOR、向量表地址和可访问性。	A bus error occurred while reading the exception vector. Check VTOR, the vector-table address and accessibility.
+可配置故障升级为 HardFault	Configurable fault escalated to HardFault
+故障处理被禁用或当前优先级不能处理原故障；结合 CFSR 确认具体原因。	The original fault handler was disabled or could not run at the current priority. Check CFSR for the underlying cause.
+调试事件触发 HardFault	Debug event triggered HardFault
+调试事件无法进入调试状态；检查断点、BKPT 和半主机调用，并结合 DFSR。	A debug event could not enter debug state. Check breakpoints, BKPT, semihosting and DFSR.
+HFSR 包含未解释的保留位；请核对寄存器来源和内核型号。	HFSR contains undecoded reserved bits. Verify the register source and core model.
+扩展浮点栈帧	Extended floating-point stack frame
+基本栈帧	Basic stack frame
+异常返回上下文	Exception return context
+EXC_RETURN = {0}；使用 {1}，返回 {2} 模式，{3}。	EXC_RETURN = {0}; uses {1}, returns to {2} mode, {3}.	3
+EXC_RETURN 是异常入口时处理函数 LR 的编码，不能当作调用地址；栈帧内保存的 LR 才可能是被中断函数的返回地址。	EXC_RETURN is the handler LR encoding at exception entry, not a call address. The stacked LR may hold the interrupted function's return address.
+LR/EXC_RETURN 位于异常返回编码范围，但不属于本解码器支持的通用值；可能涉及安全扩展或损坏，未猜测栈帧。	LR/EXC_RETURN is in the exception-return range but is not a supported common value. Security extensions or corruption may be involved; no stack frame is inferred.
+栈指针未按字对齐	Stack pointer is not word aligned
+所提供 SP = {0}；核对该值是否来自异常发生时的实际栈指针。	Supplied SP = {0}. Verify that it is the actual stack pointer captured at the exception.
+xPSR 的 Thumb 状态位为零	xPSR Thumb state bit is clear
+Cortex-M 需要 Thumb 状态；若这是异常栈帧中的 xPSR，检查栈损坏和异常返回上下文。	Cortex-M requires Thumb state. If this xPSR is from the exception stack frame, check for stack corruption and invalid exception-return context.
+所提供寄存器没有可确认的故障原因；零状态位不证明固件正常，也可能在捕获前已被清除。	The supplied registers do not confirm a fault cause. Clear status bits do not prove correct firmware behavior and may have been cleared before capture.
+PC 应提供异常入口保存的 stacked PC；在 HardFault 处理函数内读取的当前 PC 只定位处理函数，不能确认原故障指令。	Supply the stacked PC saved at exception entry. A current PC read inside the HardFault handler locates the handler and does not identify the original fault instruction.
+地址映射依赖与崩溃固件完全匹配且保留调试信息的 ELF；LR 通常是返回点，单个 PC/LR 不能重建完整调用栈。	Address mapping requires an ELF matching the crashed firmware with debug information retained. LR is usually a return point; a single PC/LR cannot reconstruct a full call stack.
+指令访问违反内存保护	Instruction access violated memory protection
+处理器从禁止执行或受 MPU 保护的区域取指；检查函数指针、执行权限和返回地址。	The processor fetched an instruction from a non-executable or MPU-protected region. Check function pointers, execute permissions and return addresses.
+数据访问违反内存保护	Data access violated memory protection
+数据读写违反内存保护；仅在 MMARVALID 置位时使用 MMFAR 定位地址。	A data read or write violated memory protection. Use MMFAR only when MMARVALID is set.
+异常返回出栈内存保护错误	Memory-protection error while unstacking
+异常返回读取栈帧时发生内存保护错误；栈帧内容可能不可靠。	Reading the stack frame on exception return caused a memory-protection error. The frame may be unreliable.
+异常入口压栈内存保护错误	Memory-protection error while stacking
+异常入口保存栈帧时发生内存保护错误；检查栈边界和 MPU，保存的 PC 可能不可靠。	Saving the exception stack frame caused a memory-protection error. Check stack bounds and MPU settings; the saved PC may be unreliable.
+浮点延迟保存内存保护错误	Memory-protection error during lazy floating-point preservation
+具有浮点扩展的内核在延迟保存浮点状态时触发内存保护错误；检查栈空间和权限。	Lazy floating-point preservation caused a memory-protection error on a core with floating-point extensions. Check stack space and permissions.
+指令总线错误	Instruction bus error
+处理器取指时发生总线错误；检查代码地址、存储器映射和执行区域。	Instruction fetch caused a bus error. Check the code address, memory mapping and executable region.
+精确数据总线错误	Precise data bus error
+数据访问发生精确总线错误；若无压栈错误，stacked PC 通常对应相关指令，BFAR 仍需 BFARVALID。	A precise data bus error occurred. Without stacking faults, the stacked PC usually identifies the relevant instruction; BFAR still requires BFARVALID.
+非精确数据总线错误	Imprecise data bus error
+总线错误可能来自较早的缓冲写入；stacked PC 不一定是故障指令，不能据此确认单行代码。	The bus error may originate from an earlier buffered write. The stacked PC may not identify the faulting instruction or source line.
+异常返回出栈总线错误	Bus error while unstacking
+异常返回读取栈帧发生总线错误；检查 SP、栈存储器和栈边界，栈帧可能不可靠。	Reading the stack frame on exception return caused a bus error. Check SP, stack memory and bounds; the frame may be unreliable.
+异常入口压栈总线错误	Bus error while stacking
+异常入口保存栈帧发生总线错误；栈帧可能不完整，不能直接信任保存的 PC/LR。	Saving the exception stack frame caused a bus error. The frame may be incomplete, so the saved PC/LR cannot be trusted directly.
+浮点延迟保存总线错误	Bus error during lazy floating-point preservation
+具有浮点扩展的内核在延迟保存浮点状态时发生总线错误；检查栈存储器和可用空间。	Lazy floating-point preservation caused a bus error on a core with floating-point extensions. Check stack memory and available space.
+未定义指令	Undefined instruction
+解码到未定义指令；检查跳转目标、代码损坏和固件是否适合当前内核。	An undefined instruction was decoded. Check branch targets, code corruption and whether the firmware targets the current core.
+无效执行状态	Invalid execution state
+执行状态不合法；检查 Thumb 状态、函数指针最低位和异常栈帧。	Execution state is invalid. Check Thumb state, the function pointer's low bit and the exception stack frame.
+无效异常返回	Invalid exception return
+异常返回完整性检查失败；检查 EXC_RETURN、栈帧和返回上下文。	Exception-return integrity checks failed. Check EXC_RETURN, the stack frame and return context.
+协处理器不可用	Coprocessor unavailable
+执行了不可用或未启用的协处理器指令；检查 FPU 支持、使能状态和编译浮点选项。	An unavailable or disabled coprocessor instruction was executed. Check FPU support, enable state and compiler floating-point options.
+未对齐内存访问	Unaligned memory access
+发生被内核禁止或由 UNALIGN_TRP 捕获的未对齐访问；检查指针和数据结构对齐。	An unaligned access was prohibited by the core or trapped by UNALIGN_TRP. Check pointer and data-structure alignment.
+整数除零	Integer division by zero
+启用除零陷阱时执行了整数除零；检查除数和 CCR.DIV_0_TRP 设置。	Integer division by zero occurred with the trap enabled. Check the divisor and CCR.DIV_0_TRP.
+分析 GNU MAP 文件贡献	Analyzing GNU MAP file contributions
+分析 ELF 函数和变量	Analyzing ELF functions and variables
+所选 ELF 不属于当前构建目录；未推测链接脚本和内存区域容量。	The selected ELF is outside the current build directory. Linker scripts and memory-region capacities are not inferred.
+请提供 HardFault 寄存器对象。	Provide a HardFault register object.
+HardFault 寄存器数量或名称长度超过限制。	HardFault register count or name length exceeds the limit.
+不支持的寄存器名称：{0}	Unsupported register name: {0}
+同一寄存器提供了不一致的值：{0}	Conflicting values were supplied for register: {0}
+请至少提供一个实际捕获的 HardFault 寄存器。	Provide at least one register captured from the actual HardFault.
+根据当前工程芯片 {0} 推断 {1}；请确认寄存器来自同一内核，多核芯片还需核对实际故障内核。	Inferred {1} from the current project's chip {0}. Verify that the registers come from this core; on multicore devices, confirm which core faulted.
+未选择唯一的 ELF；已完成寄存器解码，PC/LR 源码位置未知。	No unique ELF is selected. Register decoding is complete; PC/LR source locations are unknown.
+工具选择数据为空。	Tool selection data is empty.
+未选择有效的 Arm GCC；已完成寄存器解码，源码位置需要同一工具链的 arm-none-eabi-addr2line.exe。	No valid Arm GCC is selected. Register decoding is complete; source mapping requires arm-none-eabi-addr2line.exe from the same toolchain.
+所选 GCC 目录缺少 arm-none-eabi-addr2line.exe；PC/LR 源码位置未知。	The selected GCC directory lacks arm-none-eabi-addr2line.exe. PC/LR source locations are unknown.
+映射 HardFault 源码位置	Mapping HardFault source locations
+addr2line 未能解析所选 ELF；请确认工具链与固件匹配并保留调试信息。	addr2line could not read the selected ELF. Verify that the toolchain matches the firmware and debug information is retained.
+addr2line 输出无法识别；没有生成推测的源码位置。	addr2line output was not recognized. No source location was inferred.
+部分 PC/LR 地址没有函数或源码信息；请核对 ELF 版本以及编译调试选项。	Some PC/LR addresses lack function or source information. Check the ELF version and compiler debug options.
+源码地址映射工具运行失败；寄存器解码结果仍然有效，请检查所选 GCC 工具链。	The source-address mapping tool failed. Register decoding remains valid; check the selected GCC toolchain.
+请选择一个实际编译生成的 ELF，再分析函数和变量。	Select a built ELF before analyzing functions and variables.
+请选择当前工程内现有的 {0} 文件。	Select an existing {0} file inside the current project.
+固件分析文件大小超过读取范围。	The firmware-analysis file exceeds the read limit.
+寄存器值必须为 32 位无符号十进制数或 0x 开头的十六进制数。	Register values must be unsigned 32-bit decimal numbers or hexadecimal numbers beginning with 0x.
+现有配置必须是 JSON 对象。	Existing configuration must be a JSON object.
+现有配置的 JSON 类型不正确。	Existing configuration has the wrong JSON type.
+配置包含重复的 JSON 属性，无法安全合并：{0}	The configuration contains a duplicate JSON property and cannot be merged safely: {0}
+JSON 配置不完整。	The JSON configuration is incomplete.
+现有 settings.json 必须是 JSON 对象。	Existing settings.json must be a JSON object.
+现有 clangd.arguments 必须是字符串数组。	Existing clangd.arguments must be an array of strings.
+调试脚本或依赖缺少：{0}	Debug scripts or dependencies are missing: {0}
+请选择当前构建配置的 ELF 固件。	Select the ELF firmware for the current build configuration.
+请选择 arm-none-eabi-gdb 的完整路径。	Select the full path to arm-none-eabi-gdb.
+现有 launch.json 必须是 JSON 对象。	Existing launch.json must be a JSON object.
+现有 launch.json 的 configurations 必须是数组。	The configurations property in launch.json must be an array.
+launch.json 包含多个助手管理的调试配置，请先保留一个。	launch.json contains multiple helper-managed debug configurations. Keep one before continuing.
+助手管理的调试配置未找到。	The helper-managed debug configuration was not found.
+调试配置名称必须为 1–100 个字符，不能包含控制字符。	The debug configuration name must contain 1–100 characters without control characters.
+现有 clangd 参数缺少值：{0}	An existing clangd argument is missing its value: {0}
+.clangd 包含重复的 CompileFlags，无法安全合并。	.clangd contains duplicate CompileFlags entries and cannot be merged safely.
+.clangd 包含多个全局 CompileFlags，请先明确要使用的配置。	.clangd contains multiple global CompileFlags fragments. Select the intended configuration first.
+.clangd 的 CompileFlags 使用紧凑或特殊 YAML 语法，请先改为普通映射。	CompileFlags in .clangd uses compact or special YAML syntax. Convert it to a plain mapping first.
+.clangd 包含重复的 CompilationDatabase，无法安全合并。	.clangd contains duplicate CompilationDatabase entries and cannot be merged safely.
+.clangd 的 CompilationDatabase 使用特殊 YAML 语法，无法安全合并。	CompilationDatabase in .clangd uses special YAML syntax and cannot be merged safely.
+编辑器配置文件超过 4 MB。	The editor configuration file exceeds 4 MB.
+配置 clangd	Configure clangd
+预览 clangd 编译数据库、编译器查询与 IntelliSense 设置；应用前不会修改文件。	Preview the clangd compilation database, compiler query and IntelliSense settings. Files change only when applied.
+当前构建目录缺少 compile_commands.json；请显式执行导出编译数据库，再刷新 clangd。	The selected directory has no compile_commands.json. Export the compilation database explicitly, then refresh clangd.
+配置 Cortex-Debug 调试	Configure Cortex-Debug
+生成使用所选探针、芯片脚本与 ELF 的 Cortex-Debug 连接配置；预览不会连接硬件。	Create a Cortex-Debug attach configuration using the selected probe, target script and ELF. Preview does not connect to hardware.
+调试配置使用 attach，只连接目标与加载符号；启动后可能暂停或复位目标，不会自动下载固件。	The debug configuration uses attach to connect and load symbols. Starting it may halt or reset the target and does not download firmware automatically.
+需要安装 Cortex-Debug 扩展，并使用当前 ELF 对应的目标固件。	Install the Cortex-Debug extension and use target firmware matching the current ELF.
+硬件检查需要明确确认，可能暂停或复位目标。	Hardware inspection requires explicit confirmation and may halt or reset the target.
+OpenOCD 脚本或依赖缺失，未连接硬件。	OpenOCD scripts or dependencies are missing. No hardware connection was made.
+连接探针与芯片	Connect to the probe and chip
+硬件检查会连接探针与芯片，可能暂停或复位目标；不会烧录固件。	Hardware inspection connects to the probe and chip and may halt or reset the target. It does not program firmware.
+硬件检查超时，诊断进程已结束；请确认目标当前状态。	Hardware inspection timed out and the diagnostic process ended. Check the target's current state.
+日志没有确认探针已打开；请检查 USB、驱动、探针类型及是否被占用。	The log does not confirm that the probe opened. Check USB, drivers, probe type and whether another program is using it.
+已检测到探针，但芯片连接尚未确认；请检查供电、SWD 接线、速度与芯片脚本。	The probe was detected, but the chip connection is unconfirmed. Check power, SWD wiring, speed and target script.
+RTOS 读取需要明确确认，连接时可能暂停目标。	RTOS inspection requires explicit confirmation and may halt the target while connecting.
+GDB 端口必须为 1–65535。	The GDB port must be 1–65535.
+GDB 连接模式必须是 remote 或 extended-remote。	The GDB connection mode must be remote or extended-remote.
+RTOS 只允许连接本机已有的 GDB 服务。	RTOS inspection can only connect to an existing local GDB server.
+读取 RTOS 任务	Read RTOS tasks
+RTOS 刷新会连接已有的本机 GDB 服务，可能暂停目标；读取后尝试分离，不会烧录固件。	RTOS refresh connects to an existing local GDB server and may halt the target. It attempts to detach after reading and does not program firmware.
+RTOS 读取超时，GDB 进程已结束；无法确认分离是否完成，请检查目标状态。	RTOS inspection timed out and GDB ended. Detach could not be confirmed. Check the target state.
+GDB 未确认已分离，请在调试器中检查目标状态。	GDB did not confirm detachment. Check the target state in your debugger.
+所选 ELF 不是当前配置的目标产物，请先编译并重新选择。	The selected ELF is not an artifact of the current configuration. Build and select it again.
+请先编译当前配置，并明确选择要调试的 ELF 固件。	Build the current configuration and explicitly select the ELF firmware to debug.
+未找到 GDB；请选择 arm-none-eabi-gdb.exe 的完整路径。	GDB was not found. Select the full path to arm-none-eabi-gdb.exe.
+请选择 arm-none-eabi-gdb.exe、gdb-multiarch.exe 或 gdb.exe。	Select arm-none-eabi-gdb.exe, gdb-multiarch.exe or gdb.exe.
+无法启动诊断工具：{0}	Unable to start the diagnostic tool: {0}
+GDB 未返回 RTOS 快照；请检查本机服务、ELF 调试符号及 GDB 的 Python 支持。	GDB did not return an RTOS snapshot. Check the local server, ELF debug symbols and GDB Python support.
+GDB 返回的 RTOS 快照格式无效。	The RTOS snapshot returned by GDB has an invalid format.
+RTOS 符号读取达到时间限制。	RTOS symbol inspection reached its time limit.
+RTOS 任务数量超过 512。	The RTOS task count exceeds 512.
+FreeRTOS 列表长度无效或不可读取。	The FreeRTOS list size is invalid or unreadable.
+FreeRTOS 列表已变化或损坏。	The FreeRTOS list changed or is corrupt.
+GDB 线程信息不可用：{0}	GDB thread information is unavailable: {0}
+当前 FreeRTOS 任务符号不可用；运行中的任务可能显示为就绪。	Current FreeRTOS task symbols are unavailable. Running tasks may be shown as ready.
+FreeRTOS 就绪列表数组超过支持范围。	The FreeRTOS ready-list array exceeds the supported limit.
+FreeRTOS 列表不可用（{0}）：{1}	The FreeRTOS list is unavailable ({0}): {1}
+无法确认栈边界、增长方向或填充配置，栈高水位返回 null，不能视为测量值。	Stack bounds, growth direction or fill configuration could not be verified. Stack high-water marks are null and are not measurements.
+当前符号或内核结构不支持 FreeRTOS TCB 读取：{0}	These symbols or kernel layout do not support FreeRTOS TCB inspection: {0}
+当前仅显示 GDB 线程；FreeRTOS 优先级与栈数据不可用。	Only GDB threads are shown. FreeRTOS priority and stack data are unavailable.
+普通 GDB 线程也不可用：{0}	Generic GDB threads are also unavailable: {0}
+GDB 连接或读取失败：{0}	GDB connection or inspection failed: {0}
+GDB 分离失败，请在调试器中确认目标状态：{0}	GDB detach failed. Check the target state in your debugger: {0}
+生成编译数据库前需要确认运行 CMake 配置。	Confirm CMake configuration before generating the compilation database.
+生成编译数据库	Generating compilation database
+CMake 未生成编译数据库，请检查生成器、工具链或配置错误。	CMake did not generate a compilation database. Check the generator, toolchain and configuration errors.
+同时选择 ELF 与 MAP 时，符号和区域用量来自 ELF，目标文件贡献来自 MAP；请确认两个文件来自同次构建。	When ELF and MAP are both selected, symbols and region usage come from ELF and object-file contributions come from MAP. Verify that both files are from the same build.

@@ -74,6 +74,28 @@ internal static class OpenOcdScriptChecks
                 throw new Exception("original OpenOCD license missing");
             Console.WriteLine("Bundled scripts: " + scripts + "; files " + files.Length + "; targets " + targets.Length);
         });
+        check("repairs missing and same-length corrupted bundled files and removes unlisted cache files", () =>
+        {
+            var scripts = BundledOpenOcdScripts.GetDirectoryAsync().GetAwaiter().GetResult();
+            var target = Path.Combine(scripts, "target", "stm32f1x.cfg");
+            var probe = Path.Combine(scripts, "interface", "cmsis-dap.cfg");
+            var originalTarget = File.ReadAllBytes(target); var originalProbe = File.ReadAllBytes(probe);
+            var extra = Path.Combine(scripts, "regression-extra-" + Guid.NewGuid().ToString("N") + ".cfg");
+            try
+            {
+                var corrupted = originalTarget.ToArray(); corrupted[0] ^= 1;
+                File.WriteAllBytes(target, corrupted); File.Delete(probe); File.WriteAllText(extra, "# unlisted\n");
+                var restored = BundledOpenOcdScripts.GetDirectoryAsync().GetAwaiter().GetResult();
+                if (restored != scripts || !File.ReadAllBytes(target).AsSpan().SequenceEqual(originalTarget) ||
+                    !File.ReadAllBytes(probe).AsSpan().SequenceEqual(originalProbe) || File.Exists(extra))
+                    throw new Exception("cache integrity checks were bypassed");
+            }
+            finally
+            {
+                File.WriteAllBytes(target, originalTarget); File.WriteAllBytes(probe, originalProbe);
+                if (File.Exists(extra)) File.Delete(extra);
+            }
+        });
         check("reuses verified bundled resources safely across concurrent provider calls", () =>
         {
             var directories = Task.WhenAll(Enumerable.Range(0, 3).Select(_ => BundledOpenOcdScripts.GetDirectoryAsync())).GetAwaiter().GetResult();

@@ -36,6 +36,7 @@ public sealed record CMakeBuildPlan(ToolCommand Configure, ToolCommand Build)
         // --toolchain overrides even a preset's toolchainFile field. The wrapper
         // retains the original chain and binds compilers to the user's selection.
         configureArgs.AddRange(["--toolchain", selection.ToolchainPath]);
+        configureArgs.Add("-DCMAKE_EXPORT_COMPILE_COMMANDS=ON");
         if (options.ConfigurePreset != null)
         {
             configureArgs.Add("-DCMAKE_MAKE_PROGRAM=" + options.Ninja);

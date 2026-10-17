@@ -8,19 +8,24 @@ const { resolveLanguage, createTranslator } = require('./media/i18n');
 const controllerCatalog = require('./locales/controller.json');
 const { discoverProjects, nearestProject, contains } = require('./project-discovery');
 const { viewState } = require('./view-state');
+const { DevelopmentTools, ACTIONS: DEVELOPMENT_ACTIONS } = require('./development-tools');
 
 const PAGES = [
   ['configure', '工程配置', 'settings-gear'], ['sources', '添加源文件', 'new-file'],
   ['import', '加入文件', 'files'], ['conversion', '工程转换', 'arrow-swap'],
-  ['tools', '工具管理', 'tools'], ['history', '修改记录', 'history']
+  ['tools', '工具管理', 'tools'], ['history', '修改记录', 'history'],
+  ['development', '开发配置', 'code'], ['analysis', '固件与故障分析', 'graph'], ['devices', '设备与诊断', 'plug']
 ];
 const OPTIONS = new Set(['configurePreset', 'buildPreset', 'configuration', 'targetScript', 'buildDirectory', 'firmwareElfPath', 'direction', 'target', 'sourceTarget', 'sourceProject', 'folderName', 'search', 'probeType', 'adapterSpeed', 'resetMode']);
+for (const key of ['compilationDatabaseDirectory', 'debugName', 'mapFilePath', 'hardFaultRegisters', 'gdbEndpoint', 'serialPort', 'serialBaud', 'serialMode', 'serialText', 'serialNewline', 'telemetryHost', 'telemetryProjectKey', 'preflightCheck']) OPTIONS.add(key);
 const TOOL_KEYS = { cMake: 'cmake', ninja: 'ninja', compiler: 'compiler', openOcd: 'openOcd' };
 const TOOL_NAMES = { cMake: ['CMake', 'CMake', 'cmake.exe'], ninja: ['Ninja', 'Ninja', 'ninja.exe'], compiler: ['Compiler', 'ARM GCC', 'arm-none-eabi-gcc.exe'], openOcd: ['OpenOcd', 'OpenOCD', 'openocd.exe'] };
 const REVIEWED_WRITES = new Set(['applyChanges', 'restore', 'importFiles']);
 const REVIEWED_ACTIONS = new Set(['apply', 'restore', 'importFiles']);
 const DISK_ACTIONS = new Set(['writeTasks', 'writeSources', 'writeConversion', 'apply', 'restore', 'importFiles', 'verify', 'build', 'flash', 'wizardFinish']);
 const DISK_COMMANDS = new Set(['applyChanges', 'restore', 'importFiles', 'verify', 'build', 'flash']);
+for (const action of ['writeClangd', 'writeDebug', 'startDebug', 'writeSync', 'prepareCompileDatabase']) DISK_ACTIONS.add(action);
+DISK_COMMANDS.add('prepareCompileDatabase');
 
 class LocalizedOutput {
   constructor(name) { this.name = name; this.text = ''; this.channel = vscode.window.createOutputChannel(name); }
@@ -99,6 +104,8 @@ class Workbench {
     }));
     const active = vscode.window.activeTextEditor;
     this.setFolder((active && vscode.workspace.getWorkspaceFolder(active.document.uri)) || vscode.workspace.workspaceFolders?.[0]);
+    this.development = new DevelopmentTools(this);
+    context.subscriptions.push(this.development);
   }
   updateLanguage() {
     const previousLanguage = this.language;
@@ -132,7 +139,7 @@ class Workbench {
     return this.snapshot();
   }
   localizeDisplay(value, key = '') {
-    const displayKeys = new Set(['status', 'summary', 'message', 'suggestion', 'stage', 'severity', 'description', 'detail', 'reason', 'recommendation', 'title', 'label', 'problems', 'warnings', 'issues', 'unavailable', 'action', 'instructions', 'chipEvidence', 'notes', 'errors', 'problem', 'version', 'savedFilesNotice', 'staleToolsNotice']);
+    const displayKeys = new Set(['status', 'summary', 'message', 'suggestion', 'stage', 'severity', 'description', 'detail', 'reason', 'recommendation', 'title', 'label', 'problems', 'warnings', 'issues', 'unavailable', 'action', 'instructions', 'chipEvidence', 'notes', 'errors', 'problem', 'version', 'savedFilesNotice', 'staleToolsNotice', 'syncNotice']);
     if (typeof value === 'string') return displayKeys.has(key) ? this.t(value) : value;
     if (Array.isArray(value)) return value.map(item => this.localizeDisplay(item, key));
     if (!value || typeof value !== 'object') return value;
@@ -140,10 +147,10 @@ class Workbench {
   }
   get state() {
     const key = this.folder?.uri.toString() || '';
-    if (!this.states.has(key)) this.states.set(key, { options: { configuration: 'Debug', direction: 'MdkToCMake', folderName: 'User', probeType: 'cmsis-dap', adapterSpeed: '1000', resetMode: 'default' }, selectedFiles: [], sourceFiles: [], sourceRevision: 0, selectionRevision: 0, toolFingerprint: JSON.stringify(this.tools()), status: this.t('请选择操作。') });
+    if (!this.states.has(key)) this.states.set(key, { options: { configuration: 'Debug', direction: 'MdkToCMake', folderName: 'User', probeType: 'cmsis-dap', adapterSpeed: '1000', resetMode: 'default', preflightCheck: 'true' }, selectedFiles: [], sourceFiles: [], sourceRevision: 0, selectionRevision: 0, toolFingerprint: JSON.stringify(this.tools()), status: this.t('请选择操作。') });
     return this.states.get(key);
   }
-  setFolder(folder) { this.cancelSource?.cancel(); this.folder = folder; this.epoch++; this.diagnostics.clear(); this.pruneDiffs(); this.navigation.refresh(); this.render(); }
+  setFolder(folder) { this.cancelSource?.cancel(); this.development?.serial.dispose(); this.folder = folder; this.epoch++; this.diagnostics.clear(); this.pruneDiffs(); this.navigation.refresh(); this.render(); }
   projectFolder(workspaceFolder, root) {
     return { uri: vscode.Uri.file(root), name: path.relative(workspaceFolder.uri.fsPath, root) || workspaceFolder.name, workspaceFolder };
   }
@@ -214,13 +221,15 @@ class Workbench {
         { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')] });
       this.panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'chip.svg');
       this.panel.webview.html = this.html(this.panel.webview);
-      this.panel.onDidDispose(() => { this.panel = undefined; this.cancelSource?.cancel(); clearTimeout(this.progressTimer); this.pruneDiffs(); }, null, this.context.subscriptions);
+      this.panel.onDidDispose(() => { this.panel = undefined; this.cancelSource?.cancel(); this.development?.serial.dispose(); this.development.telemetryKeyDraft = undefined; clearTimeout(this.progressTimer); this.pruneDiffs(); }, null, this.context.subscriptions);
       this.panel.webview.onDidReceiveMessage(message => {
         if (!message || typeof message !== 'object') return;
         if (message.action === 'ready') { this.render(); return; }
         if (message.action === 'navigate' && PAGES.some(item => item[0] === message.page)) { void this.open(message.page); return; }
         if (message.action === 'cancel') { this.cancelSource?.cancel(); return; }
         if (message.action === 'setOption' && !this.busy && OPTIONS.has(message.key) && typeof message.value === 'string' && message.value.length <= 4096) {
+          if (message.key === 'telemetryProjectKey') { this.development.telemetryKeyDraft = message.value; return; }
+          if (message.key === 'serialMode') this.development.serial.mode = message.value;
           this.state.options[message.key] = message.value;
           if (message.key === 'configurePreset') {
             const preset = this.state.inspection?.project?.configurePresets?.find(p => p.name === message.value);
@@ -228,8 +237,9 @@ class Workbench {
           }
           if (['configurePreset', 'buildPreset', 'configuration'].includes(message.key)) this.syncConfiguration();
           if (message.key === 'configuration' || message.key === 'buildDirectory') this.state.options.firmwareElfPath = undefined;
-          if (['configurePreset', 'buildPreset', 'configuration', 'buildDirectory', 'targetScript', 'probeType', 'adapterSpeed', 'resetMode'].includes(message.key)) { this.state.verification = undefined; this.state.buildResult = undefined; this.state.flashResult = undefined; }
+          if (['configurePreset', 'buildPreset', 'configuration', 'buildDirectory', 'targetScript', 'probeType', 'adapterSpeed', 'resetMode'].includes(message.key)) { this.state.verification = undefined; this.state.buildResult = undefined; this.state.flashResult = undefined; this.state.probeCheck = undefined; this.state.rtos = undefined; }
           if (['configurePreset', 'buildPreset', 'configuration', 'buildDirectory', 'firmwareElfPath'].includes(message.key)) this.state.memory = undefined;
+          if (['configurePreset', 'buildPreset', 'configuration', 'buildDirectory', 'firmwareElfPath', 'mapFilePath'].includes(message.key)) this.state.advancedAnalysis = undefined;
           if (['configurePreset', 'buildPreset', 'configuration', 'buildDirectory'].includes(message.key)) this.state.conversion = undefined;
           if (message.key === 'direction') this.state.conversion = undefined;
           if (message.key === 'sourceTarget') { this.state.scan = undefined; this.state.selectedFiles = []; this.state.sourceRevision++; this.state.selectionRevision++; }
@@ -326,6 +336,8 @@ class Workbench {
   }
   render() {
     if (!this.panel) return;
+    this.state.serial = this.development?.serial.snapshot();
+    this.state.telemetry = this.development?.statistics.snapshot();
     let unavailable; try { this.supported(); } catch (error) { unavailable = error.message; }
     void this.panel.webview.postMessage({ type: 'state', page: this.page, language: this.language, languagePreference: this.languagePreference, pages: PAGES.map(([id, label, icon]) => [id, this.t(label), icon]), root: this.folder?.uri.fsPath, busy: this.busy, unavailable, state: this.localizeDisplay(viewState(this.state, this.page)), configuredTools: this.tools() });
   }
@@ -373,6 +385,7 @@ class Workbench {
     const missing = Object.entries(TOOL_KEYS).filter(([setting, wire]) => savedTools.get('tools.' + setting) && !this.tools()[wire]).map(([setting]) => TOOL_NAMES[setting][1]);
     this.state.staleToolsNotice = missing.length ? this.t('已保存的工具路径已失效，正在使用重新检测的安装：{0}。请选择并保存所需版本。', missing.join(', ')) : undefined;
     if (!this.state.wizard) this.state.wizard = { step: 0, complete: this.hasManagedTasks() };
+    await this.development?.baseline();
     this.state.status = this.t('工程检测完成。'); return result;
   }
   hasManagedTasks() {
@@ -432,6 +445,7 @@ class Workbench {
     this.assertSession(epoch);
     this.assertPreview(preview);
     const result = await this.call('applyChanges', { changes: preview.changes, label: preview.canonicalLabel || preview.label }, epoch, progress, preview);
+    await this.development?.rememberBlocks();
     this.state.preview = undefined; this.state.lastResult = result; this.state.status = this.t('文件变更已保存。可运行软件检查。');
     if (this.state.wizard && preview.kind === 'tasks' && !preview.buildOnly && this.hasManagedTasks()) this.state.wizard = { step: 3, complete: true };
     await this.inspect(epoch, progress); this.state.status = this.t('文件变更已保存。可运行软件检查。');
@@ -520,6 +534,10 @@ class Workbench {
     const chosen = await vscode.window.showWarningMessage(this.t('将固件写入连接的目标芯片？'), { modal: true,
       detail: [this.folder.uri.fsPath, option.configuration, option.firmwareElfPath, probe, option.adapterSpeed + ' kHz', option.resetMode].join('\n') }, confirm);
     this.assertSession(epoch); if (chosen !== confirm) { this.state.status = this.t('已取消烧录。'); return built; }
+    if (this.state.options.preflightCheck === 'true') {
+      const check = await this.development.probeCheck(epoch, progress, true);
+      if (!check || check.chipConnected !== true) { this.state.status = this.t('硬件检查未通过，尚未烧录。'); return built; }
+    }
     const result = await this.call('flash', { ...option, explicitFlash: true }, epoch, progress);
     this.showBuildResult(result, action); return result;
   }
@@ -536,7 +554,7 @@ class Workbench {
   async operation(action, message = {}) {
     const actions = new Set(['refresh', 'previewTasks', 'writeTasks', 'apply', 'diff', 'verify', 'pickSourceFolder', 'scanSources', 'selectAllSources', 'previewSources', 'writeSources', 'pickImportFiles', 'previewImport', 'importDiff', 'importFiles', 'inspectConversion', 'previewConversion', 'writeConversion', 'tools', 'pickTool', 'repair', 'importTool', 'activateTool', 'history', 'previewRestore', 'restore', 'logs', 'workspace', 'build', 'flash', 'memory', 'startWizard', 'wizardNext', 'wizardBack', 'wizardFinish', 'dismissWizard']);
     if (action === 'setLanguage') return this.setLanguage(message.value);
-    if (!actions.has(action)) return;
+    if (!actions.has(action) && !DEVELOPMENT_ACTIONS.has(action)) return;
     if (action === 'logs') { this.output.show(true); return; }
     if (action === 'workspace') return this.pickWorkspace();
     if (this.busy) return;
@@ -555,12 +573,16 @@ class Workbench {
             const saved = await this.saveDirtyDocuments(epoch, ['previewImport', 'importDiff', 'importFiles'].includes(action));
             if (saved && REVIEWED_ACTIONS.has(action)) throw new Error(this.t('编辑内容已保存。请重新预览后再确认写入。'));
           }
-          return await this.execute(action, message, epoch, progress);
+          const result = await this.execute(action, message, epoch, progress);
+          if (result === true || typeof result?.success === 'boolean' || action === 'probeCheck' && result)
+            void this.development.statistics.capture(action, result === true || result.success === true || result.chipConnected === true, this.language, this.context.extension.packageJSON.version);
+          return result;
         } finally { subscription.dispose(); }
       });
     } catch (error) {
       this.output.appendLine(error.stack || error.message);
-      if (epoch === this.epoch) { this.state.status = error.message; if (!error.cancelled && !this.cancelSource.token.isCancellationRequested) await vscode.window.showErrorMessage(error.message, this.t('查看输出')).then(choice => { if (choice) this.output.show(true); }); }
+      void this.development.statistics.capture(action, false, this.language, this.context.extension.packageJSON.version);
+      if (epoch === this.epoch) { this.state.status = this.t(error.message); if (!error.cancelled && !this.cancelSource.token.isCancellationRequested) await vscode.window.showErrorMessage(this.t(error.message), this.t('查看输出')).then(choice => { if (choice) this.output.show(true); }); }
     } finally {
       clearTimeout(this.progressTimer); this.progressTimer = undefined;
       this.cancelSource.dispose(); this.cancelSource = undefined; this.busy = false; if (this.pendingLanguage) { this.pendingLanguage = false; this.updateLanguage(); } this.diskNotice(); this.render();
@@ -569,6 +591,7 @@ class Workbench {
   }
   async execute(action, message, epoch, progress) {
     const state = this.state;
+    if (DEVELOPMENT_ACTIONS.has(action)) return this.development.execute(action, message, epoch, progress);
     switch (action) {
       case 'writeTasks': return this.writeChanges('previewTasks', epoch, progress);
       case 'writeSources': return this.writeChanges('previewSources', epoch, progress);

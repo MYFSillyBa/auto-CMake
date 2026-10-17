@@ -36,10 +36,11 @@ public sealed class ToolVersionManager
         "OpenOcd" => "openocd.exe", _ => throw new ArgumentException("未知工具：" + key)
     };
 
-    public async Task<IReadOnlyList<ToolInstallation>> ListAsync(ToolPaths current, CancellationToken cancellation = default)
+    public async Task<IReadOnlyList<ToolInstallation>> ListAsync(ToolPaths current, CancellationToken cancellation = default,
+        ToolDiscoveryResult? discovery = null)
     {
         var result = new List<ToolInstallation>();
-        var discovered = await Task.Run(() => EnvironmentScanner.Discover(current,
+        var discovered = discovery ?? await Task.Run(() => EnvironmentScanner.Discover(current,
             new ToolDiscoveryOptions(ManagedRoot: _root), cancellation), cancellation);
         foreach (var key in Keys)
         {

@@ -6,7 +6,7 @@ namespace CMakeDapLink.ExtensionHost;
 
 internal sealed partial class RequestHandler(string root, JsonSerializerOptions json, Action<int, string, string?> progress, Func<string, string> display)
 {
-    public static string[] Commands { get; } = ["capabilities", "inspect", "previewTasks", "applyChanges", "verify", "build", "flash", "memory", "scanSources", "previewSources", "previewImport", "importFiles", "inspectConversion", "previewConversion", "history", "previewRestore", "restore", "tools", "selectTool", "repair", "importTool", "activateTool"];
+    public static string[] Commands { get; } = ["capabilities", "inspect", "previewTasks", "applyChanges", "verify", "build", "flash", "memory", "scanSources", "previewSources", "previewImport", "importFiles", "inspectConversion", "previewConversion", "history", "previewRestore", "restore", "tools", "selectTool", "repair", "importTool", "activateTool", "previewClangd", "previewDebug", "prepareCompileDatabase", "probeCheck", "rtos", "analyzeFirmware", "hardFault"];
     private static string? Text(JsonElement payload, string key) => payload.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     private static bool Flag(JsonElement payload, string key, bool fallback = false) => payload.TryGetProperty(key, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : fallback;
     private static string Required(JsonElement payload, string key) => Text(payload, key) is { Length: > 0 } value ? value : throw new ArgumentException("请提供 " + key + "。");
@@ -22,7 +22,7 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
     {
         if (!Commands.Contains(command, StringComparer.Ordinal)) throw new ArgumentException("不支持的命令：" + command);
         if (command == "flash" && !Flag(payload, "explicitFlash")) throw new ArgumentException("烧录需要明确确认，请使用烧录操作并确认目标与固件。");
-        using var lease = command is "applyChanges" or "verify" or "build" or "flash" or "importFiles" or "restore" or "inspectConversion" or "repair" or "importTool" or "activateTool"
+        using var lease = command is "applyChanges" or "verify" or "build" or "flash" or "importFiles" or "restore" or "inspectConversion" or "repair" or "importTool" or "activateTool" or "prepareCompileDatabase" or "probeCheck" or "rtos"
             ? WorkspaceSafety.WriteLease(root) : null;
         cancellation.ThrowIfCancellationRequested();
         progress(0, "准备操作", null);
@@ -35,6 +35,13 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
             "build" => await BuildAsync(payload, cancellation, "build"),
             "flash" => await BuildAsync(payload, cancellation, "flash"),
             "memory" => await MemoryAsync(payload, cancellation),
+            "previewClangd" => await PreviewClangdAsync(payload, cancellation),
+            "previewDebug" => await PreviewDebugAsync(payload, cancellation),
+            "prepareCompileDatabase" => await PrepareCompileDatabaseAsync(payload, cancellation),
+            "probeCheck" => await ProbeCheckAsync(payload, cancellation),
+            "rtos" => await RtosAsync(payload, cancellation),
+            "analyzeFirmware" => await AnalyzeFirmwareAsync(payload, cancellation),
+            "hardFault" => await HardFaultAsync(payload, cancellation),
             "scanSources" => ScanSources(payload),
             "previewSources" => PreviewSources(payload),
             "previewImport" => PreviewImport(payload),
@@ -69,7 +76,7 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
     private async Task<object> InspectAsync(JsonElement payload, CancellationToken cancellation)
     {
         var project = Project(payload);
-        var discovery = await DiscoverToolsAsync(payload, cancellation);
+        var discovery = await DiscoverToolsAsync(payload, cancellation, enumerateAll: true);
         var tools = discovery.Selected;
         if (project.TargetScript != null) project = project with { TargetScript = OpenOcdScripts.AvailableTarget(tools.Scripts, project.TargetScript) };
         var pending = PendingTools(discovery);
@@ -380,9 +387,10 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
     private ToolVersionManager Manager(JsonElement payload) => new(Text(payload, "installationRoot"));
     private async Task<object> ToolsAsync(JsonElement payload, CancellationToken cancellation)
     {
-        var tools = await FindToolsAsync(payload, cancellation);
+        var discovery = await DiscoverToolsAsync(payload, cancellation, enumerateAll: true);
+        var tools = discovery.Selected;
         var manager = Manager(payload);
-        return new { installations = await manager.ListAsync(tools, cancellation), tools, root = manager.Root };
+        return new { installations = await manager.ListAsync(tools, cancellation, discovery), tools, root = manager.Root };
     }
     private IProgress<ToolRepairProgress> ToolProgress() => new ImmediateProgress<ToolRepairProgress>(item => progress(item.Percent, item.Stage, item.Message));
     private async Task<object> RepairAsync(JsonElement payload, CancellationToken cancellation)

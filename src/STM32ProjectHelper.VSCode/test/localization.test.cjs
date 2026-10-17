@@ -31,7 +31,7 @@ test('manifest and all native/webview captions have bilingual resources', () => 
   const metadata = JSON.parse(fs.readFileSync(path.join(extensionRoot, 'package.json'), 'utf8'));
   for (const match of JSON.stringify(metadata).matchAll(/%([^%]+)%/g)) for (const catalog of manifests) assert.ok(catalog[match[1]], match[1]);
   assert.equal(metadata.contributes.configuration.properties['stm32ProjectHelper.language'].scope, 'application');
-  for (const [file, catalog] of [['extension.js', controller], ['bridge.js', controller], ['media/workbench.js', ui]]) {
+  for (const [file, catalog] of [['extension.js', controller], ['bridge.js', controller], ['development-tools.js', controller], ['media/workbench.js', ui]]) {
     const code = fs.readFileSync(path.join(extensionRoot, file), 'utf8');
     for (const match of code.matchAll(/\bt\('((?:\\.|[^'\\])*)'/g)) {
       const source = match[1].replace(/\\'/g, "'").replace(/\\n/g, '\n');

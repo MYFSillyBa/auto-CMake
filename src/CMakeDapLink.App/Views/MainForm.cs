@@ -136,7 +136,7 @@ public sealed partial class MainForm : Form
 
     private void BuildSidebar()
     {
-        foreach (var item in new Control[] { _brandIcon, _sideBrand, _sideHint, _navSetup, _navSources, _navImport, _navConversion, _navTools, _sideFoot, _sideDivider }) _sidebar.Controls.Add(item);
+        foreach (var item in new Control[] { _brandIcon, _sideBrand, _sideHint, _navSetup, _navSources, _navImport, _navConversion, _navTools, _navDevelopment, _sideFoot, _sideDivider }) _sidebar.Controls.Add(item);
         _navSetup.Name = "NavSetup"; _navSources.Name = "NavSources";
         _navSetup.TextAlign = _navSources.TextAlign = ContentAlignment.MiddleLeft;
         ((SoftButton)_navSetup).IconKind = 1;
@@ -149,6 +149,10 @@ public sealed partial class MainForm : Form
         _navConversion.Name = "NavConversion"; _navConversion.AccessibleName = "工程转换";
         _navTools.ForeColor = Muted; _navTools.BackColor = _sidebar.BackColor;
         _navTools.Click += async (_, _) => await ShowToolsAsync();
+        _navDevelopment.Name = "NavDevelopment"; _navDevelopment.AccessibleName = "开发与分析";
+        ((SoftButton)_navDevelopment).IconKind = 1;
+        _navDevelopment.ForeColor = Muted; _navDevelopment.BackColor = _sidebar.BackColor;
+        _navDevelopment.Click += (_, _) => OpenDevelopmentTools();
         _navImport.FlatAppearance.BorderSize = 0;
         _navSetup.FlatAppearance.BorderSize = _navSources.FlatAppearance.BorderSize = 0;
         _navSetup.AccessibleName = "工程配置"; _navSources.AccessibleName = "添加源文件";
@@ -156,7 +160,7 @@ public sealed partial class MainForm : Form
         _navSources.Click += (_, _) => ShowPage(true);
         _navImport.Click += (_, _) => ShowWorkspacePage(2);
         _navConversion.Click += async (_, _) => { ShowWorkspacePage(3); if (_conversionRoot == null && _project?.IsCMakeProject == true) await LoadConversionProjectAsync(_project.Root); };
-        foreach (var button in new[] { _navSetup, _navSources, _navImport, _navConversion, _navTools }) _navTips.SetToolTip(button, button.AccessibleName);
+        foreach (var button in new[] { _navSetup, _navSources, _navImport, _navConversion, _navTools, _navDevelopment }) _navTips.SetToolTip(button, button.AccessibleName);
         ShowPage(false);
     }
 
@@ -194,12 +198,14 @@ public sealed partial class MainForm : Form
         _navImport.SetBounds(Px(10), _navSources.Bottom + Px(7), sideWidth - Px(20), ButtonHeight(_navImport, 39));
         _navConversion.SetBounds(Px(10), _navImport.Bottom + Px(7), sideWidth - Px(20), ButtonHeight(_navConversion, 39));
         _navTools.SetBounds(Px(10), _navConversion.Bottom + Px(7), sideWidth - Px(20), ButtonHeight(_navTools, 39));
+        _navDevelopment.SetBounds(Px(10), _navTools.Bottom + Px(7), sideWidth - Px(20), ButtonHeight(_navDevelopment, 39));
         _navSetup.Text = compact ? "" : "工程配置";
         _navSources.Text = compact ? "" : "添加源文件";
         _navImport.Text = compact ? "" : "加入文件";
         _navConversion.Text = compact ? "" : "工程转换";
         _navTools.Text = compact ? "" : "工具管理";
-        foreach (var button in new[] { _navSetup, _navSources, _navImport, _navConversion, _navTools })
+        _navDevelopment.Text = compact ? "" : "开发与分析";
+        foreach (var button in new[] { _navSetup, _navSources, _navImport, _navConversion, _navTools, _navDevelopment })
         {
             ((SoftButton)button).IconOnly = compact;
             button.TextAlign = compact ? ContentAlignment.MiddleCenter : ContentAlignment.MiddleLeft;
@@ -845,6 +851,7 @@ public sealed partial class MainForm : Form
         _selectAllSources.Enabled = _selectNoSources.Enabled = !_busy && _sourcePreview.Count > 0;
         _environmentHelp.Enabled = !_busy;
         _navTools.Enabled = !_busy;
+        _navDevelopment.Enabled = !_busy;
         _presetPicker.Enabled = !_busy && _project?.IsCMakeProject == true;
         _configurationPicker.Enabled = !_busy && SelectedFixedConfiguration() == null;
         _buildPresetPicker.Enabled = !_busy && _project?.IsCMakeProject == true;

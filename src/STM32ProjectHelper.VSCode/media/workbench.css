@@ -16,13 +16,14 @@ button:hover { background: var(--vscode-button-hoverBackground); }
 button.secondary { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); }
 button.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
 button:disabled { cursor: default; opacity: .5; }
-button:focus-visible, input:focus, select:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+button:focus-visible, input:focus, select:focus, textarea:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
 main { margin: 0 auto; max-width: 1080px; display: grid; gap: 16px; }
 .card { border: 1px solid var(--vscode-panel-border); padding: 20px; border-radius: 6px; background: var(--vscode-sideBar-background); }
 .muted { color: var(--vscode-descriptionForeground); }
 .field { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 8px 14px; align-items: center; margin: 14px 0; }
 .field small { grid-column: 2; }
-input:not([type=checkbox]), select { font: inherit; width: 100%; min-width: 0; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); padding: 7px 9px; color: var(--vscode-input-foreground); border-radius: 2px; }
+input:not([type=checkbox]), select, textarea { font: inherit; width: 100%; min-width: 0; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--vscode-panel-border)); padding: 7px 9px; color: var(--vscode-input-foreground); border-radius: 2px; }
+textarea { resize: vertical; line-height: 1.5; font-family: var(--vscode-editor-font-family, monospace); }
 select { background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); }
 input[type=checkbox] { accent-color: var(--vscode-button-background); }
 .actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
@@ -68,3 +69,14 @@ progress { accent-color: var(--vscode-progressBar-background); }
 #operation-progress { width: 120px; height: 8px; flex-shrink: 0; }
 progress[hidden] { display: none; }
 .registered-files { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--vscode-editor-font-family); font-size: inherit; }
+.check-field { display: flex; align-items: flex-start; gap: 9px; line-height: 1.6; margin: 14px 0; cursor: pointer; }
+.check-field input { margin-top: 4px; flex-shrink: 0; }
+.check-passed { color: var(--vscode-testing-iconPassed, var(--vscode-foreground)); }
+.table-scroll { overflow-x: auto; max-height: 460px; margin: 10px 0; }
+.analysis-table { min-width: 540px; }
+.analysis-table thead { position: sticky; top: 0; background: var(--vscode-sideBar-background); }
+.raw-output, .serial-log { padding: 12px; border: 1px solid var(--vscode-panel-border); background: var(--vscode-editor-background); white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--vscode-editor-font-family, monospace); font-size: var(--vscode-editor-font-size, 12px); line-height: 1.6; }
+.raw-output { max-height: 360px; overflow: auto; }
+.serial-log { height: 320px; overflow: auto; overflow-anchor: none; margin: 12px 0 18px; }
+.serial-log:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+.connection-state { margin-top: 18px; margin-bottom: 4px; font-weight: 600; }

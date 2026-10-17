@@ -3,7 +3,7 @@
   const vscode = acquireVsCodeApi();
   const content = document.getElementById('content');
   let current;
-  let sourceView, previewHost, renderedKey, previewKey, navigationKey;
+  let sourceView, serialView, previewHost, renderedKey, previewKey, navigationKey;
   let fieldSequence = 0;
   const views = new Map();
   let local;
@@ -14,8 +14,8 @@
   const button = (text, action, detail = {}, secondary = false) => {
     const node = element('button', text, secondary ? 'secondary' : ''); node.dataset.busyControl = ''; node.disabled = current.busy || !!current.unavailable;
     node.addEventListener('click', () => {
-      if (['build', 'flash', 'memory', 'verify', 'writeTasks', 'previewTasks', 'apply', 'wizardNext', 'wizardFinish', 'writeConversion', 'previewConversion', 'inspectConversion'].includes(action)) {
-        const invalid = [...content.querySelectorAll('input[data-field]')].find(input => !input.checkValidity());
+      if (['build', 'flash', 'memory', 'verify', 'writeTasks', 'previewTasks', 'apply', 'wizardNext', 'wizardFinish', 'writeConversion', 'previewConversion', 'inspectConversion', 'prepareCompileDatabase', 'writeClangd', 'writeDebug', 'startDebug', 'probeCheck', 'analyzeFirmware', 'hardFault', 'rtos', 'connectSerial', 'sendSerial', 'configureTelemetry'].includes(action)) {
+        const invalid = [...content.querySelectorAll('[data-field]')].find(input => !input.checkValidity());
         if (invalid) { invalid.reportValidity(); invalid.focus(); return; }
       }
       send(action, detail);
@@ -25,10 +25,11 @@
   const section = (title, hint, parent = content) => { const node = element('section', undefined, 'card'); append(node, element('h2', title)); if (hint) append(node, element('p', hint, 'muted')); parent.append(node); return node; };
   const actions = (parent, ...buttons) => append(parent, append(element('div', undefined, 'actions'), ...buttons));
   const text = (parent, title, value) => append(parent, append(element('div', undefined, 'detail'), element('span', title, 'muted'), element('span', value || '—')));
-  const field = (parent, key, title, value, choices, hint) => {
+  const field = (parent, key, title, value, choices, hint, multiline = false) => {
     const wrapper = element('label', undefined, 'field'); append(wrapper, element('span', title));
-    const input = element(choices ? 'select' : 'input'); input.dataset.busyControl = ''; input.disabled = current.busy || !!current.unavailable;
+    const input = element(choices ? 'select' : multiline ? 'textarea' : 'input'); input.dataset.busyControl = ''; input.disabled = current.busy || !!current.unavailable;
     if (choices) for (const choice of choices) { const item = typeof choice === 'string' ? { value: choice, label: choice } : choice; const option = element('option', item.label); option.value = item.value; input.append(option); }
+    else if (multiline) input.rows = 6;
     else input.type = 'text';
     input.value = local.drafts.get(key) ?? String(value ?? ''); input.dataset.field = key;
     input.addEventListener('input', () => local.drafts.set(key, input.value));
@@ -39,6 +40,12 @@
       send('setOption', { key, value: input.value });
     });
     append(wrapper, input); if (hint) append(wrapper, element('small', hint, 'muted')); parent.append(wrapper); return input;
+  };
+  const checkbox = (parent, key, title, checked, action = 'setOption') => {
+    const wrapper = element('label', undefined, 'check-field'), input = element('input');
+    input.type = 'checkbox'; input.checked = !!checked; input.dataset.busyControl = ''; input.disabled = current.busy || !!current.unavailable;
+    input.addEventListener('change', () => send(action, action === 'setOption' ? { key, value: String(input.checked) } : { enabled: input.checked }));
+    append(wrapper, input, element('span', title)); parent.append(wrapper); return input;
   };
   const configurationField = (parent, state) => {
     const fixed = state.fixedConfiguration;
@@ -354,7 +361,154 @@
       append(row, append(element('div'), element('strong', record.label), element('p', t('{0} · {1} 个文件 · {2}', new Date(record.createdUtc).toLocaleString(current.language === 'en' ? 'en' : 'zh-CN'), record.changes?.length || 0, record.restoredUtc ? t('已还原') : t(status)), 'muted')), restore); panel.append(row);
     }
   }
-  const renderers = { configure, sources, import: importFiles, conversion, tools, history };
+  const address = value => typeof value === 'number' && Number.isFinite(value) ? `0x${value.toString(16)}` : value ?? '—';
+  const resultTable = (parent, headers, values, cells, limit = 200) => {
+    if (!values?.length) { list(parent, [], t('暂无分析结果。')); return; }
+    const viewport = element('div', undefined, 'table-scroll'), table = element('table', undefined, 'analysis-table'), body = element('tbody');
+    append(table, append(element('thead'), append(element('tr'), ...headers.map(title => element('th', title)))));
+    for (const item of values.slice(0, limit)) append(body, append(element('tr'), ...cells(item).map(value => element('td', value ?? '—'))));
+    append(parent, append(viewport, append(table, body)));
+    if (values.length > limit) parent.append(element('p', t('显示前 {0} 项（共 {1} 项）。', limit, values.length), 'muted'));
+  };
+  const analysisFirmwareField = (panel, state) => {
+    const firmware = firmwareChoices(state);
+    field(panel, 'firmwareElfPath', t('固件 ELF'), state.options.firmwareElfPath, firmware.length ? [{ value: '', label: t('请选择固件目标') }, ...firmware.map(value => ({ value, label: value }))] : undefined);
+  };
+  function development(state) {
+    const options = state.options;
+    const code = section(t('代码智能提示'), t('从真实 CMake 配置生成 compile_commands.json，再写入 .clangd。生成配置文件前会要求确认。'));
+    presetFields(code, state); configurationField(code, state);
+    field(code, 'compilationDatabaseDirectory', t('编译数据库目录'), options.compilationDatabaseDirectory || options.buildDirectory, undefined, t('填写实际包含 compile_commands.json 的构建目录。'));
+    actions(code, button(t('配置并生成编译数据库…'), 'prepareCompileDatabase'), button(t('写入 .clangd…'), 'writeClangd', {}, true), button(t('查看 clangd 扩展'), 'openClangdExtension', {}, true));
+    if (state.compileDatabase) { text(code, 'compile_commands.json', state.compileDatabase.compileCommands); list(code, state.compileDatabase.notes, ''); }
+
+    const debug = section(t('Cortex-Debug 调试'), t('写入 launch.json 前会显示确认；启动调试会连接硬件，可能暂停或复位目标。'));
+    field(debug, 'debugName', t('调试配置名称'), options.debugName);
+    analysisFirmwareField(debug, state);
+    field(debug, 'targetScript', t('OpenOCD 目标脚本'), options.targetScript);
+    probeFields(debug, state);
+    actions(debug, button(t('写入调试配置…'), 'writeDebug'), button(t('启动调试…'), 'startDebug', {}, true));
+
+    const sync = section(t('CMake / MDK 同步'), t('监视工程配置变化并提示同步；预览文件差异后，再确认写入。'));
+    if (state.sync) {
+      sync.append(element('p', state.sync.changed ? t('检测到配置变化，请检查同步差异。') : t('配置变化检查已完成。'), state.sync.changed ? 'issue warning' : 'muted'));
+      if (state.sync.status) text(sync, t('同步状态'), t(state.sync.status));
+      list(sync, (state.sync.files || []).map(item => typeof item === 'string' ? item : item.path || item.name || ''), '');
+      list(sync, state.sync.notes, '');
+    } else sync.append(element('p', t('检查一次以记录同步基线；之后的变化会显示提醒。'), 'muted'));
+    actions(sync, button(t('检查同步状态'), 'inspectSync'), button(t('预览同步差异'), 'previewSync', {}, true), button(t('写入同步结果…'), 'writeSync', {}, true));
+
+    const probe = section(t('探针与芯片检查'), t('点击按钮将连接目标，可能暂停或复位芯片。'));
+    checkbox(probe, 'preflightCheck', t('烧录前执行探针与芯片检查'), options.preflightCheck === true || options.preflightCheck === 'true');
+    const result = state.probeCheck;
+    for (const [key, title] of [['scriptFound', t('目标脚本可用')], ['probeFound', t('探针已发现')], ['chipConnected', t('芯片已连接')]]) {
+      const value = result?.[key];
+      const row = element('div', undefined, 'detail');
+      append(row, element('span', title, 'muted'), element('span', value === true ? t('通过') : value === false ? t('未通过') : t('尚未确认'), value === false ? 'warning' : value === true ? 'check-passed' : 'muted')); probe.append(row);
+    }
+    list(probe, result?.notes, '');
+    actions(probe, button(t('连接并检查硬件…'), 'probeCheck'));
+  }
+  function analysis(state) {
+    const firmware = section(t('固件与 MAP 分析'), t('读取 ELF 符号和可选 MAP 文件，检查符号大小与段分布。'));
+    analysisFirmwareField(firmware, state);
+    field(firmware, 'mapFilePath', t('MAP 文件（可选）'), state.options.mapFilePath);
+    actions(firmware, button(t('分析固件'), 'analyzeFirmware'), button(t('选择 MAP 文件…'), 'pickMapFile', {}, true));
+    const report = state.advancedAnalysis;
+    if (report) {
+      const symbols = detailPanel(firmware, 'firmware-symbols', t('符号大小'));
+      if (!local.details.has('firmware-symbols')) symbols.open = true;
+      resultTable(symbols, [t('符号'), t('地址'), t('大小'), t('类型'), t('段')], report.symbols, item => [item.name, address(item.address), bytes(item.size), item.kind, item.section]);
+      const sections = detailPanel(firmware, 'map-sections', t('MAP 段分布'));
+      resultTable(sections, [t('段'), t('地址'), t('大小'), t('目标文件')], report.mapSections, item => [item.name, address(item.address), bytes(item.size), item.objectFile]);
+      if (report.regions?.length) resultTable(firmware, [t('区域'), t('地址'), t('容量'), t('已占用'), t('剩余')], report.regions,
+        item => [item.name, address(item.origin), item.length == null ? t('未知') : bytes(item.length), bytes(item.used), item.remaining == null ? t('未知') : bytes(item.remaining)]);
+      list(firmware, report.notes, '');
+    }
+
+    const fault = section(t('HardFault 诊断'), t('粘贴异常寄存器 JSON 或文本；使用所选 ELF 解析地址，不连接硬件。'));
+    field(fault, 'hardFaultRegisters', t('异常寄存器'), state.options.hardFaultRegisters, undefined, t('支持 CFSR、HFSR、PC、LR 等寄存器的名称与十六进制值。'), true);
+    actions(fault, button(t('诊断 HardFault'), 'hardFault'));
+    if (state.hardFault) {
+      for (const finding of state.hardFault.findings || []) {
+        const item = element('div', undefined, 'issue');
+        append(item, element('strong', [finding.code, finding.title].filter(Boolean).join(' · ')));
+        if (finding.detail) item.append(element('p', finding.detail)); fault.append(item);
+      }
+      resultTable(fault, [t('寄存器'), t('地址'), t('函数'), t('源码位置')], state.hardFault.locations, item => [item.register, address(item.address), item.function, item.file ? `${item.file}${item.line ? `:${item.line}` : ''}` : '—']);
+      list(fault, state.hardFault.notes, '');
+    }
+
+    const rtos = section(t('RTOS 任务'), t('手动连接现有 GDB 服务读取任务；连接可能暂停目标。每次点击才刷新，不会自动轮询。'));
+    field(rtos, 'gdbEndpoint', t('GDB 服务地址'), state.options.gdbEndpoint || 'localhost:3333');
+    actions(rtos, button(t('连接并刷新任务…'), 'rtos'));
+    if (state.rtos) {
+      const states = { running: '运行', ready: '就绪', blocked: '阻塞', suspended: '挂起', deleted: '等待删除', 'suspended-or-blocked': '挂起或阻塞', stopped: '已停止', exited: '已退出' };
+      resultTable(rtos, [t('任务'), t('状态'), t('优先级'), t('栈剩余高水位（StackType_t 单位）')], state.rtos.tasks, item => [item.name, t(states[item.state] || item.state), item.priority, item.stackHighWater]);
+      list(rtos, state.rtos.notes, '');
+      if (state.rtos.output) detailPanel(rtos, 'rtos-output', t('查看 GDB 输出')).append(element('pre', state.rtos.output, 'raw-output'));
+    }
+
+    const exported = section(t('故障报告'), t('生成脱敏报告，先在编辑器预览，再选择保存位置。'));
+    actions(exported, button(t('预览并导出报告…'), 'exportReport'));
+    if (state.report) {
+      if (state.report.path) text(exported, t('报告位置'), state.report.path);
+      if (typeof state.report.redacted === 'boolean') text(exported, t('隐私处理'), state.report.redacted ? t('已脱敏') : t('未脱敏'));
+      if (state.report.preview) detailPanel(exported, 'report-preview', t('报告预览')).append(element('pre', state.report.preview, 'raw-output'));
+    }
+  }
+  function devices(state) {
+    const options = state.options, serial = state.serial || {};
+    const panel = section(t('串口终端'), t('选择串口后手动连接；支持 ASCII 与 HEX 发送，日志显示最近接收的数据。'));
+    const ports = serial.ports || [];
+    const choices = [{ value: '', label: t('请选择串口') }, ...ports.map(port => ({ value: port.name, label: port.description ? `${port.name} · ${port.description}` : port.name }))];
+    if (options.serialPort && !ports.some(port => port.name === options.serialPort)) choices.push({ value: options.serialPort, label: options.serialPort });
+    field(panel, 'serialPort', t('串口'), options.serialPort, choices);
+    const baud = field(panel, 'serialBaud', t('波特率'), options.serialBaud || 115200); baud.type = 'number'; baud.min = '1'; baud.max = '4000000'; baud.step = '1'; baud.required = true;
+    const refresh = button(t('刷新串口'), 'listSerial', {}, true), connect = button(t('连接串口'), 'connectSerial'), disconnect = button(t('断开连接'), 'disconnectSerial', {}, true);
+    actions(panel, connect, disconnect, refresh);
+    const connection = element('p', undefined, 'connection-state'), counters = element('p', undefined, 'muted'), error = element('p', undefined, 'issue error');
+    const log = element('pre', undefined, 'serial-log'); log.tabIndex = 0; log.setAttribute('role', 'log'); log.setAttribute('aria-label', t('串口日志')); log.setAttribute('aria-live', 'off');
+    log.addEventListener('scroll', () => { local.serialScroll = log.scrollTop; local.serialAtBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 32; }, { passive: true });
+    append(panel, connection, counters, error, log);
+    field(panel, 'serialMode', t('发送格式'), options.serialMode || 'ASCII', ['ASCII', 'HEX']);
+    field(panel, 'serialNewline', t('行尾'), options.serialNewline || 'none', [{ value: 'none', label: t('不追加') }, { value: 'LF', label: 'LF' }, { value: 'CRLF', label: 'CRLF' }]);
+    const outgoing = field(panel, 'serialText', t('发送内容'), options.serialText, undefined, t('HEX 模式使用空格分隔的十六进制字节，例如 01 A5 FF。'), true); outgoing.rows = 3;
+    const transmit = button(t('发送'), 'sendSerial'), save = button(t('导出串口日志…'), 'exportSerial', {}, true); actions(panel, transmit, save);
+    let linesKey;
+    serialView = { update(next = {}) {
+      connection.textContent = next.connected ? t('已连接 · {0} · {1} baud', next.port || options.serialPort || '—', next.baud || options.serialBaud || 115200) : t('串口未连接');
+      connection.className = next.connected ? 'connection-state check-passed' : 'connection-state muted';
+      counters.textContent = t('接收 {0} · 发送 {1}', bytes(next.receivedBytes ?? 0), bytes(next.sentBytes ?? 0));
+      error.hidden = !next.error; error.textContent = next.error || '';
+      lock(connect, !!next.connected); lock(disconnect, !next.connected); lock(transmit, !next.connected);
+      const lines = (next.lines || []).slice(-1000), key = JSON.stringify(lines);
+      if (key !== linesKey) {
+        const bottom = linesKey === undefined ? local.serialAtBottom !== false : log.scrollHeight - log.scrollTop - log.clientHeight < 32;
+        const scrollTop = linesKey === undefined ? local.serialScroll || 0 : log.scrollTop;
+        linesKey = key;
+        log.textContent = lines.length ? lines.map(line => {
+          const stamp = line.time ? new Date(line.time) : null;
+          const time = stamp && Number.isFinite(stamp.getTime()) ? stamp.toLocaleTimeString(current.language === 'en' ? 'en' : 'zh-CN', { hour12: false }) : line.time || '—';
+          const direction = /^(tx|send|sent|out)$/i.test(line.direction) ? t('发送') : /^(rx|receive|received|in)$/i.test(line.direction) ? t('接收') : line.direction || '';
+          return `[${time}] ${direction} ${line.text ?? ''}`;
+        }).join('\n') : t('等待串口数据。');
+        if (bottom) log.scrollTop = log.scrollHeight; else log.scrollTop = scrollTop;
+      }
+    } };
+    serialView.update(serial);
+
+    const telemetry = state.telemetry || {};
+    const privacy = section(t('匿名使用统计'), t('PostHog 默认关闭。仅在主动启用后发送允许的功能事件，不包含工程路径、源码、串口内容或输出日志。'));
+    text(privacy, t('配置状态'), telemetry.configured ? t('已配置') : t('尚未配置'));
+    const enabled = checkbox(privacy, 'telemetryEnabled', t('启用匿名使用统计'), telemetry.enabled, 'toggleTelemetry');
+    lock(enabled, !telemetry.enabled && (!telemetry.configured || telemetry.allowed === false));
+    if (telemetry.allowed === false) privacy.append(element('p', t('当前 VS Code 遥测设置不允许发送统计。'), 'muted'));
+    field(privacy, 'telemetryHost', t('PostHog 服务地址'), options.telemetryHost || telemetry.host);
+    const token = field(privacy, 'telemetryProjectKey', t('PostHog 项目令牌'), undefined, undefined, t('令牌保存到 VS Code 安全存储；已保存的令牌不会显示。')); token.type = 'password'; token.autocomplete = 'off';
+    actions(privacy, button(t('保存统计配置…'), 'configureTelemetry', {}, true));
+  }
+  const renderers = { configure, sources, import: importFiles, conversion, tools, history, development, analysis, devices };
   function updateProgress(message) {
     const status = document.getElementById('status');
     const value = message.unavailable || message.status || current?.state?.status || '';
@@ -373,8 +527,9 @@
     if (current?.state && sourceView) sourceView.update(current.state);
   }
   function contentKey(message) {
-    const { selectedFiles, preview: ignoredPreview, status, percent, selectionRevision, sourceRevision, ...state } = message.state || {};
+    const { selectedFiles, preview: ignoredPreview, serial: ignoredSerial, status, percent, selectionRevision, sourceRevision, ...state } = message.state || {};
     state.options = { ...state.options }; delete state.options.search;
+    if (message.page === 'devices') state.serialPorts = ignoredSerial?.ports;
     if (message.page === 'sources' && sourceRevision !== undefined) state.scan = state.scan ? { sourceRevision } : undefined;
     return JSON.stringify([message.root, message.page, message.language, message.unavailable, message.configuredTools, state]);
   }
@@ -411,20 +566,21 @@
     }
     const nextKey = contentKey(message);
     if (nextKey !== renderedKey) {
-      renderedKey = nextKey; sourceView = undefined; previewKey = undefined; content.replaceChildren();
-      for (const notice of [message.state?.savedFilesNotice, message.state?.staleToolsNotice]) if (notice) content.append(element('p', notice, 'issue warning'));
+      renderedKey = nextKey; sourceView = undefined; serialView = undefined; previewKey = undefined; content.replaceChildren();
+      for (const notice of [message.state?.savedFilesNotice, message.state?.staleToolsNotice, message.state?.syncNotice]) if (notice) content.append(element('p', notice, 'issue warning'));
       if (message.unavailable) {
         const panel = section(t('打开当前工程'), message.unavailable), pick = element('button', t('选择工作区…'));
         pick.addEventListener('click', () => send('workspace')); panel.append(pick);
       } else renderers[message.page]?.(message.state);
       previewHost = element('div', undefined, 'preview-content'); content.append(previewHost);
       const target = focusedKey ? [...content.querySelectorAll('[data-field]')].find(node => node.dataset.field === focusedKey) : focusedSearch ? content.querySelector('[data-source-search]') : null;
-      if (target) { target.focus({ preventScroll: true }); if (typeof selectionStart === 'number' && ['text', 'search'].includes(target.type)) target.setSelectionRange(selectionStart, selectionEnd); }
+      if (target) { target.focus({ preventScroll: true }); if (typeof selectionStart === 'number' && (['text', 'search', 'password'].includes(target.type) || target.tagName === 'TEXTAREA')) target.setSelectionRange(selectionStart, selectionEnd); }
     }
     if (previewHost) {
       const nextPreview = JSON.stringify([message.language, message.state?.preview]);
       if (nextPreview !== previewKey) { previewKey = nextPreview; previewHost.replaceChildren(); if (!message.unavailable) preview(message.state); }
     }
+    if (serialView) serialView.update(message.state?.serial);
     updateProgress({ ...message, status: message.state?.status, percent: message.percent ?? message.state?.percent });
   }
   window.addEventListener('message', event => {
@@ -434,6 +590,16 @@
     else if (message?.type === 'sourceSelection' && current?.page === 'sources') {
       sourceView?.applySelection(message); current.state.preview = undefined;
       if (previewHost) { previewHost.replaceChildren(); previewKey = JSON.stringify([current.language, undefined]); }
+    }
+    else if (message?.type === 'serialData' && current?.state) {
+      const incoming = message.serial || {}, previous = current.state.serial || {};
+      const lines = incoming.delta ? [...new Map([...(previous.lines || []), ...(incoming.lines || [])].map(line => [line.id, line])).values()].slice(-1000) : incoming.lines;
+      current.state.serial = { ...previous, ...incoming, lines: lines || [] };
+      serialView?.update(current.state.serial);
+    }
+    else if (message?.type === 'clearSensitiveDrafts') {
+      for (const view of views.values()) view.drafts.delete('telemetryProjectKey');
+      for (const input of content.querySelectorAll('[data-field]')) if (input.dataset.field === 'telemetryProjectKey') input.value = '';
     }
   });
   let language = document.getElementById('language');
