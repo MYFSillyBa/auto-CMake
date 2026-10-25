@@ -4,6 +4,14 @@
   if (typeof module === 'object' && module.exports) module.exports = catalog;
   else root.STM32UiMessages = catalog;
 })(typeof globalThis !== 'undefined' ? globalThis : this, () => Object.freeze({
+  "下载并预览 FreeRTOS 补全…": "Download and preview FreeRTOS repair…",
+  "本地移植层导入…": "Import local port…",
+  "补全仅预览所选工程缺失的同版本 GNU FreeRTOS 移植层；确认写入后仍需重新转换。本地目录须包含 port.c 和 portmacro.h。": "Preview the missing GNU FreeRTOS port matching the selected project's version. Convert again after confirming the write. Local directories must contain port.c and portmacro.h.",
+  "此版本尚未配置开发者统计项目，统计不可用。": "The developer has not configured an analytics project for this build. Statistics are unavailable.",
+  "采集服务": "Collection service",
+  "应用开发者": "Application developer",
+  "接收方": "Recipient",
+  "统计默认关闭。授权后仅向应用开发者的 PostHog 项目发送匿名功能事件，无需配置自己的项目。": "Statistics are off by default. With consent, anonymous feature events go only to the application developer’s PostHog project. No personal project setup is needed.",
   "已占用": "Used",
   "栈剩余高水位（StackType_t 单位）": "Unused stack high-water (StackType_t units)",
   "已退出": "Exited",

@@ -8,7 +8,7 @@ const { UsageStatistics } = require('./usage-statistics');
 const { createFaultReport } = require('./fault-report');
 const { fingerprintProject, projectDelta, RELEVANT } = require('./cubemx-sync');
 
-const ACTIONS = new Set(['writeClangd', 'openClangdExtension', 'prepareCompileDatabase', 'writeDebug', 'startDebug', 'inspectSync', 'previewSync', 'writeSync', 'probeCheck', 'analyzeFirmware', 'pickMapFile', 'hardFault', 'rtos', 'listSerial', 'connectSerial', 'disconnectSerial', 'sendSerial', 'exportSerial', 'exportReport', 'configureTelemetry', 'toggleTelemetry']);
+const ACTIONS = new Set(['writeClangd', 'openClangdExtension', 'prepareCompileDatabase', 'writeDebug', 'startDebug', 'inspectSync', 'previewSync', 'writeSync', 'probeCheck', 'analyzeFirmware', 'pickMapFile', 'hardFault', 'rtos', 'listSerial', 'connectSerial', 'disconnectSerial', 'sendSerial', 'exportSerial', 'exportReport', 'toggleTelemetry']);
 const BLOCK = /^# BEGIN CMakeDapLink managed folders\r?\n[\s\S]*?^# END CMakeDapLink managed folders/gm;
 function decodeRegisters(value) {
   const text = String(value || '').trim(); if (text.length > 32768) throw new Error('寄存器输入过大。');
@@ -27,6 +27,19 @@ class DevelopmentTools {
     if (vscode.env.onDidChangeTelemetryEnabled) workbench.context.subscriptions.push(vscode.env.onDidChangeTelemetryEnabled(allowed => { if (!allowed) for (const controller of this.statistics.inflight) controller.abort(); this.workbench.render(); }));
   }
   t(source, ...args) { return this.workbench.t(source, ...args); }
+  async confirmTelemetry() {
+    const answer = await vscode.window.showInformationMessage(this.t('同意向应用开发者发送匿名使用统计？'), {
+      modal: true,
+      detail: [this.statistics.snapshot().host,
+        this.t('统计默认关闭。可选择暂不开启，之后在“设备与诊断”中修改。'),
+        this.t('仅发送随机匿名标识、版本、语言、功能名称与成功状态。网络服务仍可看到来源 IP；不发送工程路径、源码、日志或芯片序列号。VS Code 总统计开关关闭时不发送。')].filter(Boolean).join('\n\n')
+    }, this.t('同意并启用'), this.t('暂不开启'));
+    return answer === this.t('同意并启用');
+  }
+  async promptTelemetryOnce() {
+    await this.statistics.promptOnce(() => this.confirmTelemetry());
+    this.workbench.render();
+  }
   options() { const w = this.workbench; return { ...w.options(), compilationDatabaseDirectory: w.state.options.compilationDatabaseDirectory || undefined, debugName: w.state.options.debugName || undefined, gdbEndpoint: w.state.options.gdbEndpoint || 'localhost:3333', mapFilePath: w.state.options.mapFilePath || undefined }; }
   changed(uri) {
     const w = this.workbench, root = w.folder?.uri.fsPath; if (!root || uri.scheme !== 'file' || !RELEVANT.test(uri.fsPath)) return;
@@ -172,18 +185,14 @@ class DevelopmentTools {
         const answer = await vscode.window.showInformationMessage(this.t('故障报告已脱敏并打开预览。请检查内容，确认后保存；不会自动上传。'), { modal: true }, this.t('保存报告'));
         w.assertSession(epoch); if (answer === this.t('保存报告')) { const savedPath = await this.saveText(document.getText(), 'stm32-diagnostic-report.md', epoch); state.report = { path: savedPath, redacted: true }; return savedPath ? { success: true } : undefined; } return;
       }
-      case 'configureTelemetry': {
-        await this.statistics.enable(false); await this.statistics.configure(state.options.telemetryHost || 'https://us.i.posthog.com', this.telemetryKeyDraft || ''); this.telemetryKeyDraft = undefined;
-        void w.panel?.webview.postMessage({ type: 'clearSensitiveDrafts' }); state.telemetry = this.statistics.snapshot(); state.status = this.t('PostHog 项目已保存，统计保持关闭。'); return;
-      }
       case 'toggleTelemetry': {
         const enabled = message.enabled === true;
-        if (enabled) { const answer = await vscode.window.showWarningMessage(this.t('同意向配置的 PostHog 项目发送匿名功能统计？'), { modal: true, detail: this.t('仅发送随机匿名标识、版本、语言、功能名称与成功状态。网络服务仍可看到来源 IP；不发送工程路径、源码、日志或芯片序列号。VS Code 总统计开关关闭时不发送。') }, this.t('同意并启用')); w.assertSession(epoch); if (answer !== this.t('同意并启用')) return; }
+        if (enabled) { const accepted = await this.confirmTelemetry(); w.assertSession(epoch); if (!accepted) return; }
         await this.statistics.enable(enabled); state.telemetry = this.statistics.snapshot(); return;
       }
     }
   }
   async saveText(text, filename, epoch) { const w = this.workbench; const uri = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.file(path.join(w.folder.uri.fsPath, filename)) }); w.assertSession(epoch); if (uri) { if (fs.existsSync(uri.fsPath)) { const answer = await vscode.window.showWarningMessage(this.t('目标文件已存在，确认覆盖？'), { modal: true }, this.t('确认覆盖')); w.assertSession(epoch); if (answer !== this.t('确认覆盖')) return; } await vscode.workspace.fs.writeFile(uri, Buffer.from(text, 'utf8')); return uri.fsPath; } }
-  dispose() { clearTimeout(this.syncTimer); this.serial.dispose(); this.statistics.dispose(); this.baselines.clear(); this.telemetryKeyDraft = undefined; }
+  dispose() { clearTimeout(this.syncTimer); this.serial.dispose(); this.statistics.dispose(); this.baselines.clear(); }
 }
 module.exports = { DevelopmentTools, ACTIONS, decodeRegisters };

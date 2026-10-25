@@ -3,7 +3,7 @@ const bytes = value => typeof value === 'string' ? Buffer.byteLength(value, 'bas
 const changeSummary = change => change.kind ? { path: change.path, kind: change.kind, beforeSize: change.beforeSize, afterSize: change.afterSize } : ({ path: change.path, kind: change.before === null ? 'add' : change.after === null ? 'delete' : 'modify', beforeSize: bytes(change.before), afterSize: bytes(change.after) });
 function previewSummary(preview) {
   if (!preview) return undefined;
-  const { changes, toolFingerprint, ...metadata } = preview;
+  const { changes, toolFingerprint, repairPlan, ...metadata } = preview;
   return { ...metadata, changes: (changes || []).map(changeSummary) };
 }
 function resultSummary(result) {

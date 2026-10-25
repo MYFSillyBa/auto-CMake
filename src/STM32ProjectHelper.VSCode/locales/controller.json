@@ -1,4 +1,10 @@
 {
+  "正在保存 FreeRTOS 补全，请等待写入完成。": "Saving the FreeRTOS repair. Please wait for the write to finish.",
+  "请重新预览 FreeRTOS 补全计划。": "Preview the FreeRTOS repair plan again.",
+  "FreeRTOS 补全已完成，请重新转换；仍需解决其余阻断问题。": "FreeRTOS repair is complete. Convert the project again and resolve any remaining blockers.",
+  "FreeRTOS 补全已完成，但重新检查失败：{0}。请重新检查并转换工程。": "FreeRTOS repair is complete, but inspection failed: {0}. Inspect and convert the project again.",
+  "请先检查转换工程，并选择 MDK 工程和构建目标。": "Inspect the conversion project first, then select an MDK project and build target.",
+  "选择包含 port.c 和 portmacro.h 的本地 GNU 移植层目录": "Select a local GNU port directory containing port.c and portmacro.h",
   "工程配置": "Project Setup",
   "添加源文件": "Add Sources",
   "加入文件": "Import Files",
@@ -195,5 +201,9 @@
   "工程同步目录过多，请选择更具体的工程根目录。": "There are too many synchronization directories. Select a more specific project root.",
   "检测到工程配置变化，请预览同步差异后确认。": "Project configuration changed. Preview the synchronization diff before confirming.",
   "当前配置与会话基线一致。": "The current configuration matches the session baseline.",
-  "指定目录没有编译数据库，请选择已有数据库或清空目录以使用当前构建目录。": "The selected directory has no compilation database. Select an existing database or clear the directory to use the active build directory."
+  "指定目录没有编译数据库，请选择已有数据库或清空目录以使用当前构建目录。": "The selected directory has no compilation database. Select an existing database or clear the directory to use the active build directory.",
+  "此版本尚未配置开发者的统计项目，暂时不能启用。": "The publisher has not configured analytics in this build. It cannot be enabled yet.",
+  "同意向应用开发者发送匿名使用统计？": "Allow anonymous usage statistics to be sent to the application developer?",
+  "统计默认关闭。可选择暂不开启，之后在“设备与诊断”中修改。": "Statistics are off by default. You can leave them disabled and change this later in Devices and Diagnostics.",
+  "暂不开启": "Not now"
 }

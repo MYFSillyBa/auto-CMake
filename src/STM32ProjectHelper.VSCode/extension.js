@@ -17,13 +17,13 @@ const PAGES = [
   ['development', '开发配置', 'code'], ['analysis', '固件与故障分析', 'graph'], ['devices', '设备与诊断', 'plug']
 ];
 const OPTIONS = new Set(['configurePreset', 'buildPreset', 'configuration', 'targetScript', 'buildDirectory', 'firmwareElfPath', 'direction', 'target', 'sourceTarget', 'sourceProject', 'folderName', 'search', 'probeType', 'adapterSpeed', 'resetMode']);
-for (const key of ['compilationDatabaseDirectory', 'debugName', 'mapFilePath', 'hardFaultRegisters', 'gdbEndpoint', 'serialPort', 'serialBaud', 'serialMode', 'serialText', 'serialNewline', 'telemetryHost', 'telemetryProjectKey', 'preflightCheck']) OPTIONS.add(key);
+for (const key of ['compilationDatabaseDirectory', 'debugName', 'mapFilePath', 'hardFaultRegisters', 'gdbEndpoint', 'serialPort', 'serialBaud', 'serialMode', 'serialText', 'serialNewline', 'preflightCheck']) OPTIONS.add(key);
 const TOOL_KEYS = { cMake: 'cmake', ninja: 'ninja', compiler: 'compiler', openOcd: 'openOcd' };
 const TOOL_NAMES = { cMake: ['CMake', 'CMake', 'cmake.exe'], ninja: ['Ninja', 'Ninja', 'ninja.exe'], compiler: ['Compiler', 'ARM GCC', 'arm-none-eabi-gcc.exe'], openOcd: ['OpenOcd', 'OpenOCD', 'openocd.exe'] };
-const REVIEWED_WRITES = new Set(['applyChanges', 'restore', 'importFiles']);
+const REVIEWED_WRITES = new Set(['applyChanges', 'applyFreeRtosRepair', 'restore', 'importFiles']);
 const REVIEWED_ACTIONS = new Set(['apply', 'restore', 'importFiles']);
 const DISK_ACTIONS = new Set(['writeTasks', 'writeSources', 'writeConversion', 'apply', 'restore', 'importFiles', 'verify', 'build', 'flash', 'wizardFinish']);
-const DISK_COMMANDS = new Set(['applyChanges', 'restore', 'importFiles', 'verify', 'build', 'flash']);
+const DISK_COMMANDS = new Set(['applyChanges', 'applyFreeRtosRepair', 'restore', 'importFiles', 'verify', 'build', 'flash']);
 for (const action of ['writeClangd', 'writeDebug', 'startDebug', 'writeSync', 'prepareCompileDatabase']) DISK_ACTIONS.add(action);
 DISK_COMMANDS.add('prepareCompileDatabase');
 
@@ -166,14 +166,23 @@ class Workbench {
     if (process.platform !== 'win32' || process.arch !== 'x64' || vscode.env.remoteName) throw new Error(this.t('此扩展仅支持本地 Windows x64 VS Code。'));
     if (!this.folder || this.folder.uri.scheme !== 'file') throw new Error(this.t('请打开本地工程文件夹，或从工作区中选择工程。'));
   }
-  assertSession(epoch) {
+  assertSession(epoch, allowCancelled = false) {
     this.supported();
     if (epoch !== this.epoch) throw new Error(this.t('当前工程已切换，请在新的工作区重新执行操作。'));
-    if (this.cancelSource?.token.isCancellationRequested) throw new Error(this.t('操作已取消。'));
+    if (!allowCancelled && this.cancelSource?.token.isCancellationRequested) throw new Error(this.t('操作已取消。'));
+  }
+  cancelOperation() {
+    if (this.repairSaving) {
+      this.state.status = this.t('正在保存 FreeRTOS 补全，请等待写入完成。');
+      this.repairSavingProgress?.report({ message: this.state.status });
+      this.render(); return;
+    }
+    this.cancelSource?.cancel();
   }
   dirtyWorkspaceDocuments(includeImportSources = false) {
     const root = this.folder?.uri.fsPath; if (!root) return [];
-    const selectedSources = new Set(includeImportSources ? this.state.sourceFiles.map(file => path.resolve(file).toLowerCase()) : []);
+    const repairInputs = this.state.preview?.kind === 'freeRtosRepair' ? this.state.preview.repairPlan?.inputs || [] : [];
+    const selectedSources = new Set([...(includeImportSources ? this.state.sourceFiles : []), ...repairInputs.map(input => input.path)].filter(Boolean).map(file => path.resolve(root, file).toLowerCase()));
     return vscode.workspace.textDocuments.filter(document => {
       if (!document.isDirty || document.uri.scheme !== 'file') return false;
       const relative = path.relative(root, document.uri.fsPath);
@@ -221,14 +230,13 @@ class Workbench {
         { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')] });
       this.panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'chip.svg');
       this.panel.webview.html = this.html(this.panel.webview);
-      this.panel.onDidDispose(() => { this.panel = undefined; this.cancelSource?.cancel(); this.development?.serial.dispose(); this.development.telemetryKeyDraft = undefined; clearTimeout(this.progressTimer); this.pruneDiffs(); }, null, this.context.subscriptions);
+      this.panel.onDidDispose(() => { this.panel = undefined; this.cancelOperation(); this.development?.serial.dispose(); clearTimeout(this.progressTimer); this.pruneDiffs(); }, null, this.context.subscriptions);
       this.panel.webview.onDidReceiveMessage(message => {
         if (!message || typeof message !== 'object') return;
         if (message.action === 'ready') { this.render(); return; }
         if (message.action === 'navigate' && PAGES.some(item => item[0] === message.page)) { void this.open(message.page); return; }
-        if (message.action === 'cancel') { this.cancelSource?.cancel(); return; }
+        if (message.action === 'cancel') { this.cancelOperation(); return; }
         if (message.action === 'setOption' && !this.busy && OPTIONS.has(message.key) && typeof message.value === 'string' && message.value.length <= 4096) {
-          if (message.key === 'telemetryProjectKey') { this.development.telemetryKeyDraft = message.value; return; }
           if (message.key === 'serialMode') this.development.serial.mode = message.value;
           this.state.options[message.key] = message.value;
           if (message.key === 'configurePreset') {
@@ -364,14 +372,21 @@ class Workbench {
     const fingerprint = JSON.stringify(this.tools());
     const preferredTools = payload?.tools || payload?.commonOptions?.tools;
     if (preferredTools && JSON.stringify(preferredTools) !== fingerprint) throw new Error(this.t('准备操作时工具路径发生变化，请重新检测后再执行。'));
-    const result = await this.bridge.request(command, this.folder.uri.fsPath, { ...payload, language: this.language }, this.cancelSource?.token, info => {
+    const atomicRepair = command === 'applyFreeRtosRepair';
+    if (atomicRepair) {
+      this.repairSaving = true; this.repairSavingProgress = progress;
+      this.state.status = this.t('正在保存 FreeRTOS 补全，请等待写入完成。'); this.render();
+      progress?.report({ message: this.state.status });
+    }
+    let result;
+    try { result = await this.bridge.request(command, this.folder.uri.fsPath, { ...payload, language: this.language }, atomicRepair ? undefined : this.cancelSource?.token, info => {
       if (epoch !== this.epoch) return;
       const segments = [info.stage, info.message].filter(Boolean);
       const chinese = segments.map(value => Object.keys(this.translations).find(key => this.translations[key] === value) || value).join('：');
       const english = segments.map(value => this.translations[value] || value).join(': ');
       this.translations[chinese] = english; this.state.status = this.t(chinese); this.renderProgress(info.percent); progress?.report({ message: this.state.status });
-    });
-    this.assertSession(epoch); if (this.cancelSource?.token.isCancellationRequested) throw new Error(this.t('操作已取消。'));
+    }); } finally { if (atomicRepair) { this.repairSaving = false; this.repairSavingProgress = undefined; } }
+    this.assertSession(epoch, atomicRepair); if (!atomicRepair && this.cancelSource?.token.isCancellationRequested) throw new Error(this.t('操作已取消。'));
     if (!REVIEWED_WRITES.has(command) && fingerprint !== JSON.stringify(this.tools())) throw new Error(this.t('操作期间工具路径发生变化，请重新检测后再执行。'));
     return result;
   }
@@ -444,11 +459,31 @@ class Workbench {
     if (choice !== this.t('确认写入')) { if (epoch === this.epoch) this.state.status = this.t('已取消写入，工程文件保持原样。'); return false; }
     this.assertSession(epoch);
     this.assertPreview(preview);
-    const result = await this.call('applyChanges', { changes: preview.changes, label: preview.canonicalLabel || preview.label }, epoch, progress, preview);
+    const repairing = preview.kind === 'freeRtosRepair';
+    if (repairing && !preview.repairPlan) throw new Error(this.t('请重新预览 FreeRTOS 补全计划。'));
+    const result = repairing
+      ? await this.call('applyFreeRtosRepair', { plan: preview.repairPlan }, epoch, progress, preview)
+      : await this.call('applyChanges', { changes: preview.changes, label: preview.canonicalLabel || preview.label }, epoch, progress, preview);
     await this.development?.rememberBlocks();
     this.state.preview = undefined; this.state.lastResult = result; this.state.status = this.t('文件变更已保存。可运行软件检查。');
     if (this.state.wizard && preview.kind === 'tasks' && !preview.buildOnly && this.hasManagedTasks()) this.state.wizard = { step: 3, complete: true };
-    await this.inspect(epoch, progress); this.state.status = this.t('文件变更已保存。可运行软件检查。');
+    if (repairing) {
+      this.state.conversion = undefined;
+      this.state.status = this.t('FreeRTOS 补全已完成，请重新转换；仍需解决其余阻断问题。');
+      try {
+        await this.inspect(epoch, progress);
+        await this.inspectConversion(epoch, progress, true);
+        const diagnostics = await this.call('previewConversion', { direction: 'MdkToCMake', sourceProject: this.state.options.sourceProject,
+          target: this.state.options.target, buildDirectory: this.state.options.buildDirectory, configuration: this.state.options.configuration }, epoch, progress);
+        this.state.conversion.planIssues = diagnostics.issues || [];
+      } catch (error) {
+        if (epoch !== this.epoch) this.assertSession(epoch);
+        throw new Error(this.t('FreeRTOS 补全已完成，但重新检查失败：{0}。请重新检查并转换工程。', error.message));
+      }
+      this.state.status = this.t('FreeRTOS 补全已完成，请重新转换；仍需解决其余阻断问题。');
+    } else {
+      await this.inspect(epoch, progress); this.state.status = this.t('文件变更已保存。可运行软件检查。');
+    }
     return true;
   }
   async writeChanges(previewAction, epoch, progress) {
@@ -456,9 +491,20 @@ class Workbench {
     await this.execute(previewAction, {}, epoch, progress);
     const preview = this.state.preview;
     const blockers = preview?.issues?.filter(issue => issue.blocking) || [];
-    if (!preview || preview.canApply === false || blockers.length) throw new Error(this.t('当前改动无法写入。') + blockers.map(issue => this.t(issue.title || issue.message || issue.key)).join('；'));
+    if (!preview || preview.canApply === false || blockers.length) throw new Error(this.t('当前改动无法写入。') + blockers.map(issue => [issue.title || issue.message || issue.key, issue.action || issue.instructions].filter(Boolean).map(value => this.t(value)).join('\n')).join('\n'));
     if (!preview.changes?.length) { this.state.status = this.t('当前配置已是最新，没有需要写入的文件。'); return false; }
     return this.applyPreview(epoch, progress);
+  }
+  async inspectConversion(epoch, progress, preserveSelection = false) {
+    const state = this.state, selected = { target: state.options.target, sourceProject: state.options.sourceProject };
+    const result = await this.call('inspectConversion', { direction: state.options.direction, commonOptions: this.options() }, epoch, progress);
+    state.conversion = result; const info = result.inspection || result;
+    const targets = info.targets?.length ? info.targets : result.targets || [], projects = info.sourceProjects?.length ? info.sourceProjects : result.sourceProjects || [];
+    state.options.target = preserveSelection && targets.includes(selected.target) ? selected.target : targets[0] || '';
+    state.options.sourceProject = preserveSelection && projects.includes(selected.sourceProject) ? selected.sourceProject : projects[0] || '';
+    if (result.buildDirectory) state.options.buildDirectory = result.buildDirectory;
+    state.status = state.options.direction === 'CMakeToMdk' && result.buildDirectory ? this.t('CMake 配置已完成，转换目标已读取。') : this.t('转换工程检查完成。');
+    return result;
   }
   publishProblems(result) {
     this.diagnostics.clear(); const grouped = new Map();
@@ -552,7 +598,7 @@ class Workbench {
     }
   }
   async operation(action, message = {}) {
-    const actions = new Set(['refresh', 'previewTasks', 'writeTasks', 'apply', 'diff', 'verify', 'pickSourceFolder', 'scanSources', 'selectAllSources', 'previewSources', 'writeSources', 'pickImportFiles', 'previewImport', 'importDiff', 'importFiles', 'inspectConversion', 'previewConversion', 'writeConversion', 'tools', 'pickTool', 'repair', 'importTool', 'activateTool', 'history', 'previewRestore', 'restore', 'logs', 'workspace', 'build', 'flash', 'memory', 'startWizard', 'wizardNext', 'wizardBack', 'wizardFinish', 'dismissWizard']);
+    const actions = new Set(['refresh', 'previewTasks', 'writeTasks', 'apply', 'diff', 'verify', 'pickSourceFolder', 'scanSources', 'selectAllSources', 'previewSources', 'writeSources', 'pickImportFiles', 'previewImport', 'importDiff', 'importFiles', 'inspectConversion', 'previewConversion', 'writeConversion', 'previewFreeRtosRepair', 'pickFreeRtosPort', 'tools', 'pickTool', 'repair', 'importTool', 'activateTool', 'history', 'previewRestore', 'restore', 'logs', 'workspace', 'build', 'flash', 'memory', 'startWizard', 'wizardNext', 'wizardBack', 'wizardFinish', 'dismissWizard']);
     if (action === 'setLanguage') return this.setLanguage(message.value);
     if (!actions.has(action) && !DEVELOPMENT_ACTIONS.has(action)) return;
     if (action === 'logs') { this.output.show(true); return; }
@@ -567,7 +613,7 @@ class Workbench {
     this.diskNotice(); this.busy = true; this.state.percent = 0; this.cancelSource = new vscode.CancellationTokenSource(); this.render();
     try {
       return await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: this.t('STM32 工程助手'), cancellable: true }, async (progress, token) => {
-        const subscription = token.onCancellationRequested(() => this.cancelSource?.cancel());
+        const subscription = token.onCancellationRequested(() => this.cancelOperation());
         try {
           if (DISK_ACTIONS.has(action) || action === 'inspectConversion' && this.state.options.direction === 'CMakeToMdk') {
             const saved = await this.saveDirtyDocuments(epoch, ['previewImport', 'importDiff', 'importFiles'].includes(action));
@@ -682,12 +728,21 @@ class Workbench {
           if (choice !== this.t('确认配置并检查')) { state.status = this.t('已取消 CMake 配置，尚未检查转换目标。'); return; }
           state.status = this.t('正在执行 CMake 配置并读取转换目标。'); this.render();
         }
-        const result = await this.call('inspectConversion', { direction: state.options.direction, commonOptions: this.options() }, epoch, progress);
-        state.conversion = result; const info = result.inspection || result;
-        state.options.target = info.targets?.[0] || result.targets?.[0] || '';
-        state.options.sourceProject = info.sourceProjects?.[0] || result.sourceProjects?.[0] || '';
-        if (result.buildDirectory) state.options.buildDirectory = result.buildDirectory;
-        state.status = state.options.direction === 'CMakeToMdk' && result.buildDirectory ? this.t('CMake 配置已完成，转换目标已读取。') : this.t('转换工程检查完成。'); return result;
+        return this.inspectConversion(epoch, progress);
+      }
+      case 'previewFreeRtosRepair': case 'pickFreeRtosPort': {
+        if (!state.conversion || state.options.direction !== 'MdkToCMake' || !state.options.target || !state.options.sourceProject)
+          throw new Error(this.t('请先检查转换工程，并选择 MDK 工程和构建目标。'));
+        let localDirectory;
+        if (action === 'pickFreeRtosPort') {
+          const folders = await vscode.window.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, canSelectMany: false,
+            title: this.t('选择包含 port.c 和 portmacro.h 的本地 GNU 移植层目录') });
+          this.assertSession(epoch); if (!folders?.length || this.cancelSource?.token.isCancellationRequested) return;
+          localDirectory = folders[0].fsPath;
+        }
+        state.preview = undefined;
+        return this.preview(await this.call('previewFreeRtosRepair', { direction: 'MdkToCMake', sourceProject: state.options.sourceProject,
+          target: state.options.target, ...(localDirectory ? { localDirectory } : {}) }, epoch, progress), 'freeRtosRepair');
       }
       case 'previewConversion': {
         if (!state.conversion) throw new Error(this.t('请先检查转换工程。'));
@@ -753,6 +808,9 @@ class Workbench {
 async function activate(context) {
   const workbench = new Workbench(context);
   context.subscriptions.push({ dispose() { workbench.cancelSource?.cancel(); clearTimeout(workbench.progressTimer); workbench.bridge.dispose(); workbench.previewDocuments.clear(); workbench.projectCandidates.clear(); workbench.panel?.dispose(); } });
+  if (vscode.workspace.isTrusted && process.platform === 'win32' && process.arch === 'x64' && !vscode.env.remoteName) {
+    void workbench.development.promptTelemetryOnce().catch(error => workbench.output.appendLine(workbench.t(error.message)));
+  }
   if (vscode.workspace.getConfiguration('stm32ProjectHelper').get('autoOpen', true) && vscode.workspace.isTrusted && process.platform === 'win32' && process.arch === 'x64' && !vscode.env.remoteName && workbench.folder) {
     const workspace = workbench.folder;
     const candidates = await workbench.projectsIn(workspace);

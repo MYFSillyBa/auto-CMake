@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const { terminateProcessTree } = require('./process-tree');
 const COMMANDS = new Set(['inspect', 'previewTasks', 'applyChanges', 'verify', 'scanSources', 'previewSources', 'previewImport', 'importFiles', 'inspectConversion', 'previewConversion', 'history', 'previewRestore', 'restore', 'tools', 'selectTool', 'repair', 'importTool', 'activateTool', 'build', 'flash', 'memory']);
 for (const command of ['previewClangd', 'previewDebug', 'prepareCompileDatabase', 'probeCheck', 'rtos', 'analyzeFirmware', 'hardFault']) COMMANDS.add(command);
+for (const command of ['previewFreeRtosRepair', 'applyFreeRtosRepair']) COMMANDS.add(command);
 
 class HostBridge {
   constructor(executable, output, { translate = (source, ...args) => String(source ?? '').replace(/\{(\d+)\}/g, (match, index) => Number(index) < args.length ? String(args[Number(index)]) : match), onTranslations = () => {} } = {}) { this.t = translate; this.onTranslations = onTranslations; this.executable = executable; this.output = output; this.active = new Set(); }
@@ -25,15 +26,17 @@ class HostBridge {
         if (!child.stdin.destroyed) child.stdin.write('{"cancel":true}\n', () => {});
         cancelTimer = setTimeout(() => { void terminateProcessTree(child); }, 2500);
       };
-      const subscription = token?.onCancellationRequested(cancel);
+      // Both files belong to one ChangeHistory write. Once started, let it finish.
+      const atomicRepair = command === 'applyFreeRtosRepair';
+      const subscription = atomicRepair ? undefined : token?.onCancellationRequested(cancel);
       const finish = (error) => {
         if (settled) return;
         settled = true; clearTimeout(cancelTimer); clearTimeout(requestTimer); subscription?.dispose(); lines.close(); this.active.delete(child);
         if (error || failure) reject(failure || error); else if (terminal !== undefined) resolve(terminal); else reject(new Error(this.t('本地后端未返回结果。请查看输出日志。')));
       };
       const timeout = ['repair', 'importTool'].includes(command) ? 45 * 60000 : ['verify', 'build', 'flash'].includes(command) ? 25 * 60000 : command === 'inspectConversion' ? 7 * 60000 : 3 * 60000;
-      const requestTimer = setTimeout(() => { failure = Object.assign(new Error(this.t('操作超时，已停止后台进程。')), { timedOut: true }); void terminateProcessTree(child); }, timeout);
-      requestTimer.unref();
+      const requestTimer = atomicRepair ? undefined : setTimeout(() => { failure = Object.assign(new Error(this.t('操作超时，已停止后台进程。')), { timedOut: true }); void terminateProcessTree(child); }, timeout);
+      requestTimer?.unref();
       child.on('error', error => finish(new Error(this.t('无法启动本地后端：{0}', error.message))));
       child.stdin.on('error', error => { if (!terminal && !failure) failure = error; });
       child.stderr.on('data', data => this.output.append(data.toString()));

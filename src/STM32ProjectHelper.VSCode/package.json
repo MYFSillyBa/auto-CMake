@@ -2,7 +2,7 @@
   "name": "stm32-project-helper",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "publisher": "myfsillyba",
   "license": "MIT",
   "repository": {
@@ -37,6 +37,7 @@
     "workspace"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "workspaceContains:**/CMakeLists.txt",
     "workspaceContains:**/*.ioc",
     "workspaceContains:**/*.uvprojx",

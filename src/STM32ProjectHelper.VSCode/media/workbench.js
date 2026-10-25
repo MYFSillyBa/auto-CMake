@@ -14,7 +14,8 @@
   const button = (text, action, detail = {}, secondary = false) => {
     const node = element('button', text, secondary ? 'secondary' : ''); node.dataset.busyControl = ''; node.disabled = current.busy || !!current.unavailable;
     node.addEventListener('click', () => {
-      if (['build', 'flash', 'memory', 'verify', 'writeTasks', 'previewTasks', 'apply', 'wizardNext', 'wizardFinish', 'writeConversion', 'previewConversion', 'inspectConversion', 'prepareCompileDatabase', 'writeClangd', 'writeDebug', 'startDebug', 'probeCheck', 'analyzeFirmware', 'hardFault', 'rtos', 'connectSerial', 'sendSerial', 'configureTelemetry'].includes(action)) {
+      const applyingRepair = action === 'apply' && current.state?.preview?.kind === 'freeRtosRepair';
+      if (!applyingRepair && ['build', 'flash', 'memory', 'verify', 'writeTasks', 'previewTasks', 'apply', 'wizardNext', 'wizardFinish', 'writeConversion', 'previewConversion', 'inspectConversion', 'prepareCompileDatabase', 'writeClangd', 'writeDebug', 'startDebug', 'probeCheck', 'analyzeFirmware', 'hardFault', 'rtos', 'connectSerial', 'sendSerial'].includes(action)) {
         const invalid = [...content.querySelectorAll('[data-field]')].find(input => !input.checkValidity());
         if (invalid) { invalid.reportValidity(); invalid.focus(); return; }
       }
@@ -105,6 +106,7 @@
     const panel = section(t('文件变更预览'), plan.summary || plan.label, previewHost);
     if (plan.outputProject) text(panel, t('输出工程'), plan.outputProject);
     if (plan.sourceCount !== undefined) text(panel, t('源文件 / 头文件目录'), `${plan.sourceCount} / ${plan.includeCount}`);
+    if (plan.kind === 'freeRtosRepair') list(panel, plan.notes, '');
     issues(panel, plan.issues);
     if (!plan.changes?.length) list(panel, [], t('没有文件需要修改。'));
     for (const [index, change] of (plan.changes || []).entries()) {
@@ -324,10 +326,17 @@
     if (state.conversion) {
       const info = state.conversion.inspection || state.conversion;
       text(panel, t('芯片'), info.chip); issues(panel, info.issues);
+      issues(panel, state.conversion.planIssues);
       field(panel, 'target', t('构建目标'), state.options.target, info.targets || state.conversion.targets || []);
       if ((info.sourceProjects || state.conversion.sourceProjects)?.length) field(panel, 'sourceProject', t('MDK 工程'), state.options.sourceProject, info.sourceProjects || state.conversion.sourceProjects);
       field(panel, 'buildDirectory', t('构建目录'), state.options.buildDirectory);
       actions(panel, button(t('确认写入…'), 'writeConversion'), button(t('预览改动'), 'previewConversion', {}, true));
+      if (state.options.direction === 'MdkToCMake') {
+        const ready = !!current.root && !!state.options.target && !!state.options.sourceProject;
+        append(panel, element('p', t('补全仅预览所选工程缺失的同版本 GNU FreeRTOS 移植层；确认写入后仍需重新转换。本地目录须包含 port.c 和 portmacro.h。'), 'muted'));
+        actions(panel, lock(button(t('下载并预览 FreeRTOS 补全…'), 'previewFreeRtosRepair', {}, true), !ready),
+          lock(button(t('本地移植层导入…'), 'pickFreeRtosPort', {}, true), !ready));
+      }
     }
   }
   function tools(state) {
@@ -499,14 +508,13 @@
     serialView.update(serial);
 
     const telemetry = state.telemetry || {};
-    const privacy = section(t('匿名使用统计'), t('PostHog 默认关闭。仅在主动启用后发送允许的功能事件，不包含工程路径、源码、串口内容或输出日志。'));
-    text(privacy, t('配置状态'), telemetry.configured ? t('已配置') : t('尚未配置'));
+    const privacy = section(t('匿名使用统计'), t('统计默认关闭。授权后仅向应用开发者的 PostHog 项目发送匿名功能事件，无需配置自己的项目。'));
+    text(privacy, t('接收方'), t('应用开发者'));
+    if (telemetry.host) text(privacy, t('采集服务'), telemetry.host);
+    if (!telemetry.configured) privacy.append(element('p', t('此版本尚未配置开发者统计项目，统计不可用。'), 'muted'));
     const enabled = checkbox(privacy, 'telemetryEnabled', t('启用匿名使用统计'), telemetry.enabled, 'toggleTelemetry');
     lock(enabled, !telemetry.enabled && (!telemetry.configured || telemetry.allowed === false));
     if (telemetry.allowed === false) privacy.append(element('p', t('当前 VS Code 遥测设置不允许发送统计。'), 'muted'));
-    field(privacy, 'telemetryHost', t('PostHog 服务地址'), options.telemetryHost || telemetry.host);
-    const token = field(privacy, 'telemetryProjectKey', t('PostHog 项目令牌'), undefined, undefined, t('令牌保存到 VS Code 安全存储；已保存的令牌不会显示。')); token.type = 'password'; token.autocomplete = 'off';
-    actions(privacy, button(t('保存统计配置…'), 'configureTelemetry', {}, true));
   }
   const renderers = { configure, sources, import: importFiles, conversion, tools, history, development, analysis, devices };
   function updateProgress(message) {
@@ -596,10 +604,6 @@
       const lines = incoming.delta ? [...new Map([...(previous.lines || []), ...(incoming.lines || [])].map(line => [line.id, line])).values()].slice(-1000) : incoming.lines;
       current.state.serial = { ...previous, ...incoming, lines: lines || [] };
       serialView?.update(current.state.serial);
-    }
-    else if (message?.type === 'clearSensitiveDrafts') {
-      for (const view of views.values()) view.drafts.delete('telemetryProjectKey');
-      for (const input of content.querySelectorAll('[data-field]')) if (input.dataset.field === 'telemetryProjectKey') input.value = '';
     }
   });
   let language = document.getElementById('language');
