@@ -6,7 +6,36 @@
 
 **STM32 Project Helper** provides a Windows desktop application and a local VS Code extension for STM32CubeMX project conversion between Keil MDK5 (`.uvprojx`) and ARM GCC CMake, embedded toolchain setup, build/flash tasks, CMSIS-DAP/DAPLink and source-file management. Project conversion does not invoke STM32CubeMX.
 
-## 本地新版：插件 v1.3.0 / 桌面 v1.6.0
+## 2026-10-25 更新：桌面 v1.7.0 / 插件 v1.4.0
+
+- [桌面 v1.7.0 发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.0)：提供自带运行时的轻量版 EXE 和依赖 .NET 9 Desktop Runtime 的极致轻量版 EXE，两个版本功能一致。
+- [插件 v1.4.0 发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.4.0)：下载 [VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.4.0/stm32-project-helper-1.4.0-win32-x64.vsix)，覆盖安装后重载 VS Code 窗口。
+- 两端新增 FreeRTOS 同版本 GNU 移植层在线补全与离线导入；插件同时包含 v1.3.1/v1.3.2 本地版本的遥测接收方修正及首次启动授权。
+- 桌面端不包含 PostHog。旧版发布和安装包保留，既有工程需要重新生成预览后使用新增补全功能。
+
+### FreeRTOS 移植层补全
+
+桌面程序和插件的“工程转换”页新增 **下载并预览 FreeRTOS 补全** 与 **本地移植层导入**。先检查工程并选择 MDK 文件及目标；缺少 GCC 移植层时，根据当前内核版本和原移植目录读取官方对应标签、固定到提交并校验 Git blob、版本及 GNU 语法，或选择包含同版本 `port.c`、`portmacro.h` 的本地目录。
+
+预览不写工程，确认差异后才通过修改历史添加缺失文件；保留内核、原 Keil/RVDS 文件和不同内容的已有文件。写入前重新核对 MDK、内核及移植层输入，内容变化需重新预览；完成后重新检查转换，不自动忽略其他阻断，也不代替实际编译和调度验证。目前自动补全限可确认的非 MPU `ARM_CM0`、`ARM_CM3`、`ARM_CM4F`；M4F 还需匹配的 M4/M7 与 FPU 设置。MPU、其他端口、版本不明或需要额外实现文件时保留人工处理提示。
+
+**使用顺序**：工程转换 → 检查工程 → 选择 MDK 文件和构建目标 → 下载并预览补全 / 本地导入 → 核对差异并确认写入 → 重新检查与转换 → 实际编译。补全预览可取消；进入批量保存后等待写入完成，避免强制终止造成中断。
+
+**本次检查**：桌面和后台编译、4 项 Core 专项、15 项插件专项、2 项双语资源检查通过；临时工程已跑通官方获取、只读预览、写入、历史恢复及离线预览。该补全流程未进行真机调度测试，不表示全部芯片和工具版本组合均已验证。
+
+## 插件 v1.3.2 本地更新
+
+首次激活插件时弹出中英文遥测授权提示，提供“同意并启用”和“暂不开启”；关闭弹窗保持关闭，选择在本机记忆，不重复提示。可在“设备与诊断”中修改，并遵守 VS Code 全局遥测开关。
+
+此本地版本未单独公开发布，改动已包含在插件 v1.4.0。旧安装包保留。
+
+## 插件 v1.3.1 本地更新
+
+修正匿名统计接收方为开发者固定配置的 PostHog 项目；用户无需填写项目或令牌，默认关闭，原生弹窗授权后启用。旧授权不继承，并遵守 VS Code 遥测开关。中英文界面与说明同步更新，桌面 EXE 不包含统计。
+
+此本地版本未单独公开发布，改动已包含在插件 v1.4.0。
+
+## 插件 v1.3.0 / 桌面 v1.6.0 功能
 
 以下十项已包含在插件 v1.3.0 中，安装包为 `artifacts/vsix/stm32-project-helper-1.3.0-win32-x64.vsix`，已随 [vscode-v1.3.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.3.0) 发布。桌面 v1.6.0 在“开发与分析”入口提供其余九项，**桌面端不包含 PostHog**；桌面生成的 Cortex-Debug 配置在 VS Code 中使用。桌面发布目录为 `artifacts/publish/portable`（自带运行时）和 `artifacts/publish/lite`（依赖 .NET 9 Desktop Runtime），对应 [v1.6.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.6.0)。旧安装包保留。插件覆盖安装新版 VSIX 后重载窗口即可。
 
@@ -21,7 +50,7 @@
 | 串口调试助手 | 设备与诊断 → 刷新 COM 列表、选择波特率、手动连接；支持 ASCII/HEX、可选 LF/CRLF、收发时间戳和本地日志导出。当前为 8N1，DTR/RTS 默认关闭。显示与保留日志有容量上限，关闭工作台或切换工程会释放端口。 |
 | HardFault 分析 | 输入捕获的寄存器 JSON 或 `CFSR=0x...` 文本，按核心解释有效故障位，使用所选 GCC 旁的 addr2line 和 ELF 定位 PC/LR。M0/M0+ 不虚构 CFSR/HFSR；EXC_RETURN、不精确故障与缺失调试信息明确提示。没有运行时自动栈回溯。 |
 | FreeRTOS 任务监控 | 输入已运行的本机 GDB Server 地址，手动连接刷新任务快照。使用 ELF 调试符号读取真实 TCB 名称、状态及优先级；能核实栈边界、增长方向与填充条件时显示剩余高水位（StackType_t 单位），否则显示未知。需要支持 Python 的 GDB、匹配 ELF 与目标固件；只读快照可能暂停目标，读取后尝试分离，不自动轮询。 |
-| PostHog 匿名使用统计 | 默认关闭。设备与诊断中填写自己的 HTTPS 项目地址和项目令牌，令牌存入 VS Code 凭据存储；原生弹窗明确同意后才发送。仅允许随机匿名标识、版本、语言、功能与成功状态，尊重 VS Code 总遥测开关；不发送路径、代码、日志、串口数据或芯片序列号。服务仍可看到网络来源 IP；关闭后停止发送并清除本机匿名标识。 |
+| PostHog 匿名使用统计 | 仅插件提供，默认关闭。接收方固定为应用开发者的 PostHog 项目，用户无需创建项目或填写令牌；主动启用并通过原生弹窗授权后才发送。仅允许随机匿名标识、版本、语言、功能与成功状态，尊重 VS Code 总遥测开关；不发送路径、代码、日志、串口数据或芯片序列号。服务仍可看到网络来源 IP；关闭后停止发送并清除本机匿名标识。旧授权不沿用，接收项目变更需重新授权。维护者打包前配置 `publisher-telemetry.json`，缺少配置时统计保持不可用；详见[插件说明](src/STM32ProjectHelper.VSCode/README.md#统计接收项目配置维护者)。 |
 
 编译数据库的一键导出作用于当前 CMake 构建目录；另填的数据库目录用于选择已有数据库。不要同时启动多个会争用同一目标的调试/检查会话。新功能已做针对性软件样例检查，所有功能均已在实机上完成验证。
 
@@ -119,13 +148,13 @@ English details and release scope: [VS Code extension guide](src/STM32ProjectHel
 
 本地扩展提供工程配置、添加源文件、加入文件、工程转换、工具管理和修改记录，直接操作当前工作区，无需启动桌面程序。扩展适用于本地 Windows x64、VS Code 1.95 及以上版本，自带经过裁剪的后台运行时，无需另装 .NET。
 
-- **插件安装包 v1.3.0**：[stm32-project-helper-1.3.0-win32-x64.vsix](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.3.0/stm32-project-helper-1.3.0-win32-x64.vsix)。安装包约 **8.3 MB**，自带后台运行时及 OpenOCD 脚本，无需另装 .NET。
-- **版本说明**：[VS Code 扩展 v1.3.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.3.0)。
+- **插件安装包 v1.4.0**：[stm32-project-helper-1.4.0-win32-x64.vsix](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.4.0/stm32-project-helper-1.4.0-win32-x64.vsix)。安装包约 **9 MB**，自带后台运行时及 OpenOCD 脚本，无需另装 .NET。
+- **版本说明**：[VS Code 扩展 v1.4.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.4.0)。
 - **完整操作指南**：[安装、更新、使用流程与常见问题](src/STM32ProjectHelper.VSCode/README.md)。
 
-**双语插件 v1.3.0**：安装包位于 `artifacts/vsix/stm32-project-helper-1.3.0-win32-x64.vsix`。提供直接编译/烧录、下载器选择与高级设置、首次配置向导、错误说明和 Flash/RAM 静态分析；支持自定义配置、嵌套 STM32 工程及大文件列表。默认跟随 VS Code 显示语言，工作台右上角可切换中文 / English；也可设置 `stm32ProjectHelper.language`。双语覆盖六个页面、确认弹窗、进度、检测说明和结果建议；语言切换保留配置与文件选择。新写入的托管任务使用当前语言，用户任务、路径、代码和原始编译输出保持原文。使用方法参见 [中文指南](src/STM32ProjectHelper.VSCode/README.md) / [English guide](src/STM32ProjectHelper.VSCode/README.en.md)。
+**双语插件 v1.4.0**：安装包位于 `artifacts/vsix/stm32-project-helper-1.4.0-win32-x64.vsix`。提供直接编译/烧录、下载器选择与高级设置、首次配置向导、错误说明和 Flash/RAM 静态分析；支持自定义配置、嵌套 STM32 工程及大文件列表。默认跟随 VS Code 显示语言，工作台右上角可切换中文 / English；也可设置 `stm32ProjectHelper.language`。双语覆盖工程配置、转换、开发分析等页面、确认弹窗、进度、检测说明和结果建议；语言切换保留配置与文件选择。新写入的托管任务使用当前语言，用户任务、路径、代码和原始编译输出保持原文。使用方法参见 [中文指南](src/STM32ProjectHelper.VSCode/README.md) / [English guide](src/STM32ProjectHelper.VSCode/README.en.md)。
 
-1. 下载 VSIX，按 `Ctrl+Shift+X` 打开 VS Code 扩展面板，在右上角的 `…` 菜单选择“从 VSIX 安装…”，选择下载的 `stm32-project-helper-1.3.0-win32-x64.vsix`；从源码打包的文件位于 `artifacts/vsix`。
+1. 下载 VSIX，按 `Ctrl+Shift+X` 打开 VS Code 扩展面板，在右上角的 `…` 菜单选择“从 VSIX 安装…”，选择下载的 `stm32-project-helper-1.4.0-win32-x64.vsix`；从源码打包的文件位于 `artifacts/vsix`。
 2. 打开并信任包含 `CMakeLists.txt`、`.ioc` 或 `.uvprojx` 的工程文件夹，工作台自动打开；也可点击活动栏的芯片图标，或执行“STM32 工程助手：打开”。
 3. 首次配置可使用四步向导；核对检测结果及下载器设置后确认写入任务。也可先点“预览改动”查看原生文件差异。工程配置页直接提供编译与烧录按钮；缺少任务时先确认写入，再编译。烧录会再次要求明确确认，软件检查不连接硬件。
 

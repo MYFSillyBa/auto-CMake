@@ -4,9 +4,39 @@
 
 STM32 Project Helper provides toolchain detection, CMake build and DAPLink flash task configuration, source management, STM32CubeMX MDK-ARM/CMake conversion, and change restoration inside VS Code. It operates on the current local workspace and does not upload projects.
 
-## Local release: VS Code extension v1.3.0
+## v1.4.0: FreeRTOS port repair and telemetry consent
 
-All ten features below are included in the local v1.3.0 VSIX: `artifacts/vsix/stm32-project-helper-1.3.0-win32-x64.vsix`. Desktop v1.6.0 includes the other nine features through its Development and Analysis entry; PostHog is exclusive to the extension. Desktop Cortex-Debug configuration is used in VS Code. Earlier installers are retained; this release has not been uploaded to GitHub. Install the newer VSIX and reload the window to update.
+Released on 2026-10-25. Download the [v1.4.0 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.4.0/stm32-project-helper-1.4.0-win32-x64.vsix), install over the existing extension and reload VS Code. See the [release notes](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.4.0). The corresponding desktop version is [v1.7.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.0).
+
+### FreeRTOS port repair
+
+After inspecting an MDK conversion project, select the MDK file and target, then use Download and Preview FreeRTOS Repair or Import Local Port. Online mode resolves the current kernel version to an official tag and fixed commit, verifies Git blob integrity, version and GNU syntax, and prepares the port pair. Offline mode accepts a directory containing matching `port.c` and `portmacro.h` files.
+
+Preview is read-only. Native confirmation adds only missing files through recoverable history, without upgrading the kernel or overwriting different existing files. Changed MDK, kernel or port inputs invalidate the preview. After repair the target is retained and conversion is rechecked; unrelated compiler overrides and libraries remain actionable blockers. Error messages include suggested steps. Automatic repair covers identifiable non-MPU ARM_CM0/ARM_CM3/ARM_CM4F ports with matching core/FPU settings; unknown versions and other ports require manual review.
+
+The desktop application provides the same two entry points. Preview remains cancellable; once batch saving starts, wait for completion. Conversion diagnostics are recalculated for the original target after repair, retaining unrelated compiler overrides and library blockers. The webview receives file summaries; full repair plans and file contents remain in the extension for diff review and confirmation.
+
+This release also includes the v1.3.1/v1.3.2 local telemetry changes below: collection is off by default, first-start consent is explicit, and the recipient is the developer's fixed project. Users do not create projects or enter tokens. VS Code telemetry settings are respected. Desktop EXEs contain no telemetry.
+
+Focused software checks and a temporary-project repair workflow were completed. The new repair workflow has not been tested for live target scheduling. Conversion remains limited to supported STM32CubeMX projects and does not run CubeMX.
+
+## v1.3.2: first-start consent
+
+On first activation in trusted local Windows x64 VS Code, the extension shows a localized telemetry consent dialog with Allow and Enable and Not Now choices. Dismissing it also leaves statistics disabled. The choice is remembered locally across projects, without repeated startup prompts, and can be changed in Devices and Diagnostics. No prompt or transmission occurs when VS Code telemetry is disabled or the developer project is unconfigured. A changed recipient requires fresh consent.
+
+These local changes are included in v1.4.0. Earlier local packages are retained.
+
+## v1.3.1: corrected analytics recipient
+
+- Anonymous events use the developer's fixed PostHog project; users do not create a project or enter a token.
+- Off by default, with explicit native-dialog consent. Legacy consent is not reused, recipient changes require fresh consent, and VS Code telemetry settings are respected.
+- Updated Chinese and English interfaces and documentation. No project paths, source code, logs or serial data are sent. Desktop EXEs contain no analytics.
+
+These local changes are included in v1.4.0. Earlier local packages are retained.
+
+## Extension v1.3.0 features
+
+All ten features below are included in the local v1.3.0 VSIX: `artifacts/vsix/stm32-project-helper-1.3.0-win32-x64.vsix`. Desktop v1.6.0 includes the other nine features through its Development and Analysis entry; PostHog is exclusive to the extension. Desktop Cortex-Debug configuration is used in VS Code. Earlier installers are retained; this section describes the previously released v1.3.0 features. Install the newer VSIX and reload the window to update.
 
 | Feature | Workflow and limits |
 | --- | --- |
@@ -19,7 +49,11 @@ All ten features below are included in the local v1.3.0 VSIX: `artifacts/vsix/st
 | Serial assistant | Explicit COM connection with baud rate, ASCII/HEX, LF/CRLF, timestamped RX/TX and log export. Currently 8N1 with DTR/RTS off. Bounded logs; closing the workbench or switching projects releases the port. |
 | HardFault analysis | Register JSON or assignment text, core-aware valid-bit decoding, optional ELF PC/LR source mapping through the selected GCC's addr2line. M0/M0+, EXC_RETURN and imprecise faults retain uncertainty. No automatic runtime stack unwinding. |
 | FreeRTOS task snapshots | Manual refresh through an existing local GDB server. Reads real TCB names/state/priority; reports stack high-water in StackType_t units only when bounds, growth and fill conditions are verified. Matching ELF/firmware and Python-enabled GDB required; unknown data stays unknown. May halt the target and attempts detach afterward; no polling. |
-| PostHog statistics | Off by default; requires your HTTPS project host/token and native consent. Token stays in VS Code secret storage. Sends only random anonymous ID, version, language, feature and outcome, subject to VS Code telemetry settings. Excludes paths/code/logs/serial/device identifiers. The endpoint still sees the source IP. Disabling stops transmission and clears the local anonymous ID. |
+| PostHog statistics | Off by default. The recipient is the application developer's PostHog project; users do not create a project or supply a token. Enable it in Devices and Diagnostics and explicitly consent in the native dialog before any events are sent. Sends only random anonymous ID, version, language, feature and outcome, subject to VS Code telemetry settings. Excludes paths/code/logs/serial/device identifiers. The endpoint still sees the source IP. Disabling stops transmission and clears the local anonymous ID. Legacy user-project consent is not reused; changing the recipient requires fresh consent. |
+
+### Analytics recipient configuration (maintainers)
+
+Before packaging, set the developer project's `host` (HTTPS ingestion endpoint) and `projectToken` (`phc_` ingestion token) in `publisher-telemetry.json`. This configuration ships with the extension; user settings, workspace files and credential storage cannot select the recipient. An ingestion token is public client configuration; never use a personal API key. Missing or invalid configuration disables statistics without affecting other features. The user interface only shows the recipient, ingestion service and consent switch. This correction applies only to the extension; desktop EXEs contain no analytics.
 
 One-click database generation uses the active CMake build directory; an alternative database directory selects an existing database. Avoid concurrent sessions competing for a target. Focused software fixtures were checked; real SWD, serial RX/TX, live FreeRTOS and real PostHog ingestion were not exercised.
 
@@ -45,7 +79,7 @@ Local installer: `artifacts/vsix/stm32-project-helper-1.2.1-win32-x64.vsix`. Thi
 
 Building the extension and inspecting its UI does not validate hardware flashing, tool installation or every project environment. Confirm operation using your own project and device.
 
-## Release integration status
+## v1.2.0 integration status (historical)
 
 All v1.2.0 features listed above are integrated into the published VSIX: Webview controls, backend requests, task generation and Chinese/English messages. The original six pages remain available. Desktop EXEs are not republished by this extension release.
 
@@ -64,11 +98,11 @@ Packaging and Chinese/English UI viewing were completed before delivery. Functio
 | .NET | Included in the VSIX; no separate runtime installation |
 | Build tools | CMake, Ninja and ARM GCC; OpenOCD for script checks and flash tasks |
 
-Download the [v1.2.0 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.2.0/stm32-project-helper-1.2.0-win32-x64.vsix) (about 8.6 MB) from the [release page](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.2.0). The local build output is `artifacts/vsix/stm32-project-helper-1.2.0-win32-x64.vsix`. The package includes a trimmed, self-contained backend and the complete bundled OpenOCD scripts.
+Download the [v1.4.0 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.4.0/stm32-project-helper-1.4.0-win32-x64.vsix) (about 9 MB) from the [release page](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.4.0). The local build output is `artifacts/vsix/stm32-project-helper-1.4.0-win32-x64.vsix`. The package includes a trimmed, self-contained backend and the complete bundled OpenOCD scripts.
 
 ## Installation and updating
 
-1. Download `stm32-project-helper-1.2.0-win32-x64.vsix`.
+1. Download `stm32-project-helper-1.4.0-win32-x64.vsix`.
 2. Press `Ctrl+Shift+X` in VS Code to open Extensions.
 3. Open the Extensions panel's `…` menu and select **Install from VSIX…**.
 4. Select the downloaded file and reload the window. If no prompt appears, run **Developer: Reload Window** from the Command Palette or restart VS Code.

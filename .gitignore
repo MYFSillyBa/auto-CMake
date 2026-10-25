@@ -13,6 +13,7 @@
 /artifacts/
 /dist/
 /dist-lite/
+/output/
 TestResults/
 *.log
 *.tmp
