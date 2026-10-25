@@ -29,14 +29,18 @@ public sealed partial class MainForm
             if (_conversionRead.Visible) y = ButtonRow(width, inset, y, _conversionRead) + Px(14);
             Fit(_conversionSummary, inset, y + Px(2), inner); _conversionOptions.Height = _conversionSummary.Bottom + Px(20);
             Fit(_conversionActions.Controls.OfType<Label>().First(), inset, Px(18), inner);
-            Fit(_conversionHint, inset, Px(54), inner); _conversionActions.Height = ButtonRow(width, inset, _conversionHint.Bottom + Px(14), _conversionApply, _conversionRefresh, _conversionHelp, _conversionRestore) + Px(20);
+            Fit(_conversionHint, inset, Px(54), inner);
+            y = ButtonRow(width, inset, _conversionHint.Bottom + Px(14), _conversionApply, _conversionRefresh, _conversionHelp, _conversionRestore);
+            if (_conversionFreeRtosDownload.Visible)
+                y = ButtonRow(width, inset, y + Px(10), _conversionFreeRtosDownload, _conversionFreeRtosImport);
+            _conversionActions.Height = y + Px(20);
             Fit(_conversionOutput.Controls.OfType<Label>().First(), inset, Px(18), inner);
             _conversionSteps.Location = new(inset, Px(54)); _conversionSteps.Arrange(inner, Px(96) / 96f);
             Fit(_conversionStage, inset, _conversionSteps.Bottom + Px(12), inner);
             Fit(_conversionElapsed, inset, _conversionStage.Bottom + Px(5), inner);
             _conversionProgress.SetBounds(inset, _conversionElapsed.Bottom + Px(12), inner, Px(4));
             _conversionProblemsButton.Visible = _conversionProblems.Count > 0;
-            y = ButtonRow(width, inset, _conversionProgress.Bottom + Px(14), new[] { _conversionLogToggle, _conversionProblemsButton }.Where(x => x.Visible).ToArray()) + Px(12);
+            y = ButtonRow(width, inset, _conversionProgress.Bottom + Px(14), new[] { _conversionLogToggle, _conversionProblemsButton, _conversionFreeRtosCancel }.Where(x => x.Visible).ToArray()) + Px(12);
             _conversionLog.Visible = _conversionLogExpanded;
             if (_conversionLogExpanded) { _conversionLog.SetBounds(inset, y, inner, Px(220)); y = _conversionLog.Bottom + Px(14); }
             _conversionOutput.Height = y + Px(7);

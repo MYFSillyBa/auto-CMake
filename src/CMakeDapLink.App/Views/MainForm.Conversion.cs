@@ -74,6 +74,7 @@ public sealed partial class MainForm
         _conversionActions.Controls.AddRange([Label("预览并生成工程", 11, Ink, bold: true), _conversionHint, _conversionApply, _conversionRefresh, _conversionHelp, _conversionRestore]);
         _conversionOutput = new RoundedPanel();
         _conversionOutput.Controls.AddRange([Label("转换进度", 11, Ink, bold: true), _conversionSteps, _conversionStage, _conversionElapsed, _conversionProgress, _conversionLogToggle, _conversionProblemsButton, _conversionLog]);
+        BuildFreeRtosRepairControls();
         _conversionResult = new RoundedPanel();
         _conversionResult.Controls.AddRange([_conversionResultTitle, _conversionResultBody, _conversionOpen, _conversionNext]);
         foreach (var card in new Control[] { _conversionHero, _conversionNotice, _conversionSelection, _conversionOptions, _conversionActions, _conversionOutput, _conversionResult })
@@ -363,6 +364,7 @@ public sealed partial class MainForm
         _conversionNext.Visible = mdk;
         foreach (var pair in _conversionFields) { pair.Field.Visible = pair.Label.Visible = pair.Field != _conversionSource && pair.Field != _conversionPreset && pair.Field != _conversionConfiguration || (pair.Field == _conversionSource ? mdk : !mdk); }
         _conversionRead.Visible = !mdk;
+        UpdateFreeRtosRepairActions();
         _conversionHint.Text = _busy ? "正在执行转换，请等待当前操作完成。" : _conversionInspection == null ? "先选择含 .ioc 的工程根目录。" : _conversionIssues.Any(x => x.Blocking) ? "请先处理补全说明中列出的事项，再重新检测。" : !mdk && !ConversionToolsReady ? "解析 CMake 需要 CMake、Ninja 和 ARM GCC；请到工程配置补齐工具。" : _conversionTarget.SelectedIndex < 0 ? mdk ? "请选择 MDK 工程文件和需要转换的构建目标。" : "先解析 CMake 构建目标，再选择要导出的目标。" : "写入前会显示差异；原有源文件保留，配置修改可恢复。";
         _navTips.SetToolTip(_conversionApply, _conversionHint.Text);
     }

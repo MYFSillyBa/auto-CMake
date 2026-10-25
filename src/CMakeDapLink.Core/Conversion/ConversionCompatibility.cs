@@ -15,6 +15,7 @@ internal static class ConversionCompatibility
     public static string? FreeRtosPort(string path, ConversionProject project, IDictionary<string, string> includeMappings)
     {
         if (!Regex.IsMatch(path, @"[/\\]portable[/\\]RVDS[/\\]", RegexOptions.IgnoreCase) || !Path.GetFileName(path).Equals("port.c", StringComparison.OrdinalIgnoreCase)) return path;
+        project.FreeRtosPortSources.Add(path);
         var currentDirectory = Path.GetDirectoryName(path)!;
         if (GnuPort(path) && MatchingKernel(path))
         {
@@ -28,7 +29,7 @@ internal static class ConversionCompatibility
             project.Issues.Add(new($"{path}: 使用工程内同版本 GNU FreeRTOS port → {gcc}", "已同步对应包含路径；生成后实际编译检查核心/FPU 配置。", false));
             return gcc;
         }
-        project.Issues.Add(ConversionPaths.Block(path, "未找到可确认语法及版本的 GNU FreeRTOS port。", $"提供与当前内核版本及核心/FPU 相同的 {gcc} 和 portmacro.h；不会仅按目录名替换或下载其他版本。"));
+        project.Issues.Add(ConversionPaths.Block(path, "未找到可确认语法及版本的 GNU FreeRTOS port。", $"使用“下载并预览 FreeRTOS 补全”获取官方同版本移植层，或通过“本地移植层导入”提供 {gcc} 和 portmacro.h；确认后只添加缺失文件，保留原 Keil 移植层。"));
         return null;
     }
 
@@ -40,7 +41,7 @@ internal static class ConversionCompatibility
     }
 
     private static string WithoutComments(string text) => Regex.Replace(text, @"/\*[\s\S]*?\*/|//[^\r\n]*", "");
-    private static bool GnuPort(string path)
+    internal static bool GnuPort(string path)
     {
         var macro = Path.Combine(Path.GetDirectoryName(path)!, "portmacro.h");
         if (!File.Exists(macro)) return false;
@@ -49,7 +50,7 @@ internal static class ConversionCompatibility
             Regex.IsMatch(header, @"\b(?:__attribute__|__asm|__asm__)\b") &&
             !Regex.IsMatch(body + "\n" + header, @"\b(?:__asm\s*\{|__forceinline)\b|(?m)^\s*__asm\s+(?:void|BaseType_t)\b");
     }
-    private static string Version(string path) => Regex.Match(File.ReadAllText(path), @"FreeRTOS(?:\s+Kernel)?\s+V?(\d+\.\d+\.\d+)", RegexOptions.IgnoreCase).Groups[1].Value;
+    internal static string Version(string path) => Regex.Match(File.ReadAllText(path), @"FreeRTOS(?:\s+Kernel)?\s+V?(\d+\.\d+\.\d+)", RegexOptions.IgnoreCase).Groups[1].Value;
     private static bool MatchingKernel(string path)
     {
         var portable = Directory.GetParent(Path.GetDirectoryName(path)!)?.Parent;

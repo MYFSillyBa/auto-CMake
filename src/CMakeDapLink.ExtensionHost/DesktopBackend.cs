@@ -10,7 +10,7 @@ public static class DesktopBackend
     private static readonly HashSet<string> Allowed = new(StringComparer.Ordinal)
     {
         "inspect", "previewTasks", "applyChanges", "verify", "build", "flash", "memory", "history", "previewRestore", "restore",
-        "inspectConversion", "previewConversion", "previewClangd", "previewDebug", "prepareCompileDatabase", "probeCheck", "rtos", "analyzeFirmware", "hardFault"
+        "inspectConversion", "previewConversion", "previewFreeRtosRepair", "applyFreeRtosRepair", "previewClangd", "previewDebug", "prepareCompileDatabase", "probeCheck", "rtos", "analyzeFirmware", "hardFault"
     };
 
     public static async Task<JsonElement> ExecuteAsync(string root, string command, JsonElement payload,

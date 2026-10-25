@@ -12,6 +12,12 @@ var root = Path.Combine(Path.GetTempPath(), "CMakeDapLinkTests-" + Guid.NewGuid(
 Directory.CreateDirectory(root);
 try
 {
+    if (args.Contains("--freertos-repair-flow", StringComparer.Ordinal))
+    {
+        FreeRtosRepairChecks.Run(root, Check);
+        foreach (var failure in failures) Console.Error.WriteLine(failure);
+        return failures.Count == 0 ? 0 : 1;
+    }
     if (args.Contains("--development-flow", StringComparer.Ordinal))
     {
         AdvancedAnalysisChecks.Run(root, Check);

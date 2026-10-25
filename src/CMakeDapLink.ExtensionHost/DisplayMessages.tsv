@@ -755,3 +755,50 @@ GDB 分离失败，请在调试器中确认目标状态：{0}	GDB detach failed.
 生成编译数据库	Generating compilation database
 CMake 未生成编译数据库，请检查生成器、工具链或配置错误。	CMake did not generate a compilation database. Check the generator, toolchain and configuration errors.
 同时选择 ELF 与 MAP 时，符号和区域用量来自 ELF，目标文件贡献来自 MAP；请确认两个文件来自同次构建。	When ELF and MAP are both selected, symbols and region usage come from ELF and object-file contributions come from MAP. Verify that both files are from the same build.
+检查 FreeRTOS 内核版本与移植层	Checking FreeRTOS kernel version and port
+当前目标无需补全 FreeRTOS GNU 移植层。	The selected target does not need a FreeRTOS GNU port repair.
+当前目标引用的 FreeRTOS 移植层过多，请分别处理。	The selected target references too many FreeRTOS ports. Repair them separately.
+本地导入一次只能补全一种版本和核心的 FreeRTOS 移植层。	A local import can repair only one FreeRTOS version and core at a time.
+读取匹配版本的 FreeRTOS GNU 移植文件	Reading matching FreeRTOS GNU port files
+本地导入：FreeRTOS V{0} / {1}	Local import: FreeRTOS V{0} / {1}
+官方来源：FreeRTOS/FreeRTOS-Kernel / {0} / {1}	Official source: FreeRTOS/FreeRTOS-Kernel / {0} / {1}
+现有文件与所选移植层不同，保留原文件：{0}	The existing file differs from the selected port and has been preserved: {0}
+内核与移植层版本一致：V{0} / {1}	Kernel and port versions match: V{0} / {1}
+补全文件已校验，等待确认写入	Repair files verified; awaiting write confirmation
+只添加缺失的 GCC 移植文件，保留内核和原 Keil/RVDS 文件；写入后需要重新预览转换并实际编译。	Only missing GCC port files are added. Kernel and original Keil/RVDS files are preserved. Preview conversion again and build after applying.
+FreeRTOS 移植层补全：新增 {0} 个文件。	FreeRTOS port repair: add {0} files.
+FreeRTOS 移植层读取超时，请重试或使用本地移植层导入。	Reading the FreeRTOS port timed out. Retry or import a local port directory.
+FreeRTOS 补全计划无效，请重新预览。	The FreeRTOS repair plan is invalid. Generate a new preview.
+FreeRTOS 补全只允许添加所选目标缺失的移植文件。	FreeRTOS repair can only add missing port files for the selected target.
+补全 FreeRTOS GNU 移植层	Repair FreeRTOS GNU port
+FreeRTOS 移植层补全仅用于 MDK 转 CMake。	FreeRTOS port repair applies only to MDK-to-CMake conversion.
+请先选择可识别芯片的 CubeMX MDK 工程。	Select a CubeMX MDK project with an identifiable chip first.
+请明确选择 MDK 工程文件及目标后补全。	Select the MDK project file and target before repairing.
+所选 MDK 工程不属于当前工程。	The selected MDK project does not belong to the current project.
+所选 MDK 构建目标不存在。	The selected MDK build target does not exist.
+无法确认 FreeRTOS 移植层目录，请手工核对。	The FreeRTOS port directory could not be identified. Verify it manually.
+此核心或移植层需要手工核对，不能自动补全：{0}	This core or port requires manual review and cannot be repaired automatically: {0}
+FreeRTOS 内核与原移植层版本不一致或无法确认，不能自动补全。	The kernel and original FreeRTOS port versions differ or cannot be verified. Automatic repair is unavailable.
+检测到多个 FreeRTOSConfig.h，请先明确所选目标的配置。	Multiple FreeRTOSConfig.h files were found. Resolve the selected target's configuration first.
+MPU 配置需要专用移植层，不能自动套用普通 GNU port。	MPU configurations require a dedicated port; a standard GNU port cannot be applied automatically.
+FreeRTOS 移植文件大小无效。	The FreeRTOS port file size is invalid.
+下载或导入的 FreeRTOS 移植层版本与当前内核不一致。	The downloaded or imported FreeRTOS port version does not match the current kernel.
+移植文件不是可确认的 GNU C/汇编语法，请核对所选目录。	The files do not contain verifiable GNU C/assembly syntax. Check the selected directory.
+此 GNU 移植层还依赖额外源码或头文件，请手工导入完整移植目录。	This GNU port requires additional sources or headers. Import the complete port directory manually.
+FreeRTOS 补全输入文件超过大小限制。	A FreeRTOS repair input file exceeds the size limit.
+FreeRTOS 或 MDK 配置在预览后发生变化，请重新预览补全。	FreeRTOS or MDK configuration changed after preview. Generate a new repair preview.
+FreeRTOS 补全路径必须在当前工程内。	FreeRTOS repair paths must stay within the current project.
+FreeRTOS 补全不支持符号链接或联接目录。	FreeRTOS repair does not support symbolic links or directory junctions.
+官方 FreeRTOS 标签未指向可确认的提交。	The official FreeRTOS tag does not resolve to a verifiable commit.
+官方仓库未找到 FreeRTOS V{0} 标签，请使用同版本本地移植层导入。	No official FreeRTOS V{0} tag was found. Import a matching local port directory.
+官方版本缺少所需移植文件：{0}/{1}。请手工核对完整移植目录。	The official version lacks the required port file: {0}/{1}. Review the complete port directory manually.
+官方 FreeRTOS 文件响应格式无效。	The official FreeRTOS file response format is invalid.
+官方 FreeRTOS 文件超过大小限制。	The official FreeRTOS file exceeds the size limit.
+官方 FreeRTOS 文件完整性校验失败，未写入工程。	Official FreeRTOS file integrity verification failed. No project files were written.
+官方 FreeRTOS 提交或文件标识无效。	The official FreeRTOS commit or file identifier is invalid.
+官方源码接口受限，请稍后重试或使用本地移植层导入。	The official source API is restricted. Retry later or import a local port directory.
+官方源码下载失败（HTTP {0}），可使用本地移植层导入。	Official source download failed (HTTP {0}). You can import a local port directory.
+官方 FreeRTOS 响应超过大小限制。	The official FreeRTOS response exceeds the size limit.
+FreeRTOS 补全计划与当前工程不匹配，请重新预览。	The FreeRTOS repair plan does not match the current project. Generate a new preview.
+使用“下载并预览 FreeRTOS 补全”获取官方同版本移植层，或通过“本地移植层导入”提供 {0} 和 portmacro.h；确认后只添加缺失文件，保留原 Keil 移植层。	Use Download and Preview FreeRTOS Repair to obtain the official matching port, or import a local directory containing {0} and portmacro.h. Confirmation adds only missing files and preserves the original Keil port.
+移植文件的核心/浮点上下文特征与所需 {0} 不匹配，未写入工程。	The port's core or floating-point context features do not match the required {0}. No project files were written.
