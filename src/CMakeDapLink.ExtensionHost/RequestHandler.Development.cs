@@ -26,7 +26,7 @@ internal sealed partial class RequestHandler
     private async Task<object> PreviewDebugAsync(JsonElement payload, CancellationToken cancellation)
     {
         var options = await OptionsAsync(payload, cancellation, requireTarget: true, useFirmware: true);
-        options = options with { FirmwareElfPath = DevelopmentElf(options) };
+        options = options with { FirmwareElfPath = DevelopmentElf(options), DebugMode = Text(payload, "debugMode") ?? "launch" };
         var gdb = DevelopmentGdb(options.Compiler, Text(payload, "gdbPath"));
         var launch = WorkspaceSafety.Child(root, ".vscode/launch.json");
         var changes = DevelopmentConfiguration.PreviewDebugNamed(options, gdb, Text(payload, "debugName"));
@@ -36,8 +36,11 @@ internal sealed partial class RequestHandler
         {
             changes, configurationName = DevelopmentConfiguration.ConfigurationName(bytes), configuration = DevelopmentConfiguration.Configuration(bytes),
             label = "配置 Cortex-Debug 调试", canonicalLabel = "配置 Cortex-Debug 调试",
-            summary = "生成使用所选探针、芯片脚本与 ELF 的 Cortex-Debug 连接配置；预览不会连接硬件。",
-            notes = new[] { "调试配置使用 attach，只连接目标与加载符号；启动后可能暂停或复位目标，不会自动下载固件。", "需要安装 Cortex-Debug 扩展，并使用当前 ELF 对应的目标固件。" }
+            summary = "生成所选调试模式的 Cortex-Debug 配置；预览不编译、不下载、不连接硬件。",
+            notes = new[] { options.DebugMode == "launch"
+                ? "编译、下载并调试：启动时先执行当前配置的编译任务，成功后下载所选 ELF，再进入调试。编译失败时请停止调试并修复错误，不要选择仍然调试。"
+                : "仅附加：不执行编译任务，不下载固件；仅连接目标并加载符号。请确认板上固件与所选 ELF 一致，连接可能暂停或复位目标。",
+                "需要安装 Cortex-Debug 扩展；写入配置本身不会操作硬件。" }
         };
     }
 

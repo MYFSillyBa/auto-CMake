@@ -13,6 +13,7 @@ public sealed record SetupOptions(string Root, string CMake, string Ninja, strin
     public string ProbeType { get; init; } = "cmsis-dap";
     public int AdapterSpeed { get; init; } = 1000;
     public string ResetMode { get; init; } = "default";
+    public string DebugMode { get; init; } = "launch";
 }
 
 public static class ConfigurationWriter
@@ -23,6 +24,12 @@ public static class ConfigurationWriter
     public static void Write(SetupOptions options) => ChangeHistory.Apply(options.Root, "配置 VS Code 编译与烧录任务", Preview(options));
 
     public static IReadOnlyList<FileChange> Preview(SetupOptions options, bool buildOnly = false)
+        => Preview(options, buildOnly, debugBuild: false);
+
+    internal static IReadOnlyList<FileChange> PreviewDebugBuild(SetupOptions options)
+        => Preview(options, buildOnly: true, debugBuild: true);
+
+    private static IReadOnlyList<FileChange> Preview(SetupOptions options, bool buildOnly, bool debugBuild)
     {
         if (!buildOnly && !Regex.IsMatch(options.TargetScript, @"\Atarget/[a-zA-Z0-9_.-]+\.cfg\z"))
             throw new ArgumentException("OpenOCD target 必须是 target/xxx.cfg。", nameof(options));
@@ -39,26 +46,20 @@ public static class ConfigurationWriter
         var vscode = Path.Combine(root, ".vscode");
         var tasksPath = Path.Combine(vscode, "tasks.json");
         var before = File.Exists(tasksPath) ? File.ReadAllBytes(tasksPath) : null;
-        var userLabels = JsoncTaskEditor.UserLabels(before);
-        string AvailableLabel(string label)
-        {
-            if (!userLabels.Contains(label)) return label;
-            var candidate = label + " · CMake DAPLink";
-            for (var suffix = 2; userLabels.Contains(candidate); suffix++) candidate = label + " · CMake DAPLink " + suffix;
-            return candidate;
-        }
+        var userLabels = JsoncTaskEditor.UserLabels(before, includeDebug: debugBuild);
         var english = options.TaskLanguage == "en";
-        var configureLabel = AvailableLabel(english ? "CMake Configure (automatic)" : ConfigureLabel);
-        var buildLabel = AvailableLabel(english ? "One-click Build" : BuildLabel);
-        var flashLabel = probe == null ? "" : AvailableLabel(english ? $"One-click Flash ({probe.DisplayName})" : $"一键烧录({probe.DisplayName})");
-        var detail = english ? JsoncTaskEditor.ManagedDetailEnglish : JsoncTaskEditor.ManagedDetail;
+        var configureLabel = AvailableLabel(debugBuild ? "STM32 Project Helper: Configure for Debug" : english ? "CMake Configure (automatic)" : ConfigureLabel, userLabels);
+        var buildLabel = AvailableLabel(debugBuild ? "STM32 Project Helper: Build for Debug" : english ? "One-click Build" : BuildLabel, userLabels);
+        var flashLabel = probe == null ? "" : AvailableLabel(english ? $"One-click Flash ({probe.DisplayName})" : $"一键烧录({probe.DisplayName})", userLabels);
+        var detail = debugBuild ? english ? JsoncTaskEditor.DebugDetailEnglish : JsoncTaskEditor.DebugDetail : english ? JsoncTaskEditor.ManagedDetailEnglish : JsoncTaskEditor.ManagedDetail;
         var managed = new List<JsonObject>();
-        var runnerPath = DapLinkTaskScript.AvailablePath(root, buildOnly);
+        var runnerPath = DapLinkTaskScript.AvailablePath(root, buildOnly, debugBuild);
         managed.Add(MakeProcessTask(configureLabel, plan.Configure with { Arguments = ["-DACTION=configure", "-P", runnerPath] }, detail, hidden: true));
         var build = MakeProcessTask(buildLabel, plan.Build, detail);
         build["dependsOn"] = configureLabel;
         build["dependsOrder"] = "sequence";
-        build["group"] = new JsonObject { ["kind"] = "build", ["isDefault"] = true };
+        if (debugBuild) build["hide"] = true;
+        else build["group"] = new JsonObject { ["kind"] = "build", ["isDefault"] = true };
         build["problemMatcher"] = new JsonArray("$gcc");
         managed.Add(build);
 
@@ -72,7 +73,7 @@ public static class ConfigurationWriter
             flash["dependsOrder"] = "sequence";
             managed.Add(flash);
         }
-        var after = JsoncTaskEditor.Update(before, managed, preserveFlashTasks: buildOnly);
+        var after = JsoncTaskEditor.Update(before, managed, preserveFlashTasks: buildOnly, preserveOtherManagedTasks: debugBuild);
         var changes = new List<FileChange>();
         if (before == null || !before.AsSpan().SequenceEqual(after)) changes.Add(new(tasksPath, before, after));
         var runnerBefore = File.Exists(runnerPath) ? File.ReadAllBytes(runnerPath) : null;
@@ -80,6 +81,21 @@ public static class ConfigurationWriter
         if (runnerBefore == null || !runnerBefore.AsSpan().SequenceEqual(runnerAfter)) changes.Add(new(runnerPath, runnerBefore, runnerAfter));
         if (!buildOnly) AddLegacyRemoval(vscode, changes);
         return changes;
+    }
+
+    internal static string BuildTaskLabel(SetupOptions options, bool debugBuild = false)
+    {
+        var path = Path.Combine(options.Root, ".vscode", "tasks.json");
+        return AvailableLabel(debugBuild ? "STM32 Project Helper: Build for Debug" : options.TaskLanguage == "en" ? "One-click Build" : BuildLabel,
+            JsoncTaskEditor.UserLabels(File.Exists(path) ? File.ReadAllBytes(path) : null, includeDebug: debugBuild));
+    }
+
+    private static string AvailableLabel(string label, HashSet<string> userLabels)
+    {
+        if (!userLabels.Contains(label)) return label;
+        var candidate = label + " · CMake DAPLink";
+        for (var suffix = 2; userLabels.Contains(candidate); suffix++) candidate = label + " · CMake DAPLink " + suffix;
+        return candidate;
     }
 
     private static JsonObject MakeProcessTask(string label, ToolCommand command, string detail, bool hidden = false)

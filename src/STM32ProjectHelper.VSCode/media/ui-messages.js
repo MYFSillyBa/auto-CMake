@@ -4,6 +4,10 @@
   if (typeof module === 'object' && module.exports) module.exports = catalog;
   else root.STM32UiMessages = catalog;
 })(typeof globalThis !== 'undefined' ? globalThis : this, () => Object.freeze({
+  "默认先编译、下载当前 ELF，再调试；仅附加模式不下载固件。写入配置前会显示确认。": "By default, build and download the selected ELF before debugging. Attach-only does not download firmware. Configuration writes require confirmation.",
+  "调试模式": "Debug mode",
+  "编译、下载并调试（推荐）": "Build, download and debug (recommended)",
+  "仅附加（不下载固件）": "Attach only (no firmware download)",
   "下载并预览 FreeRTOS 补全…": "Download and preview FreeRTOS repair…",
   "本地移植层导入…": "Import local port…",
   "补全仅预览所选工程缺失的同版本 GNU FreeRTOS 移植层；确认写入后仍需重新转换。本地目录须包含 port.c 和 portmacro.h。": "Preview the missing GNU FreeRTOS port matching the selected project's version. Convert again after confirming the write. Local directories must contain port.c and portmacro.h.",

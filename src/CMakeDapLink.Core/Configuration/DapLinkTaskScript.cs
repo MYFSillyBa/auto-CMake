@@ -6,12 +6,12 @@ internal static class DapLinkTaskScript
 {
     private const string Marker = "# STM32 Project Helper managed task runner v1\n";
 
-    public static string AvailablePath(string root, bool buildOnly = false)
+    public static string AvailablePath(string root, bool buildOnly = false, bool debugBuild = false)
     {
         var directory = Path.Combine(root, ".vscode");
         for (var suffix = 1; ; suffix++)
         {
-            var stem = buildOnly ? "stm32-build" : "stm32-daplink";
+            var stem = debugBuild ? "stm32-debug" : buildOnly ? "stm32-build" : "stm32-daplink";
             var path = Path.Combine(directory, suffix == 1 ? stem + ".cmake" : $"{stem}-{suffix}.cmake");
             if (!File.Exists(path) || File.ReadAllText(path).Replace("\r\n", "\n").StartsWith(Marker, StringComparison.Ordinal)) return path;
         }

@@ -10,10 +10,12 @@ internal static class JsoncTaskEditor
 {
     internal const string ManagedDetail = "由 STM32 工程助手管理";
     internal const string ManagedDetailEnglish = "Managed by STM32 Project Helper";
+    internal const string DebugDetail = "由 STM32 工程助手管理（调试编译）";
+    internal const string DebugDetailEnglish = "Managed by STM32 Project Helper (debug build)";
     private static readonly JsonDocumentOptions DocumentOptions = new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
     private static readonly JsonSerializerOptions PrintOptions = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
-    public static byte[] Update(byte[]? original, IReadOnlyList<JsonObject> managed, bool preserveFlashTasks = false)
+    public static byte[] Update(byte[]? original, IReadOnlyList<JsonObject> managed, bool preserveFlashTasks = false, bool preserveOtherManagedTasks = false)
     {
         if (original == null)
         {
@@ -54,11 +56,11 @@ internal static class JsoncTaskEditor
                 var raw = text[span.Start..span.End];
                 var node = JsonNode.Parse(raw, documentOptions: DocumentOptions);
                 var label = node is JsonObject obj && obj["label"] is JsonValue labelNode && labelNode.TryGetValue<string>(out var value) ? value : null;
-                if (label != null && IsManagedTask(node))
+                if (label != null && IsManagedTask(node, includeDebug: preserveOtherManagedTasks))
                 {
                     if (!replacements.TryGetValue(label, out var replacement))
                     {
-                        if (preservedLabels.Contains(label)) kept.Add((span, raw));
+                        if (preserveOtherManagedTasks || preservedLabels.Contains(label)) kept.Add((span, raw));
                         continue;
                     }
                     if (!present.Add(label)) continue;
@@ -105,7 +107,7 @@ internal static class JsoncTaskEditor
         return preamble.Concat(encoding.GetBytes(updated)).ToArray();
     }
 
-    internal static HashSet<string> UserLabels(byte[]? original)
+    internal static HashSet<string> UserLabels(byte[]? original, bool includeDebug = false)
     {
         if (original == null) return new HashSet<string>(StringComparer.Ordinal);
         var (text, _, _) = Decode(original);
@@ -113,16 +115,17 @@ internal static class JsoncTaskEditor
             ?? throw new InvalidDataException("现有 .vscode/tasks.json 不是 JSON 对象。");
         if (root["tasks"] is not null && root["tasks"] is not JsonArray)
             throw new InvalidDataException("现有 tasks.json 的 tasks 不是数组。");
-        return (root["tasks"] as JsonArray ?? new JsonArray()).Where(t => !IsManagedTask(t)).OfType<JsonObject>()
+        return (root["tasks"] as JsonArray ?? new JsonArray()).Where(t => !IsManagedTask(t, includeDebug)).OfType<JsonObject>()
             .Select(t => t["label"] is JsonValue label && label.TryGetValue<string>(out var value) ? value : null)
             .Where(label => label != null).Select(label => label!).ToHashSet(StringComparer.Ordinal);
     }
 
-    private static bool IsManagedTask(JsonNode? node)
+    private static bool IsManagedTask(JsonNode? node, bool includeDebug = false)
     {
         if (node is not JsonObject task) return false;
         string? Text(string key) => task[key] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
         if (Text("detail") is ManagedDetail or ManagedDetailEnglish or "由 CMake · DAPLink 配置助手管理") return true;
+        if (Text("detail") is DebugDetail or DebugDetailEnglish) return includeDebug;
         var label = Text("label");
         if (label is not ("CMake 配置（自动）" or "一键编译" or "一键烧录(DAPLINK)" or "一键启动（DAPLINK）" or "一键启动(DAPLINK)" or
             "CMake Configure (automatic)" or "One-click Build" or "One-click Flash (DAPLINK)" or "一键烧录(ST-Link)" or "一键烧录(J-Link)" or

@@ -2,7 +2,7 @@
   "name": "stm32-project-helper",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "publisher": "myfsillyba",
   "license": "MIT",
   "repository": {

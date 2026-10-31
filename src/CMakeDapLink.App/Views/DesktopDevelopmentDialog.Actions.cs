@@ -35,7 +35,7 @@ internal sealed partial class DesktopDevelopmentDialog
 
     private void EnableInputs(bool enabled)
     {
-        foreach (var control in new Control[] { _preset, _buildPreset, _configuration, _firmware, _probe, _reset, _syncSource, _syncTarget, _core, _buildDirectory, _compilationDirectory, _targetScript, _gdb, _debugName, _analysisElf, _map, _endpoint, _registers, _speed, _top }) control.Enabled = enabled;
+        foreach (var control in new Control[] { _preset, _buildPreset, _configuration, _firmware, _probe, _reset, _debugMode, _syncSource, _syncTarget, _core, _buildDirectory, _compilationDirectory, _targetScript, _gdb, _debugName, _analysisElf, _map, _endpoint, _registers, _speed, _top }) control.Enabled = enabled;
     }
 
     private async Task InitializeAsync()
@@ -53,6 +53,7 @@ internal sealed partial class DesktopDevelopmentDialog
             _targetScript.Text = _initial?.TargetScript ?? _project.TargetScript ?? "";
             _speed.Value = Math.Clamp(_initial?.AdapterSpeed ?? 1000, 1, 50000);
             Select(_probe, _initial?.ProbeType ?? "cmsis-dap"); Select(_reset, _initial?.ResetMode ?? "default");
+            Select(_debugMode, _initial?.DebugMode ?? "launch");
             if (_tools.Compiler is { } compiler) _gdb.Text = Path.Combine(Path.GetDirectoryName(compiler)!, "arm-none-eabi-gdb.exe");
             FillBuildPresets(_initial?.BuildPreset ?? _project.BuildPreset);
             RefreshArtifacts(_initial?.FirmwareElfPath);
@@ -117,6 +118,7 @@ internal sealed partial class DesktopDevelopmentDialog
             ["firmwareElfPath"] = Selected(_firmware), ["targetScript"] = _targetScript.Text,
             ["probeType"] = Selected(_probe) ?? "cmsis-dap", ["adapterSpeed"] = (int)_speed.Value, ["resetMode"] = Selected(_reset) ?? "default",
             ["gdbPath"] = string.IsNullOrWhiteSpace(_gdb.Text) ? null : _gdb.Text.Trim(), ["debugName"] = _debugName.Text.Trim(),
+            ["debugMode"] = Selected(_debugMode) ?? "launch",
             ["compilationDatabaseDirectory"] = string.IsNullOrWhiteSpace(_compilationDirectory.Text) ? null : _compilationDirectory.Text.Trim(), ["language"] = "zh-CN"
         };
     }
@@ -180,7 +182,7 @@ internal sealed partial class DesktopDevelopmentDialog
             Process.Start(new ProcessStartInfo("explorer.exe") { UseShellExecute = true, ArgumentList = { _root } });
             _developmentResult.AppendText("\n未找到 VS Code 协议关联，已打开工程文件夹；请在 VS Code 中打开此目录。\n");
         }
-        _developmentResult.AppendText("\n在 VS Code 安装 Cortex-Debug，打开“运行和调试”，选择：" + (_debugConfigurationName ?? _debugName.Text) + "。连接前确认所选硬件；attach 可能暂停目标。\n");
+        _developmentResult.AppendText("\n在 VS Code 安装 Cortex-Debug，打开“运行和调试”，选择：" + (_debugConfigurationName ?? _debugName.Text) + "。启动前核对配置中的 request：launch 会先编译并下载固件；attach 仅附加，不下载。\n");
         await Task.CompletedTask;
     }
 

@@ -205,5 +205,13 @@
   "此版本尚未配置开发者的统计项目，暂时不能启用。": "The publisher has not configured analytics in this build. It cannot be enabled yet.",
   "同意向应用开发者发送匿名使用统计？": "Allow anonymous usage statistics to be sent to the application developer?",
   "统计默认关闭。可选择暂不开启，之后在“设备与诊断”中修改。": "Statistics are off by default. You can leave them disabled and change this later in Devices and Diagnostics.",
-  "暂不开启": "Not now"
+  "暂不开启": "Not now",
+  "调试模式必须为 launch 或 attach。": "Debug mode must be launch or attach.",
+  "确认下载并调试": "Download and debug",
+  "确认仅附加": "Attach only",
+  "将编译当前配置、下载所选固件并启动调试？": "Build the current configuration, download the selected firmware and start debugging?",
+  "将仅附加到目标，不编译、不下载固件？": "Attach to the target without building or downloading firmware?",
+  "固件：{0}": "Firmware: {0}",
+  "编译成功后会写入芯片并暂停或复位目标。编译失败时请修复错误，不要选择仍然调试。": "After a successful build, firmware will be programmed and the target may halt or reset. If the build fails, fix the error instead of choosing Debug Anyway.",
+  "请确认板上固件与所选 ELF 一致。附加可能暂停或复位目标。": "Ensure that target firmware matches the selected ELF. Attaching may halt or reset the target."
 }

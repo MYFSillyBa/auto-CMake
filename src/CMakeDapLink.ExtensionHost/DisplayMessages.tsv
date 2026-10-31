@@ -712,6 +712,12 @@ launch.json 包含多个助手管理的调试配置，请先保留一个。	laun
 预览 clangd 编译数据库、编译器查询与 IntelliSense 设置；应用前不会修改文件。	Preview the clangd compilation database, compiler query and IntelliSense settings. Files change only when applied.
 当前构建目录缺少 compile_commands.json；请显式执行导出编译数据库，再刷新 clangd。	The selected directory has no compile_commands.json. Export the compilation database explicitly, then refresh clangd.
 配置 Cortex-Debug 调试	Configure Cortex-Debug
+调试模式必须为 launch 或 attach。	Debug mode must be launch or attach.
+现有助手调试配置使用 overrideLaunchCommands，可能跳过固件下载。请先移除该字段，或选择仅附加模式。	The managed debug configuration has overrideLaunchCommands, which can skip firmware programming. Remove that field or select attach-only mode.
+生成所选调试模式的 Cortex-Debug 配置；预览不编译、不下载、不连接硬件。	Create a Cortex-Debug configuration for the selected debug mode. Preview does not build, download firmware or connect to hardware.
+编译、下载并调试：启动时先执行当前配置的编译任务，成功后下载所选 ELF，再进入调试。编译失败时请停止调试并修复错误，不要选择仍然调试。	Build, download and debug: run the current configuration's build task first, then download the selected ELF and debug. If the build fails, stop and fix it instead of choosing Debug Anyway.
+仅附加：不执行编译任务，不下载固件；仅连接目标并加载符号。请确认板上固件与所选 ELF 一致，连接可能暂停或复位目标。	Attach only: connect and load symbols without building or downloading firmware. Ensure that target firmware matches the selected ELF. Connecting may halt or reset the target.
+需要安装 Cortex-Debug 扩展；写入配置本身不会操作硬件。	Install the Cortex-Debug extension. Writing configuration files does not operate hardware.
 生成使用所选探针、芯片脚本与 ELF 的 Cortex-Debug 连接配置；预览不会连接硬件。	Create a Cortex-Debug attach configuration using the selected probe, target script and ELF. Preview does not connect to hardware.
 调试配置使用 attach，只连接目标与加载符号；启动后可能暂停或复位目标，不会自动下载固件。	The debug configuration uses attach to connect and load symbols. Starting it may halt or reset the target and does not download firmware automatically.
 需要安装 Cortex-Debug 扩展，并使用当前 ELF 对应的目标固件。	Install the Cortex-Debug extension and use target firmware matching the current ELF.

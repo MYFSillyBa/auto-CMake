@@ -17,7 +17,7 @@ const PAGES = [
   ['development', '开发配置', 'code'], ['analysis', '固件与故障分析', 'graph'], ['devices', '设备与诊断', 'plug']
 ];
 const OPTIONS = new Set(['configurePreset', 'buildPreset', 'configuration', 'targetScript', 'buildDirectory', 'firmwareElfPath', 'direction', 'target', 'sourceTarget', 'sourceProject', 'folderName', 'search', 'probeType', 'adapterSpeed', 'resetMode']);
-for (const key of ['compilationDatabaseDirectory', 'debugName', 'mapFilePath', 'hardFaultRegisters', 'gdbEndpoint', 'serialPort', 'serialBaud', 'serialMode', 'serialText', 'serialNewline', 'preflightCheck']) OPTIONS.add(key);
+for (const key of ['compilationDatabaseDirectory', 'debugName', 'debugMode', 'mapFilePath', 'hardFaultRegisters', 'gdbEndpoint', 'serialPort', 'serialBaud', 'serialMode', 'serialText', 'serialNewline', 'preflightCheck']) OPTIONS.add(key);
 const TOOL_KEYS = { cMake: 'cmake', ninja: 'ninja', compiler: 'compiler', openOcd: 'openOcd' };
 const TOOL_NAMES = { cMake: ['CMake', 'CMake', 'cmake.exe'], ninja: ['Ninja', 'Ninja', 'ninja.exe'], compiler: ['Compiler', 'ARM GCC', 'arm-none-eabi-gcc.exe'], openOcd: ['OpenOcd', 'OpenOCD', 'openocd.exe'] };
 const REVIEWED_WRITES = new Set(['applyChanges', 'applyFreeRtosRepair', 'restore', 'importFiles']);

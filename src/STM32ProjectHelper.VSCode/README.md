@@ -4,6 +4,16 @@
 
 STM32 Project Helper 为本地 Windows 工程提供 STM32 工具链检测、VS Code 编译与 DAPLink 烧录任务配置、源文件管理、STM32CubeMX MDK-ARM/CMake 双向转换和修改恢复。扩展直接使用当前工作区，无需启动桌面程序，不上传工程。
 
+## v1.4.1：调试时自动下载
+
+更新了debug时自动下载
+
+[下载 v1.4.1 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.4.1/stm32-project-helper-1.4.1-win32-x64.vsix)，覆盖安装后重载 VS Code。对应桌面版为 [v1.7.1](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.1)。
+
+“开发配置 → 调试模式”默认使用 **编译、下载并调试**：先执行当前配置的编译任务，成功后通过 Cortex-Debug `launch` 下载所选 ELF，再进入调试。需要观察已运行固件时，选择 **仅附加（不下载固件）**，使用 `attach` 且不执行编译任务。
+
+已有工程请重新“写入调试配置”，核对 `launch.json`、专用调试编译任务及 `.vscode/stm32-debug.cmake` 的差异，再确认写入。启动确认会显示实际固件路径及是否下载；编译失败请修复错误，不要选择“仍然调试”。用户自建调试配置和同名任务保留。若助手配置包含 `overrideLaunchCommands`，需先移除或明确选择仅附加，避免自定义命令跳过下载。
+
 ## v1.4.0：FreeRTOS 移植层补全与遥测授权
 
 发布日期：2026-10-25。下载 [v1.4.0 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.4.0/stm32-project-helper-1.4.0-win32-x64.vsix)，覆盖安装后重载窗口。[完整版本说明](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.4.0)。对应桌面版为 [v1.7.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.0)。

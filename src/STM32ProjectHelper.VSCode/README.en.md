@@ -4,6 +4,16 @@
 
 STM32 Project Helper provides toolchain detection, CMake build and DAPLink flash task configuration, source management, STM32CubeMX MDK-ARM/CMake conversion, and change restoration inside VS Code. It operates on the current local workspace and does not upload projects.
 
+## v1.4.1: automatic firmware download when debugging
+
+更新了debug时自动下载
+
+[Download v1.4.1 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.4.1/stm32-project-helper-1.4.1-win32-x64.vsix), install over the existing extension and reload VS Code. The corresponding desktop release is [v1.7.1](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.1).
+
+Development → Debug mode now defaults to **Build, download and debug**. The generated `preLaunchTask` builds the selected configuration; Cortex-Debug `launch` then downloads the selected ELF. **Attach only** uses `attach` without building or downloading and requires target firmware matching the ELF.
+
+For existing projects, write the debug configuration again and review changes to launch.json, dedicated debug build tasks and `.vscode/stm32-debug.cmake`. The start confirmation identifies the firmware and whether it will be programmed. Fix build errors instead of choosing Debug Anyway. User configurations and same-name tasks are preserved. Managed `overrideLaunchCommands` must be removed or explicitly kept in attach-only mode because they can skip programming.
+
 ## v1.4.0: FreeRTOS port repair and telemetry consent
 
 Released on 2026-10-25. Download the [v1.4.0 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.4.0/stm32-project-helper-1.4.0-win32-x64.vsix), install over the existing extension and reload VS Code. See the [release notes](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.4.0). The corresponding desktop version is [v1.7.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.0).

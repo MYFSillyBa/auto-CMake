@@ -40,7 +40,7 @@ class DevelopmentTools {
     await this.statistics.promptOnce(() => this.confirmTelemetry());
     this.workbench.render();
   }
-  options() { const w = this.workbench; return { ...w.options(), compilationDatabaseDirectory: w.state.options.compilationDatabaseDirectory || undefined, debugName: w.state.options.debugName || undefined, gdbEndpoint: w.state.options.gdbEndpoint || 'localhost:3333', mapFilePath: w.state.options.mapFilePath || undefined }; }
+  options() { const w = this.workbench; return { ...w.options(), compilationDatabaseDirectory: w.state.options.compilationDatabaseDirectory || undefined, debugName: w.state.options.debugName || undefined, debugMode: w.state.options.debugMode || 'launch', gdbEndpoint: w.state.options.gdbEndpoint || 'localhost:3333', mapFilePath: w.state.options.mapFilePath || undefined }; }
   changed(uri) {
     const w = this.workbench, root = w.folder?.uri.fsPath; if (!root || uri.scheme !== 'file' || !RELEVANT.test(uri.fsPath)) return;
     const relative = path.relative(root, uri.fsPath); if (relative.startsWith('..') || path.isAbsolute(relative) || relative.split(/[\\/]/).some(part => ['.git', '.vscode', 'build', 'bin', 'obj', 'node_modules'].includes(part.toLowerCase()))) return;
@@ -124,6 +124,16 @@ class DevelopmentTools {
     const result = await w.call('probeCheck', { ...this.options(), explicitHardware: true }, epoch, progress); w.state.probeCheck = result;
     if (result.output) w.output.appendLine(result.output); return result;
   }
+  async confirmDebug(epoch, configuration) {
+    if (!['launch', 'attach'].includes(configuration?.request)) throw new Error(this.t('调试模式必须为 launch 或 attach。'));
+    const launching = configuration.request === 'launch';
+    const label = this.t(launching ? '确认下载并调试' : '确认仅附加');
+    const answer = await vscode.window.showWarningMessage(
+      this.t(launching ? '将编译当前配置、下载所选固件并启动调试？' : '将仅附加到目标，不编译、不下载固件？'),
+      { modal: true, detail: [this.t('固件：{0}', configuration.executable),
+        this.t(launching ? '编译成功后会写入芯片并暂停或复位目标。编译失败时请修复错误，不要选择仍然调试。' : '请确认板上固件与所选 ELF 一致。附加可能暂停或复位目标。')].join('\n\n') }, label);
+    this.workbench.assertSession(epoch); return answer === label;
+  }
   async execute(action, message, epoch, progress) {
     const w = this.workbench, state = w.state;
     switch (action) {
@@ -154,9 +164,9 @@ class DevelopmentTools {
         }
         const preview = await w.call('previewDebug', this.options(), epoch, progress); w.preview(preview, 'writeDebug');
         if (preview.changes?.length && !await w.applyPreview(epoch, progress)) return;
-        if (!await this.confirmHardware(epoch, '将启动 GDB 调试并连接硬件，可能暂停或复位目标。')) return;
         const configuration = preview.configuration;
         if (!configuration) throw new Error(this.t('请在运行和调试面板选择已生成的 STM32 调试配置。'));
+        if (!await this.confirmDebug(epoch, configuration)) return;
         const started = await vscode.debug.startDebugging(w.folder.workspaceFolder || w.folder, configuration);
         state.status = this.t(started ? '调试会话已启动。' : '调试会话未启动，请查看调试控制台。'); return;
       }

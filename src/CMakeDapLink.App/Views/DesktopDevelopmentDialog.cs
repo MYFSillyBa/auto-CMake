@@ -11,7 +11,7 @@ internal sealed partial class DesktopDevelopmentDialog : Form
     private readonly ToolPaths _tools;
     private readonly SetupOptions? _initial;
     private readonly string _existingLog;
-    private readonly ComboBox _preset = Choice(), _buildPreset = Choice(), _configuration = Choice(), _firmware = Choice(), _probe = Choice(), _reset = Choice(), _syncSource = Choice(), _syncTarget = Choice(), _core = Choice();
+    private readonly ComboBox _preset = Choice(), _buildPreset = Choice(), _configuration = Choice(), _firmware = Choice(), _probe = Choice(), _reset = Choice(), _debugMode = Choice(), _syncSource = Choice(), _syncTarget = Choice(), _core = Choice();
     private readonly TextBox _buildDirectory = Input(), _compilationDirectory = Input(), _targetScript = Input(), _gdb = Input(), _debugName = Input(), _analysisElf = Input(), _map = Input(), _endpoint = Input(), _registers = Input(true);
     private readonly NumericUpDown _speed = new() { Minimum = 1, Maximum = 50000, Value = 1000, ThousandsSeparator = true, Dock = DockStyle.Fill };
     private readonly NumericUpDown _top = new() { Minimum = 1, Maximum = 100, Value = 30, Dock = DockStyle.Fill };
@@ -82,11 +82,13 @@ internal sealed partial class DesktopDevelopmentDialog : Form
         _probe.Items.AddRange([new ChoiceItem("CMSIS-DAP / DAPLink", "cmsis-dap"), new ChoiceItem("ST-Link", "stlink"), new ChoiceItem("J-Link", "jlink")]); _probe.SelectedIndex = 0;
         _reset.Items.AddRange([new ChoiceItem("默认复位", "default"), new ChoiceItem("复位下连接", "connect-under-reset"), new ChoiceItem("SYSRESETREQ", "sysresetreq")]); _reset.SelectedIndex = 0;
         _debugName.Text = DevelopmentConfiguration.DebugName;
+        _debugMode.Items.AddRange([new ChoiceItem("编译、下载并调试（推荐）", "launch"), new ChoiceItem("仅附加（不下载固件）", "attach")]); _debugMode.SelectedIndex = 0;
         AddPair(fields, "数据库目录", WithButton(_compilationDirectory, "浏览…", () => PickFolder(_compilationDirectory)), "调试名称", _debugName);
+        AddPair(fields, "调试模式", _debugMode, "说明", Hint("launch：先编译、下载当前 ELF 再调试；attach：仅附加，不下载固件。"));
         AddPair(fields, "GDB 工具", WithButton(_gdb, "选择…", () => PickFile(_gdb, "GDB 工具|arm-none-eabi-gdb.exe;gdb-multiarch.exe;gdb.exe")), "芯片脚本", _targetScript);
         AddPair(fields, "下载器", _probe, "速度 / kHz", _speed);
         AddPair(fields, "复位方式", _reset, "连接检查", Buttons(("检查探针与芯片…", ProbeAsync, false)));
-        AddWide(fields, Hint("clangd 配置保留现有参数与注释。调试配置使用 Cortex-Debug attach；桌面程序生成配置后，在 VS Code 中选择对应调试项。"));
+        AddWide(fields, Hint("clangd 配置保留现有参数与注释。默认调试配置先编译并下载固件；桌面程序只生成配置，在 VS Code 中选择对应调试项启动。"));
         AddWide(fields, Buttons(("导出编译数据库…", CompileDatabaseAsync, false), ("预览并配置 clangd…", () => PreviewApplyAsync("previewClangd", _developmentResult), true), ("预览调试配置…", ConfigureDebugAsync, true), ("打开 VS Code 工作区", OpenWorkspaceAsync, false)));
         top.Controls.Add(fields); result.Name = "DesktopDevelopmentResult";
         _developmentResult.Text = "先检查预设、当前 ELF、下载器与工具路径，再选择操作。\n所有工程配置写入都会展示差异预览。";

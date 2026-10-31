@@ -4,6 +4,14 @@ using CMakeDapLink.Core;
 
 internal static class ChangeHistoryChecks
 {
+    private static string ProbeScripts(string project)
+    {
+        var scripts = Path.Combine(project, "fixture-scripts");
+        Directory.CreateDirectory(Path.Combine(scripts, "interface"));
+        File.WriteAllText(Path.Combine(scripts, "interface", "cmsis-dap.cfg"), "adapter driver cmsis-dap\n");
+        return scripts;
+    }
+
     public static void Run(string root, Action<string, Action> check)
     {
         check("renamed application updates old managed tasks without duplicate labels", () =>
@@ -13,7 +21,7 @@ internal static class ChangeHistoryChecks
             var elf = Path.Combine(project, "build", "daplink-debug", "example.elf");
             Directory.CreateDirectory(Path.GetDirectoryName(elf)!); File.WriteAllText(elf, "fixture ELF");
             var options = new SetupOptions(project, "C:/cmake.exe", "C:/ninja.exe", "C:/arm-none-eabi-gcc.exe",
-                "C:/openocd.exe", "C:/scripts", "target/stm32h7x.cfg", null, null, null, FirmwareElfPath: elf);
+                "C:/openocd.exe", ProbeScripts(project), "target/stm32h7x.cfg", null, null, null, FirmwareElfPath: elf);
             ConfigurationWriter.Write(options);
             var tasksPath = Path.Combine(project, ".vscode", "tasks.json");
             File.WriteAllText(tasksPath, File.ReadAllText(tasksPath).Replace("由 STM32 工程助手管理", "由 CMake · DAPLink 配置助手管理"));
@@ -41,7 +49,7 @@ internal static class ChangeHistoryChecks
             File.WriteAllText(settings, "{\"user.setting\":true}");
             var settingsBefore = File.ReadAllBytes(settings);
             var options = new SetupOptions(project, "C:/cmake.exe", "C:/ninja.exe", "C:/arm-none-eabi-gcc.exe",
-                "C:/openocd.exe", "C:/scripts", "target/stm32h7x.cfg", null, null, null, FirmwareElfPath: elf);
+                "C:/openocd.exe", ProbeScripts(project), "target/stm32h7x.cfg", null, null, null, FirmwareElfPath: elf);
             var preview = ConfigurationWriter.Preview(options);
             if (preview.Count != 2 || !File.ReadAllBytes(tasksPath).AsSpan().SequenceEqual(original))
                 throw new Exception("preview changed a file or missed the task change");
@@ -107,7 +115,7 @@ internal static class ChangeHistoryChecks
                 File.WriteAllText(tasks, contents, scenario == "UTF16" ? new UnicodeEncoding(false, true) : new UTF8Encoding(false));
                 var original = File.ReadAllBytes(tasks);
                 var options = new SetupOptions(project, "C:/cmake.exe", "C:/ninja.exe", "C:/arm-none-eabi-gcc.exe", "C:/openocd.exe",
-                    "C:/scripts", "target/stm32h7x.cfg", null, null, null, FirmwareElfPath: elf);
+                    ProbeScripts(project), "target/stm32h7x.cfg", null, null, null, FirmwareElfPath: elf);
                 ConfigurationWriter.Write(options);
                 var result = File.ReadAllText(tasks);
                 using var document = JsonDocument.Parse(result, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });

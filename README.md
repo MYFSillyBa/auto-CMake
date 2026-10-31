@@ -6,6 +6,19 @@
 
 **STM32 Project Helper** provides a Windows desktop application and a local VS Code extension for STM32CubeMX project conversion between Keil MDK5 (`.uvprojx`) and ARM GCC CMake, embedded toolchain setup, build/flash tasks, CMSIS-DAP/DAPLink and source-file management. Project conversion does not invoke STM32CubeMX.
 
+## 2026-10-31 更新：桌面 v1.7.1 / 插件 v1.4.1
+
+更新了debug时自动下载
+
+- [桌面 v1.7.1](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.1)：[自带运行时的 EXE](https://github.com/MYFSillyBa/auto-CMake/releases/download/v1.7.1/STM32ProjectHelper-portable-win-x64.exe) · [依赖 .NET 9 Desktop Runtime x64 的 EXE](https://github.com/MYFSillyBa/auto-CMake/releases/download/v1.7.1/STM32ProjectHelper-lite-win-x64.exe)。
+- [插件 v1.4.1](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.4.1)：[下载 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.4.1/stm32-project-helper-1.4.1-win32-x64.vsix)，覆盖安装后重载 VS Code。
+
+桌面和插件的开发配置新增“调试模式”。默认 **编译、下载并调试**：生成 `request: "launch"`，通过 `preLaunchTask` 先配置、编译当前构建配置，再由 Cortex-Debug 下载所选 ELF；**仅附加**使用 `attach`，不编译、不下载，适合连接已经运行的固件。两种模式都可能暂停或复位目标。
+
+已有工程需重新写入调试配置并确认差异，默认模式会同时补全专用调试编译任务及 `.vscode/stm32-debug.cmake`；保留用户自建配置、同名任务和原有烧录入口。编译失败时请修复错误，不要选择 VS Code 的“仍然调试”。启动调试前，插件会显示模式、固件路径及是否写入芯片。
+
+**Desktop v1.7.1 / extension v1.4.1:** Normal debugging now builds the selected configuration before downloading its ELF through Cortex-Debug `launch`. Explicit attach-only mode neither builds nor downloads. Regenerate and review configuration changes for existing projects. Fix build errors instead of choosing Debug Anyway.
+
 ## 2026-10-25 更新：桌面 v1.7.0 / 插件 v1.4.0
 
 - [桌面 v1.7.0 发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.0)：提供自带运行时的轻量版 EXE 和依赖 .NET 9 Desktop Runtime 的极致轻量版 EXE，两个版本功能一致。

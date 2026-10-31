@@ -391,8 +391,11 @@
     actions(code, button(t('配置并生成编译数据库…'), 'prepareCompileDatabase'), button(t('写入 .clangd…'), 'writeClangd', {}, true), button(t('查看 clangd 扩展'), 'openClangdExtension', {}, true));
     if (state.compileDatabase) { text(code, 'compile_commands.json', state.compileDatabase.compileCommands); list(code, state.compileDatabase.notes, ''); }
 
-    const debug = section(t('Cortex-Debug 调试'), t('写入 launch.json 前会显示确认；启动调试会连接硬件，可能暂停或复位目标。'));
+    const debug = section(t('Cortex-Debug 调试'), t('默认先编译、下载当前 ELF，再调试；仅附加模式不下载固件。写入配置前会显示确认。'));
     field(debug, 'debugName', t('调试配置名称'), options.debugName);
+    field(debug, 'debugMode', t('调试模式'), options.debugMode || 'launch', [
+      { value: 'launch', label: t('编译、下载并调试（推荐）') }, { value: 'attach', label: t('仅附加（不下载固件）') }
+    ]);
     analysisFirmwareField(debug, state);
     field(debug, 'targetScript', t('OpenOCD 目标脚本'), options.targetScript);
     probeFields(debug, state);

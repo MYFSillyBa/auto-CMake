@@ -40,6 +40,7 @@ public static class DevelopmentConfiguration
 
     public static IReadOnlyList<FileChange> PreviewDebugNamed(SetupOptions options, string gdbPath, string? selectedName)
     {
+        if (options.DebugMode is not ("launch" or "attach")) throw new ArgumentException("调试模式必须为 launch 或 attach。");
         if (selectedName != null && (string.IsNullOrWhiteSpace(selectedName) || selectedName.Length > 100 || selectedName.Any(char.IsControl))) throw new ArgumentException("调试配置名称必须为 1–100 个字符，不能包含控制字符。");
         var probe = OpenOcdProbe.Resolve(options);
         var missing = OpenOcdScripts.MissingFiles(options.Scripts, options.TargetScript, probe.InterfaceScript);
@@ -51,6 +52,9 @@ public static class DevelopmentConfiguration
         ToolVersionManager.EnsureOrdinaryPath(gdbPath);
         ToolVersionManager.EnsureOrdinaryPath(server);
         var changes = new List<FileChange>();
+        var launching = options.DebugMode == "launch";
+        if (launching) changes.AddRange(ConfigurationWriter.PreviewDebugBuild(options));
+        var buildTask = launching ? ConfigurationWriter.BuildTaskLabel(options, debugBuild: true) : "";
         Add(changes, Path.Combine(options.Root, ".vscode", "launch.json"), before => JsoncDevelopmentEditor.Edit(before, text =>
         {
             if (JsoncDevelopmentEditor.Parse(text) is not JsonObject launch) throw new InvalidDataException("现有 launch.json 必须是 JSON 对象。");
@@ -58,6 +62,8 @@ public static class DevelopmentConfiguration
             var configurations = launch["configurations"] as JsonArray ?? new JsonArray();
             var owned = configurations.Select((node, index) => (node, index)).Where(x => IsManaged(x.node)).ToArray();
             if (owned.Length > 1) throw new InvalidDataException("launch.json 包含多个助手管理的调试配置，请先保留一个。");
+            if (launching && owned.Length == 1 && owned[0].node!["overrideLaunchCommands"] != null)
+                throw new InvalidDataException("现有助手调试配置使用 overrideLaunchCommands，可能跳过固件下载。请先移除该字段，或选择仅附加模式。");
             var names = configurations.Where(x => !IsManaged(x)).OfType<JsonObject>().Select(x => String(x, "name")).ToHashSet(StringComparer.Ordinal);
             var requestedName = selectedName?.Trim() ?? (owned.Length == 1 ? String((JsonObject)owned[0].node!, "name")! : DebugName);
             var name = requestedName;
@@ -67,8 +73,10 @@ public static class DevelopmentConfiguration
             if (options.ResetMode == "sysresetreq") commands.Add("cortex_m reset_config sysresetreq");
             var desired = new JsonObject
             {
-                ["name"] = name, ["type"] = "cortex-debug", ["request"] = "attach", ["servertype"] = "openocd",
+                ["name"] = name, ["type"] = "cortex-debug", ["request"] = options.DebugMode, ["servertype"] = "openocd",
                 ["cwd"] = Path.GetFullPath(options.Root), ["executable"] = Path.GetFullPath(options.FirmwareElfPath),
+                ["preLaunchTask"] = buildTask,
+                ["loadFiles"] = launching ? new JsonArray(Path.GetFullPath(options.FirmwareElfPath)) : new JsonArray(),
                 ["gdbPath"] = Path.GetFullPath(gdbPath), ["armToolchainPath"] = Path.GetDirectoryName(Path.GetFullPath(gdbPath)),
                 ["serverpath"] = server, ["searchDir"] = new JsonArray(Path.GetFullPath(options.Scripts)),
                 ["configFiles"] = new JsonArray(Path.GetFullPath(Path.Combine(options.Scripts, options.TargetScript))),
