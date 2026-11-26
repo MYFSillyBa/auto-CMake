@@ -46,7 +46,7 @@ public static class ConfigurationWriter
         var vscode = Path.Combine(root, ".vscode");
         var tasksPath = Path.Combine(vscode, "tasks.json");
         var before = File.Exists(tasksPath) ? File.ReadAllBytes(tasksPath) : null;
-        var userLabels = JsoncTaskEditor.UserLabels(before, includeDebug: debugBuild);
+        var userLabels = JsoncTaskEditor.UserLabels(before, debugBuild);
         var english = options.TaskLanguage == "en";
         var configureLabel = AvailableLabel(debugBuild ? "STM32 Project Helper: Configure for Debug" : english ? "CMake Configure (automatic)" : ConfigureLabel, userLabels);
         var buildLabel = AvailableLabel(debugBuild ? "STM32 Project Helper: Build for Debug" : english ? "One-click Build" : BuildLabel, userLabels);
@@ -73,12 +73,13 @@ public static class ConfigurationWriter
             flash["dependsOrder"] = "sequence";
             managed.Add(flash);
         }
-        var after = JsoncTaskEditor.Update(before, managed, preserveFlashTasks: buildOnly, preserveOtherManagedTasks: debugBuild);
+        var after = JsoncTaskEditor.Update(before, managed, preserveFlashTasks: buildOnly && !debugBuild, debugBuild: debugBuild);
         var changes = new List<FileChange>();
         if (before == null || !before.AsSpan().SequenceEqual(after)) changes.Add(new(tasksPath, before, after));
         var runnerBefore = File.Exists(runnerPath) ? File.ReadAllBytes(runnerPath) : null;
         var runnerAfter = DapLinkTaskScript.Create(options, plan, buildOnly);
         if (runnerBefore == null || !runnerBefore.AsSpan().SequenceEqual(runnerAfter)) changes.Add(new(runnerPath, runnerBefore, runnerAfter));
+        changes.AddRange(DapLinkTaskScript.UnusedRunners(vscode, runnerPath, after, buildOnly, debugBuild));
         if (!buildOnly) AddLegacyRemoval(vscode, changes);
         return changes;
     }
@@ -87,7 +88,7 @@ public static class ConfigurationWriter
     {
         var path = Path.Combine(options.Root, ".vscode", "tasks.json");
         return AvailableLabel(debugBuild ? "STM32 Project Helper: Build for Debug" : options.TaskLanguage == "en" ? "One-click Build" : BuildLabel,
-            JsoncTaskEditor.UserLabels(File.Exists(path) ? File.ReadAllBytes(path) : null, includeDebug: debugBuild));
+            JsoncTaskEditor.UserLabels(File.Exists(path) ? File.ReadAllBytes(path) : null, debugBuild));
     }
 
     private static string AvailableLabel(string label, HashSet<string> userLabels)

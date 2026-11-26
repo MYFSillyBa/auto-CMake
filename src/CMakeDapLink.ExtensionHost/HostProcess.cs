@@ -8,7 +8,7 @@ internal sealed record ProcessResult(int ExitCode, string Output);
 
 internal static class HostProcess
 {
-    public static async Task<ProcessResult> RunAsync(ToolCommand command, TimeSpan limit, CancellationToken cancellation, Func<string, string>? display = null)
+    public static async Task<ProcessResult> RunAsync(ToolCommand command, TimeSpan limit, CancellationToken cancellation, Func<string, string>? display = null, Action<string>? output = null)
     {
         WorkspaceSafety.Ordinary(command.Executable);
         var start = new ProcessStartInfo(command.Executable)
@@ -30,8 +30,8 @@ internal static class HostProcess
         }
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         timeout.CancelAfter(limit);
-        var stdout = ReadBoundedAsync(process.StandardOutput, display);
-        var stderr = ReadBoundedAsync(process.StandardError, display);
+        var stdout = ReadBoundedAsync(process.StandardOutput, display, output);
+        var stderr = ReadBoundedAsync(process.StandardError, display, output);
         try { await process.WaitForExitAsync(timeout.Token); }
         catch (OperationCanceledException)
         {
@@ -47,17 +47,28 @@ internal static class HostProcess
         return new(process.ExitCode, (await stdout + Environment.NewLine + await stderr).Trim());
     }
 
-    private static async Task<string> ReadBoundedAsync(StreamReader reader, Func<string, string>? display)
+    private static async Task<string> ReadBoundedAsync(StreamReader reader, Func<string, string>? display, Action<string>? output)
     {
         const int maximum = 4 * 1024 * 1024;
-        var text = new StringBuilder(); var buffer = new char[8192]; bool truncated = false;
-        while (await reader.ReadAsync(buffer) is var count && count != 0)
+        var text = new StringBuilder(); var buffer = new char[8193]; bool truncated = false;
+        while (await reader.ReadAsync(buffer.AsMemory(0, 8192)) is var count && count != 0)
         {
-            var available = maximum - text.Length;
-            if (available > 0) text.Append(buffer, 0, Math.Min(count, available));
-            if (count > available) truncated = true;
+            if (char.IsHighSurrogate(buffer[count - 1]))
+                count += await reader.ReadAsync(buffer.AsMemory(count, 1));
+            var length = Math.Min(count, maximum - text.Length);
+            if (length > 0)
+            {
+                text.Append(buffer, 0, length);
+                output?.Invoke(new string(buffer, 0, length));
+            }
+            if (count > length) truncated = true;
         }
-        if (truncated) text.Append('\n').Append(display?.Invoke("日志超过 4 MB，已截断。") ?? "日志超过 4 MB，已截断。").Append('\n');
+        if (truncated)
+        {
+            var message = "\n" + (display?.Invoke("日志超过 4 MB，已截断。") ?? "日志超过 4 MB，已截断。") + "\n";
+            text.Append(message);
+            output?.Invoke(message);
+        }
         return text.ToString();
     }
 }

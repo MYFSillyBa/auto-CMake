@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace CMakeDapLink.Core;
 
@@ -9,11 +10,33 @@ internal static class DapLinkTaskScript
     public static string AvailablePath(string root, bool buildOnly = false, bool debugBuild = false)
     {
         var directory = Path.Combine(root, ".vscode");
+        var stem = Stem(buildOnly, debugBuild);
         for (var suffix = 1; ; suffix++)
         {
-            var stem = debugBuild ? "stm32-debug" : buildOnly ? "stm32-build" : "stm32-daplink";
             var path = Path.Combine(directory, suffix == 1 ? stem + ".cmake" : $"{stem}-{suffix}.cmake");
-            if (!File.Exists(path) || File.ReadAllText(path).Replace("\r\n", "\n").StartsWith(Marker, StringComparison.Ordinal)) return path;
+            ToolVersionManager.EnsureOrdinaryPath(path);
+            if (!File.Exists(path) || IsManaged(File.ReadAllText(path))) return path;
+        }
+    }
+
+    private static string Stem(bool buildOnly, bool debugBuild) => debugBuild ? "stm32-debug" : buildOnly ? "stm32-build" : "stm32-daplink";
+    private static bool IsManaged(string text) => text.StartsWith(Marker, StringComparison.Ordinal)
+        || text.StartsWith(Marker.Replace("\n", "\r\n", StringComparison.Ordinal), StringComparison.Ordinal);
+
+    public static IEnumerable<FileChange> UnusedRunners(string directory, string active, byte[] currentTasks, bool buildOnly, bool debugBuild)
+    {
+        if (!Directory.Exists(directory)) yield break;
+        var taskText = JsoncTaskEditor.Decode(currentTasks).Text;
+        var family = !buildOnly ? "(?:stm32-daplink|stm32-build)" : Stem(buildOnly, debugBuild);
+        foreach (var file in Directory.EnumerateFiles(directory, "stm32-*.cmake"))
+        {
+            var name = Path.GetFileName(file);
+            if (!Regex.IsMatch(name, @"\A" + family + @"(?:-[0-9]+)?\.cmake\z", RegexOptions.IgnoreCase)) continue;
+            if (string.Equals(file, active, StringComparison.OrdinalIgnoreCase) || taskText.Contains(name, StringComparison.OrdinalIgnoreCase)) continue;
+            if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0 || new FileInfo(file).Length > 1024 * 1024) continue;
+            var bytes = File.ReadAllBytes(file);
+            var marker = Encoding.UTF8.GetString(bytes, 0, Math.Min(bytes.Length, Marker.Length + 4)).TrimStart('\uFEFF');
+            if (IsManaged(marker)) yield return new(file, bytes, null);
         }
     }
 

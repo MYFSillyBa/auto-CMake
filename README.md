@@ -6,11 +6,13 @@
 
 **STM32 Project Helper** is a local Windows VS Code extension for STM32CubeMX project conversion between Keil MDK5 (`.uvprojx`) and ARM GCC CMake, embedded toolchain setup, build/flash tasks, CMSIS-DAP/DAPLink and source-file management. Project conversion does not invoke STM32CubeMX.
 
-## VS Code 插件 v1.5.0
+## VS Code 插件 v1.5.1
 
-[下载 Windows x64 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.0/stm32-project-helper-1.5.0-win32-x64.vsix) · [发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.0)
+[下载 Windows x64 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.1/stm32-project-helper-1.5.1-win32-x64.vsix) · [发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.1)
 
 **桌面 EXE 已停止维护，后续仅发布 VSIX。** [桌面 v1.7.1](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.1) 作为历史版本提供下载。
+
+v1.5.1 重新写入时会替换当前工程的助手配置，清理重复的调试条目、闲置的生成脚本和旧的 clangd 工具链路径。可在「工程管理 → 变更与还原」恢复。启动编译、烧录或调试时，VS Code 自动打开「输出」面板，实时显示工程助手的工具日志。
 
 在工作台点击按钮，或在工作台与已识别的 STM32 工程编辑器中按 **F8** 编译、**F7** 烧录、**F6** 调试，三项操作直接执行。默认调试模式先编译所选目标，再下载本次生成的 ELF 并启动 Cortex-Debug。编译失败会停止启动。工程存在多个未绑定的固件目标时，选择一次后可直接使用。F5 继续使用 VS Code 的原有绑定。
 
@@ -173,13 +175,13 @@ English details and release scope: [VS Code extension guide](src/STM32ProjectHel
 
 本地扩展提供工程配置、添加源文件、加入文件、工程转换、工具管理和修改记录，直接操作当前工作区，无需启动桌面程序。扩展适用于本地 Windows x64、VS Code 1.95 及以上版本，自带经过裁剪的后台运行时，无需另装 .NET。
 
-- **插件安装包 v1.5.0**：[stm32-project-helper-1.5.0-win32-x64.vsix](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.0/stm32-project-helper-1.5.0-win32-x64.vsix)。安装包约 **9 MB**，自带后台运行时及 OpenOCD 脚本，无需另装 .NET。
-- **版本说明**：[VS Code 扩展 v1.5.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.0)。
+- **插件安装包 v1.5.1**：[stm32-project-helper-1.5.1-win32-x64.vsix](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.1/stm32-project-helper-1.5.1-win32-x64.vsix)。安装包约 **9 MB**，自带后台运行时及 OpenOCD 脚本，无需另装 .NET。
+- **版本说明**：[VS Code 扩展 v1.5.1](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.1)。
 - **完整操作指南**：[安装、更新、使用流程与常见问题](src/STM32ProjectHelper.VSCode/README.md)。
 
-**双语插件 v1.5.0** 的本地安装包位于 `artifacts/vsix/stm32-project-helper-1.5.0-win32-x64.vsix`。支持自定义配置、嵌套 STM32 工程及大文件列表。默认跟随 VS Code 显示语言。在 **开发环境 → 语言与隐私** 切换简体中文或英文，也可设置 `stm32ProjectHelper.language`。切换语言会保留配置与文件选择。新写入的任务使用当前语言，用户任务、路径、代码和原始编译输出保留原文。使用方法参见 [中文指南](src/STM32ProjectHelper.VSCode/README.md) / [English guide](src/STM32ProjectHelper.VSCode/README.en.md)。
+**双语插件 v1.5.1** 的本地安装包位于 `artifacts/vsix/stm32-project-helper-1.5.1-win32-x64.vsix`。支持自定义配置、嵌套 STM32 工程及大文件列表。默认跟随 VS Code 显示语言。在 **开发环境 → 语言与隐私** 切换简体中文或英文，也可设置 `stm32ProjectHelper.language`。切换语言会保留配置与文件选择。新写入的任务使用当前语言，用户任务、路径、代码和原始编译输出保留原文。使用方法参见 [中文指南](src/STM32ProjectHelper.VSCode/README.md) / [English guide](src/STM32ProjectHelper.VSCode/README.en.md)。
 
-1. 下载 VSIX，按 `Ctrl+Shift+X` 打开 VS Code 扩展面板，在右上角的 `…` 菜单选择“从 VSIX 安装…”，选择下载的 `stm32-project-helper-1.5.0-win32-x64.vsix`；从源码打包的文件位于 `artifacts/vsix`。
+1. 下载 VSIX，按 `Ctrl+Shift+X` 打开 VS Code 扩展面板，在右上角的 `…` 菜单选择“从 VSIX 安装…”，选择下载的 `stm32-project-helper-1.5.1-win32-x64.vsix`；从源码打包的文件位于 `artifacts/vsix`。
 2. 打开并信任包含 `CMakeLists.txt`、`.ioc` 或 `.uvprojx` 的工程文件夹，工作台自动打开；也可点击活动栏的芯片图标，或执行“STM32 工程助手：打开”。
 3. 工作台的“开始配置”进入四步向导。也可以在“工程管理 → 构建与烧录设置”调整配置、预览差异或直接写入 VS Code 任务。编译、烧录和调试按钮位于工作台首页。软件检查运行编译与脚本解析。
 

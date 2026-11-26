@@ -4,11 +4,13 @@
 
 STM32 Project Helper 为本地 Windows 工程提供 STM32 工具链检测、VS Code 编译与 DAPLink 烧录任务配置、源文件管理、STM32CubeMX MDK-ARM/CMake 双向转换和修改恢复。扩展直接使用当前工作区，无需启动桌面程序，不上传工程。
 
-## VS Code 插件 v1.5.0
+## VS Code 插件 v1.5.1
 
-[下载 Windows x64 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.0/stm32-project-helper-1.5.0-win32-x64.vsix) · [发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.0)
+[下载 Windows x64 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.1/stm32-project-helper-1.5.1-win32-x64.vsix) · [发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.1)
 
 **桌面 EXE 已停止维护，后续仅发布 VSIX。** [桌面 v1.7.1](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.1) 作为历史版本提供下载。
+
+v1.5.1 重新写入时会替换当前工程的助手配置，清理重复的调试条目、闲置的生成脚本和旧的 clangd 工具链路径。可在「工程管理 → 变更与还原」恢复。启动编译、烧录或调试时，VS Code 自动打开「输出」面板，实时显示工程助手的工具日志。
 
 在工作台点击按钮，或在工作台与已识别的 STM32 工程编辑器中按 **F8** 编译、**F7** 烧录、**F6** 调试。三项操作直接执行。默认 F6 先编译所选目标，再下载本次生成的 ELF 并启动 Cortex-Debug。编译失败会停止启动。工程有多个未绑定的固件目标时，请先选择目标。F5 继续使用 VS Code 的原有绑定。
 
@@ -113,18 +115,18 @@ STM32 Project Helper 为本地 Windows 工程提供 STM32 工具链检测、VS C
 
 | 项目 | 要求 |
 | --- | --- |
-| 扩展版本 | 1.5.0 |
+| 扩展版本 | 1.5.1 |
 | 操作系统 | 本地 Windows x64 |
 | 编辑器 | VS Code 1.95 或更新版本 |
 | 工作区 | 本地文件夹，已授予工作区信任 |
 | .NET | VSIX 自带后台运行时，无需另行安装 |
 | 构建工具 | CMake、Ninja、ARM GCC；OpenOCD 用于脚本检查和烧录任务 |
 
-从 [v1.5.0 发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.0) 下载 [VSIX 安装包](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.0/stm32-project-helper-1.5.0-win32-x64.vsix)（约 9 MB）。本地打包路径为 `artifacts/vsix/stm32-project-helper-1.5.0-win32-x64.vsix`。安装包使用经过裁剪的后台运行库，保留全部功能代码、JSON 协议模型与内置 OpenOCD 脚本。
+从 [v1.5.1 发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.1) 下载 [VSIX 安装包](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.1/stm32-project-helper-1.5.1-win32-x64.vsix)（约 9 MB）。本地打包路径为 `artifacts/vsix/stm32-project-helper-1.5.1-win32-x64.vsix`。安装包使用经过裁剪的后台运行库，保留全部功能代码、JSON 协议模型与内置 OpenOCD 脚本。
 
 ## 安装
 
-1. 下载 `stm32-project-helper-1.5.0-win32-x64.vsix` 安装包。
+1. 下载 `stm32-project-helper-1.5.1-win32-x64.vsix` 安装包。
 2. 在 VS Code 中按 `Ctrl+Shift+X` 打开扩展面板。
 3. 点击扩展面板右上角的 `…`，选择“从 VSIX 安装…”，选中下载的文件。
 4. 安装完成后重新加载 VS Code 窗口。若未出现提示，可通过命令面板执行“Developer: Reload Window”，或关闭并重新打开 VS Code。

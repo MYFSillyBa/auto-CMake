@@ -4,7 +4,7 @@ using CMakeDapLink.Core;
 
 namespace CMakeDapLink.ExtensionHost;
 
-internal sealed partial class RequestHandler(string root, JsonSerializerOptions json, Action<int, string, string?> progress, Func<string, string> display)
+internal sealed partial class RequestHandler(string root, JsonSerializerOptions json, Action<int, string, string?> progress, Func<string, string> display, Action<string>? log = null)
 {
     public static string[] Commands { get; } = ["capabilities", "inspect", "previewTasks", "applyChanges", "verify", "build", "flash", "memory", "scanSources", "previewSources", "previewImport", "importFiles", "inspectConversion", "previewConversion", "previewFreeRtosRepair", "applyFreeRtosRepair", "history", "previewRestore", "restore", "tools", "selectTool", "repair", "importTool", "activateTool", "previewClangd", "previewDebug", "prepareCompileDatabase", "probeCheck", "rtos", "analyzeFirmware", "hardFault"];
     private static string? Text(JsonElement payload, string key) => payload.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
@@ -208,7 +208,9 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
         var output = new List<string>(); var problems = new List<BuildProblem>(); var externalProblems = new HashSet<BuildProblem>(); bool openOcdChecked = false, flashed = false;
         async Task<bool> Run(ToolCommand command, string stage, TimeSpan limit, bool openOcd = false)
         {
-            var run = await HostProcess.RunAsync(command, limit, cancellation, display);
+            log?.Invoke(display(stage) + Environment.NewLine);
+            var run = await HostProcess.RunAsync(command, limit, cancellation, display, log);
+            log?.Invoke(Environment.NewLine);
             output.Add(display(stage) + Environment.NewLine + run.Output);
             var parsed = openOcd ? OpenOcdDiagnostics.Parse(run.Output, root) : BuildDiagnostics.Parse(run.Output, root, stage);
             problems.AddRange(parsed); externalProblems.UnionWith(parsed);
@@ -217,7 +219,7 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
             return false;
         }
         var recovery = await PrepareConfigureAsync(plan, cancellation);
-        if (recovery != null) output.Add(recovery);
+        if (recovery != null) { output.Add(recovery); log?.Invoke(recovery + Environment.NewLine); }
         progress(15, "CMake 配置", plan.BuildDirectory);
         var success = await Run(plan.Configure, "CMake 配置", TimeSpan.FromMinutes(5));
         string? selectedFirmware = null;
@@ -282,7 +284,7 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
             { success = false; problems.Add(new(flashing ? "OpenOCD 烧录" : "OpenOCD 脚本", "错误", ex.Message, null, null, null,
                 flashing ? "核对所选固件、探针、复位模式和 OpenOCD Target。" : "核对 Target 和 OpenOCD 版本。脚本检查不会连接硬件。")); }
         }
-        return new { success, firmware, problems = problems.Select(p => new { p.Stage, p.Severity, p.Message, p.FilePath, p.Line, p.Column, p.Suggestion, rawMessage = externalProblems.Contains(p) }), output = string.Join(Environment.NewLine, output), openOcdChecked, flashed };
+        return new { success, firmware, problems = problems.Select(p => new { p.Stage, p.Severity, p.Message, p.FilePath, p.Line, p.Column, p.Suggestion, rawMessage = externalProblems.Contains(p) }), output = string.Join(Environment.NewLine, output), outputStreamed = log != null, openOcdChecked, flashed };
     }
 
     private CMakeBuildPlan BuildPlan(SetupOptions options)

@@ -559,7 +559,8 @@ class Workbench {
     if (preview?.kind === 'restore') return this.execute('restore', {}, epoch, progress);
     if (!preview || !preview.changes?.length || preview.canApply === false || preview.issues?.some(issue => issue.blocking)) throw new Error(this.t('当前改动无法写入。请解决提示的问题，再点击页面上的“确认写入”重新计算。'));
     this.assertPreview(preview);
-    if (confirm || preview.changes.some(change => change.after === null)) {
+    const generatedConfiguration = ['tasks', 'firmware', 'writeDebug'].includes(preview.kind);
+    if (confirm || !generatedConfiguration && preview.changes.some(change => change.after === null)) {
       const files = preview.changes.slice(0, 30).map(change => `${change.before === null ? this.t('新增') : change.after === null ? this.t('删除') : this.t('修改')} · ${path.relative(this.folder.uri.fsPath, change.path)}`);
       if (preview.changes.length > files.length) files.push(this.t('另有 {0} 个文件，可在改动列表中查看。', preview.changes.length - files.length));
       this.state.status = this.t('等待确认写入 {0} 个文件。', preview.changes.length); this.render();
@@ -636,7 +637,7 @@ class Workbench {
       if (!await this.applyPreview(epoch, progress, false, false)) return;
     }
     const result = await this.call('verify', this.options(), epoch, progress);
-    this.state.verification = result; this.publishProblems(result); if (result.output) this.output.appendLine(result.output);
+    this.state.verification = result; this.publishProblems(result); if (result.output && !result.outputStreamed) this.output.appendLine(result.output);
     this.state.status = result.success ? this.t('软件检查通过。请选择实际 ELF 后预览任务绑定。烧录任务由你在 VS Code 中手动运行。') : this.t('软件检查未通过。任务文件已保留，请查看问题与输出。');
     if (!result.success) return result;
     const firmware = result.firmware || [];
@@ -650,7 +651,7 @@ class Workbench {
   }
   showBuildResult(result, action) {
     this.state[action === 'flash' ? 'flashResult' : 'buildResult'] = { ...result, output: undefined };
-    this.publishProblems(result); if (result.output) this.output.appendLine(result.output);
+    this.publishProblems(result); if (result.output && !result.outputStreamed) this.output.appendLine(result.output);
     if (!result.success) { this.state.status = this.t('操作未完成，请查看问题说明与完整输出。'); return; }
     const firmware = result.firmware || [];
     if (firmware.length === 1) this.state.options.firmwareElfPath = firmware[0];
@@ -713,6 +714,7 @@ class Workbench {
     }
     try { this.supported(); } catch (error) { this.state.status = error.message; this.render(); await vscode.window.showErrorMessage(error.message); return; }
     const epoch = this.epoch;
+    if (DIRECT_SAVE.has(action) || action === 'verify') this.output.show(true);
     this.diskNotice(); this.busy = true; this.state.percent = 0; this.cancelSource = new vscode.CancellationTokenSource(); this.render();
     try {
       if (!this.state.inspection && DIRECT_SAVE.has(action)) await this.inspect(epoch);

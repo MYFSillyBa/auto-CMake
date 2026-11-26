@@ -128,9 +128,9 @@ internal static class JsoncDevelopmentEditor
         throw new InvalidDataException("JSON 配置不完整。");
     }
 
-    private static string Print(JsonNode? node, string indent, string newline) => (node?.ToJsonString(PrintOptions) ?? "null").Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\n", newline + indent, StringComparison.Ordinal);
+    internal static string Print(JsonNode? node, string indent, string newline) => (node?.ToJsonString(PrintOptions) ?? "null").Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\n", newline + indent, StringComparison.Ordinal);
     internal static string Newline(string text) => text.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
-    private static string Indent(string text, int index)
+    internal static string Indent(string text, int index)
     {
         var start = text.LastIndexOf('\n', Math.Max(0, index - 1)) + 1;
         var end = start;

@@ -48,7 +48,8 @@ class HostBridge {
         if (envelope.translations && typeof envelope.translations === 'object' && !Array.isArray(envelope.translations)) this.onTranslations(envelope.translations);
         if (envelope.type === 'progress') {
           const info = envelope.data || {}; this.output.appendLine([info.stage, info.message].filter(Boolean).map(value => this.t(value)).join('：')); progress?.(info);
-        } else if (envelope.type === 'result') terminal = envelope.data;
+        } else if (envelope.type === 'output' && typeof envelope.data === 'string') this.output.append(envelope.data);
+        else if (envelope.type === 'result') terminal = envelope.data;
         else if (envelope.type === 'error') {
           const timedOut = failure?.timedOut;
           if (!timedOut) {
@@ -60,7 +61,8 @@ class HostBridge {
       });
       child.on('close', code => finish(code && !failure ? new Error(this.t('本地后端退出代码：{0}', code)) : undefined));
       this.output.appendLine('[' + command + '] ' + root);
-      child.stdin.write(JSON.stringify({ id, command, root, payload: payload || {} }) + '\n', error => { if (error && !failure) failure = error; });
+      const args = ['build', 'flash', 'verify'].includes(command) ? { ...payload, streamOutput: true } : payload || {};
+      child.stdin.write(JSON.stringify({ id, command, root, payload: args }) + '\n', error => { if (error && !failure) failure = error; });
     });
   }
   dispose() { for (const child of this.active) void terminateProcessTree(child); this.active.clear(); }

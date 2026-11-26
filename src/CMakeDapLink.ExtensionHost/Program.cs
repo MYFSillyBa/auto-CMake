@@ -56,7 +56,10 @@ try
     // Keep its cancellation read off the request thread while the pipe remains open.
     _ = Task.Run(() => MonitorCancellationAsync(cancellation, operationCompleted.Token));
     var handler = new RequestHandler(root, json, (percent, stage, message) =>
-        Emit(new { id, type = "progress", data = new { percent, stage, message } }), localization.Display);
+        Emit(new { id, type = "progress", data = new { percent, stage, message } }), localization.Display,
+        payload.TryGetProperty("streamOutput", out var streamOutput) && streamOutput.ValueKind == JsonValueKind.True
+            ? text => Emit(new { id, type = "output", data = text })
+            : null);
     var result = await handler.ExecuteAsync(command, payload, cancellation.Token);
     operationCompleted.Cancel();
     Emit(new { id, type = "result", data = result });

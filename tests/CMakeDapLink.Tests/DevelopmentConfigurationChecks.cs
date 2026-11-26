@@ -25,7 +25,18 @@ internal static class DevelopmentConfigurationChecks
             Assert(arguments.Any(x => x.Contains(options.Compiler.Replace('\\', '/'))) && parsed.RootElement.GetProperty("C_Cpp.intelliSenseEngine").GetString() == "disabled", "selected compiler query driver and IntelliSense setting are explicit");
             Assert(File.ReadAllText(Path.Combine(options.Root, ".clangd")) == yaml && File.ReadAllText(Path.Combine(options.Root, ".vscode", "settings.json")) == settings, "preview does not mutate files");
         });
-        check("debug preview updates only marked entry, preserves comments, and is stable", () =>
+        check("reconfiguring project clangd replaces old query drivers and database arguments", () =>
+        {
+            var options = Fixture(parent);
+            var settings = Path.Combine(options.Root, ".vscode", "settings.json");
+            File.WriteAllText(settings, """{"clangd.arguments":["--compile-commands-dir=old","--query-driver=old-gcc","--query-driver","older-gcc","--background-index"]}""");
+            var changes = DevelopmentConfiguration.PreviewClangdForWorkspace(options, false, replaceQueryDrivers: true);
+            using var parsed = JsonDocument.Parse(changes.Single(x => x.Path == settings).After!);
+            var args = parsed.RootElement.GetProperty("clangd.arguments").EnumerateArray().Select(x => x.GetString()!).ToArray();
+            Assert(args.Single(x => x.StartsWith("--query-driver", StringComparison.Ordinal)) == "--query-driver=" + options.Compiler.Replace('\\', '/'), "query drivers only target the selected toolchain");
+            Assert(args.Contains("--background-index") && args.All(x => !x.Contains("old", StringComparison.Ordinal)), "unrelated flags survive the refresh");
+        });
+        check("debug preview replaces marked entries, preserves user comments, and is stable", () =>
         {
             var options = Fixture(parent);
             var launch = "{\n // launch comment\n \"version\": \"0.2.0\",\n \"configurations\": [\n  {\"name\":\"STM32 Project Helper: Debug\",\"type\":\"cortex-debug\",\"request\":\"launch\",\"custom\":true}, // user config\n ],\n \"compounds\": [],\n}";
@@ -41,11 +52,10 @@ internal static class DevelopmentConfigurationChecks
                 Assert(entries.Length == 2 && entries[1].GetProperty("request").GetString() == "launch", "normal debugging launches and programs the selected firmware");
                 Assert(Path.IsPathFullyQualified(entries[1].GetProperty("gdbPath").GetString()!) && Path.IsPathFullyQualified(entries[1].GetProperty("serverpath").GetString()!), "tool paths are absolute");
             }
-            var managedText = text.Replace("\"adapter speed 1000\"", "/* speed comment */ \"adapter speed 1000\"");
-            File.WriteAllText(path, managedText);
+            File.WriteAllText(path, text);
             foreach (var change in first.Where(x => !x.Path.EndsWith("launch.json"))) File.WriteAllBytes(change.Path, change.After!);
             var changed = Text(DebugChange(Call("PreviewDebug", options with { AdapterSpeed = 2000 }, Path.Combine(Path.GetDirectoryName(options.Compiler)!, "arm-none-eabi-gdb.exe"))));
-            Assert(changed.Contains("/* speed comment */") && changed.Contains("adapter speed 2000"), "managed property edits retain nested JSONC comments");
+            Assert(changed.Contains("// user config") && changed.Contains("adapter speed 2000"), "current adapter speed replaces the old one and user comments survive");
             File.WriteAllText(path, changed);
             Assert(Call("PreviewDebug", options with { AdapterSpeed = 2000 }, Path.Combine(Path.GetDirectoryName(options.Compiler)!, "arm-none-eabi-gdb.exe")).Count == 0, "second identical preview has no changes");
         });
@@ -84,16 +94,37 @@ internal static class DevelopmentConfigurationChecks
             Assert(config.GetProperty("preLaunchTask").GetString() == "" && config.GetProperty("loadFiles").GetArrayLength() == 0, "switching from launch clears build and download actions");
             Assert(attach.All(x => x.Path.EndsWith("launch.json")), "attach does not rewrite tasks or build helpers");
         });
-        check("custom launch overrides cannot silently bypass firmware loading", () =>
+        check("reconfiguring removes duplicate managed launch entries and stale overrides", () =>
         {
             var options = Fixture(parent);
             var path = Path.Combine(options.Root, ".vscode", "launch.json");
-            var before = "{\"configurations\":[{\"name\":\"old\",\"type\":\"cortex-debug\",\"servertype\":\"openocd\",\"request\":\"attach\",\"overrideLaunchCommands\":[],\"presentation\":{\"group\":\"STM32 Project Helper (managed)\"}}]}";
+            var old = "{\"name\":\"old\",\"type\":\"cortex-debug\",\"servertype\":\"openocd\",\"request\":\"attach\",\"overrideLaunchCommands\":[],\"svdFile\":\"old.svd\",\"presentation\":{\"group\":\"STM32 Project Helper (managed)\"}}";
+            var before = "{\"configurations\":[" + old + "," + old.Replace("\"old\"", "\"older\"") + "]}";
             File.WriteAllText(path, before);
-            bool rejected = false;
-            try { DevelopmentConfiguration.PreviewDebug(options, Path.Combine(Path.GetDirectoryName(options.Compiler)!, "arm-none-eabi-gdb.exe")); }
-            catch (InvalidDataException error) { rejected = error.Message.Contains("overrideLaunchCommands"); }
-            Assert(rejected && File.ReadAllText(path) == before, "an empty override array suppresses Cortex-Debug defaults and must be reviewed explicitly");
+            var changes = DevelopmentConfiguration.PreviewDebug(options, Path.Combine(Path.GetDirectoryName(options.Compiler)!, "arm-none-eabi-gdb.exe"));
+            var config = DevelopmentConfiguration.Configuration(DebugChange(changes).After!);
+            Assert(config.GetProperty("request").GetString() == "launch", "only the rebuilt debug entry remains");
+            Assert(!config.TryGetProperty("overrideLaunchCommands", out _) && !config.TryGetProperty("svdFile", out _), "old fields are gone");
+            Assert(File.ReadAllText(path) == before, "preview does not change the original");
+        });
+        check("debug setup cleans up stale debug tasks and unused managed runners", () =>
+        {
+            var options = Fixture(parent);
+            var directory = Path.Combine(options.Root, ".vscode");
+            var tasks = Path.Combine(directory, "tasks.json");
+            var old = Path.Combine(directory, "stm32-debug-2.cmake");
+            var custom = Path.Combine(directory, "stm32-debug-3.cmake");
+            File.WriteAllText(tasks, """{"tasks":[{"label":"debug old","detail":"Managed by STM32 Project Helper (debug build)"},{"label":"regular","detail":"Managed by STM32 Project Helper"}]}""");
+            File.WriteAllText(old, "# STM32 Project Helper managed task runner v1\nold");
+            File.WriteAllText(custom, "# custom runner\n");
+            var changes = DevelopmentConfiguration.PreviewDebug(options, Path.Combine(Path.GetDirectoryName(options.Compiler)!, "arm-none-eabi-gdb.exe"));
+            var text = Text(changes.Single(x => x.Path == tasks));
+            Assert(!text.Contains("debug old") && text.Contains("\"regular\""), "only debug tasks are replaced");
+            Assert(changes.Single(x => x.Path == old).After == null && changes.All(x => x.Path != custom), "only unused generated runners are cleaned up");
+            var record = ChangeHistory.Apply(options.Root, "debug setup", changes)!;
+            Assert(!File.Exists(old) && File.Exists(custom), "the cleanup is applied to disk");
+            ChangeHistory.Restore(options.Root, record.Id);
+            Assert(File.Exists(old) && File.ReadAllText(tasks).Contains("debug old"), "the cleanup can be restored");
         });
         check("debug builds do not retarget existing build and flash tasks", () =>
         {

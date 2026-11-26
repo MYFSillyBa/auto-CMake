@@ -33,6 +33,7 @@ internal static class TaskPreview
             if (Directory.Exists(vscode))
                 foreach (var path in Directory.EnumerateFiles(vscode, buildOnly ? "stm32-build*.cmake" : "stm32-daplink*.cmake"))
                 {
+                    if (changes.Any(change => change.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) continue;
                     WorkspaceSafety.Child(options.Root, path);
                     var before = File.ReadAllBytes(path);
                     var content = Encoding.UTF8.GetString(before);

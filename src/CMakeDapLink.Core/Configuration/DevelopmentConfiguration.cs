@@ -13,7 +13,7 @@ public static class DevelopmentConfiguration
 
     public static IReadOnlyList<FileChange> PreviewClangd(SetupOptions options) => PreviewClangdForWorkspace(options, true);
 
-    public static IReadOnlyList<FileChange> PreviewClangdForWorkspace(SetupOptions options, bool disableWorkspaceIntelliSense)
+    public static IReadOnlyList<FileChange> PreviewClangdForWorkspace(SetupOptions options, bool disableWorkspaceIntelliSense, bool replaceQueryDrivers = false)
     {
         var directory = Path.GetFullPath(options.BuildDirectory ?? Path.Combine(options.Root, "build", "daplink-debug"), options.Root).Replace('\\', '/');
         var compiler = Path.GetFullPath(options.Compiler, options.Root).Replace('\\', '/');
@@ -30,7 +30,7 @@ public static class DevelopmentConfiguration
             };
             var desired = new JsonObject
             {
-                ["clangd.arguments"] = ClangdArguments(arguments, directory, compiler)
+                ["clangd.arguments"] = ClangdArguments(arguments, directory, compiler, replaceQueryDrivers)
             };
             if (disableWorkspaceIntelliSense) desired["C_Cpp.intelliSenseEngine"] = "disabled";
             return JsoncDevelopmentEditor.SetObject(text, desired);
@@ -63,11 +63,8 @@ public static class DevelopmentConfiguration
             if (launch["configurations"] is not null and not JsonArray) throw new InvalidDataException("现有 launch.json 的 configurations 必须是数组。");
             var configurations = launch["configurations"] as JsonArray ?? new JsonArray();
             var owned = configurations.Select((node, index) => (node, index)).Where(x => IsManaged(x.node)).ToArray();
-            if (owned.Length > 1) throw new InvalidDataException("launch.json 包含多个助手管理的调试配置，请先保留一个。");
-            if (launching && owned.Length == 1 && owned[0].node!["overrideLaunchCommands"] != null)
-                throw new InvalidDataException("现有助手调试配置使用 overrideLaunchCommands，可能跳过固件下载。请先移除该字段，或选择仅附加模式。");
             var names = configurations.Where(x => !IsManaged(x)).OfType<JsonObject>().Select(x => String(x, "name")).ToHashSet(StringComparer.Ordinal);
-            var requestedName = selectedName?.Trim() ?? (owned.Length == 1 ? String((JsonObject)owned[0].node!, "name")! : DebugName);
+            var requestedName = selectedName?.Trim() ?? (owned.Length > 0 ? String((JsonObject)owned[0].node!, "name")! : DebugName);
             var name = requestedName;
             for (var suffix = 2; names.Contains(name); suffix++) name = requestedName + " (" + suffix + ")";
             var commands = new JsonArray("adapter speed " + options.AdapterSpeed);
@@ -91,14 +88,14 @@ public static class DevelopmentConfiguration
             var (properties, _) = JsoncDevelopmentEditor.Scan(text, true);
             var span = properties.Single(x => x.Name == "configurations");
             var raw = text[span.Start..span.End];
-            var replacements = new Dictionary<int, string?>();
+            var replacements = owned.Skip(1).ToDictionary(x => x.index, _ => (string?)null);
             var additions = new List<string>();
-            if (owned.Length == 1)
+            if (owned.Length > 0 && !JsonNode.DeepEquals(owned[0].node, desired))
             {
                 var entry = JsoncDevelopmentEditor.Scan(raw, false).Values[owned[0].index];
-                replacements[owned[0].index] = JsoncDevelopmentEditor.SetObject(raw[entry.Start..entry.End], desired);
+                replacements[owned[0].index] = JsoncDevelopmentEditor.Print(desired, JsoncDevelopmentEditor.Indent(raw, entry.Start), JsoncDevelopmentEditor.Newline(text));
             }
-            else additions.Add(desired.ToJsonString(JsoncDevelopmentEditor.PrintOptions));
+            else if (owned.Length == 0) additions.Add(desired.ToJsonString(JsoncDevelopmentEditor.PrintOptions));
             var updated = text[..span.Start] + JsoncDevelopmentEditor.RewriteArray(raw, replacements, additions) + text[span.End..];
             return launch["version"] == null ? JsoncDevelopmentEditor.SetObject(updated, new JsonObject { ["version"] = "0.2.0" }) : updated;
         }));
@@ -126,7 +123,7 @@ public static class DevelopmentConfiguration
         && value["presentation"] is JsonObject presentation && String(presentation, "group") == DebugGroup;
     private static string? String(JsonObject value, string key) => value[key] is JsonValue node && node.TryGetValue<string>(out var text) ? text : null;
 
-    private static JsonArray ClangdArguments(JsonArray original, string directory, string compiler)
+    private static JsonArray ClangdArguments(JsonArray original, string directory, string compiler, bool replaceQueryDrivers)
     {
         var values = original.Select(x => x is JsonValue value && value.TryGetValue<string>(out var argument) ? argument : throw new InvalidDataException("现有 clangd.arguments 必须是字符串数组。")).ToArray();
         var result = new List<string>(); var drivers = new List<string>(); int queryIndex = -1; bool database = false;
@@ -141,7 +138,7 @@ public static class DevelopmentConfiguration
             if (db) { if (!database) { result.Add("--compile-commands-dir=" + directory); database = true; } }
             else
             {
-                drivers.AddRange(argument.Split(',', StringSplitOptions.RemoveEmptyEntries));
+                if (!replaceQueryDrivers) drivers.AddRange(argument.Split(',', StringSplitOptions.RemoveEmptyEntries));
                 if (queryIndex < 0) { queryIndex = result.Count; result.Add(""); }
             }
         }
