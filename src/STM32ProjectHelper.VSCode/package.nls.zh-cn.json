@@ -22,5 +22,7 @@
   "language.english.description": "使用英语。",
   "command.build": "STM32 工程助手：编译",
   "command.flash": "STM32 工程助手：烧录",
+  "command.debug": "STM32 工程助手：调试",
+  "command.fixIntelligence": "STM32 工程助手：一键修复全局代码提示",
   "command.setup": "STM32 工程助手：配置向导"
 }

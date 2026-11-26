@@ -4,6 +4,18 @@
 
 STM32 Project Helper provides toolchain detection, CMake build and DAPLink flash task configuration, source management, STM32CubeMX MDK-ARM/CMake conversion, and change restoration inside VS Code. It operates on the current local workspace and does not upload projects.
 
+## VS Code v1.5.0
+
+[Download the Windows x64 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.0/stm32-project-helper-1.5.0-win32-x64.vsix) · [Release notes](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.0)
+
+**The desktop EXE is no longer maintained.** Future updates ship as VSIX. Desktop [v1.7.1](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.1) remains available as an archived release.
+
+Use the workbench buttons or press **F8** to build, **F7** to flash, or **F6** to debug from the workbench or a detected STM32 project editor. All three actions run immediately. In the default debug mode, F6 builds the selected target, flashes the resulting ELF, and starts Cortex-Debug. A failed build stops the launch. If the project produces multiple firmware targets, select a target before running it. VS Code retains its existing F5 binding.
+
+**Project** groups build and flash settings, source registration, file import, conversion and sync, and restoration. **Development environment** contains toolchains, code intelligence, and language and privacy settings. **Debug and diagnostics** contains probe settings, firmware analysis, and the serial terminal.
+
+Open **Development environment → Code intelligence** to apply or restore the global fix. It uses clangd as the IntelliSense provider, clears project-specific database arguments from VS Code User settings, and turns off clangd conflict prompts in the active VS Code profile. Workspace settings can override the user settings. Use **Configure clangd for this project** for headers and macros from the selected CMake configuration.
+
 ## v1.4.1: automatic firmware download when debugging
 
 更新了debug时自动下载
@@ -101,18 +113,18 @@ Packaging and Chinese/English UI viewing were completed before delivery. Functio
 
 | Item | Requirement |
 | --- | --- |
-| Extension version | 1.2.0 |
+| Extension version | 1.5.0 |
 | Operating system | Local Windows x64 |
 | Editor | VS Code 1.95 or newer |
 | Workspace | A trusted local folder |
 | .NET | Included in the VSIX; no separate runtime installation |
 | Build tools | CMake, Ninja and ARM GCC; OpenOCD for script checks and flash tasks |
 
-Download the [v1.4.0 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.4.0/stm32-project-helper-1.4.0-win32-x64.vsix) (about 9 MB) from the [release page](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.4.0). The local build output is `artifacts/vsix/stm32-project-helper-1.4.0-win32-x64.vsix`. The package includes a trimmed, self-contained backend and the complete bundled OpenOCD scripts.
+Download the [v1.5.0 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.0/stm32-project-helper-1.5.0-win32-x64.vsix) (about 9 MB) from the [release page](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.0). The local build output is `artifacts/vsix/stm32-project-helper-1.5.0-win32-x64.vsix`. The package includes a trimmed, self-contained backend and the complete bundled OpenOCD scripts.
 
 ## Installation and updating
 
-1. Download `stm32-project-helper-1.4.0-win32-x64.vsix`.
+1. Download `stm32-project-helper-1.5.0-win32-x64.vsix`.
 2. Press `Ctrl+Shift+X` in VS Code to open Extensions.
 3. Open the Extensions panel's `…` menu and select **Install from VSIX…**.
 4. Select the downloaded file and reload the window. If no prompt appears, run **Developer: Reload Window** from the Command Palette or restart VS Code.

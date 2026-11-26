@@ -12,6 +12,9 @@ public static class CurrentFirmwareArtifacts
     }
 
     public static IReadOnlyList<string> Find(string buildDirectory, string configuration, string? sourceRoot = null)
+        => FindTargets(buildDirectory, configuration, sourceRoot).Keys.Where(File.Exists).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+
+    public static IReadOnlyDictionary<string, string> FindTargets(string buildDirectory, string configuration, string? sourceRoot = null)
     {
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(buildDirectory));
         var reply = Path.Combine(root, ".cmake", "api", "v1", "reply");
@@ -39,8 +42,8 @@ public static class CurrentFirmwareArtifacts
             selected = configurations[0];
         if (selected.ValueKind == JsonValueKind.Undefined)
             throw new InvalidOperationException($"CMake 构建目标中没有 {configuration} 配置，请重新配置并编译所选配置。");
-        var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (!selected.TryGetProperty("targets", out var targets)) return [];
+        var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!selected.TryGetProperty("targets", out var targets)) return files;
         foreach (var reference in targets.EnumerateArray())
         {
             using var target = Read(ReplyPath(reply, reference));
@@ -49,15 +52,17 @@ public static class CurrentFirmwareArtifacts
             foreach (var artifact in artifacts.EnumerateArray())
             {
                 var path = Path.GetFullPath(artifact.GetProperty("path").GetString()!, root);
-                if (Path.GetExtension(path).Equals(".elf", StringComparison.OrdinalIgnoreCase) && File.Exists(path) &&
+                if (Path.GetExtension(path).Equals(".elf", StringComparison.OrdinalIgnoreCase) &&
                     path.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                 {
                     ToolVersionManager.EnsureOrdinaryPath(path);
-                    files.Add(path);
+                    var name = data.TryGetProperty("name", out var targetName) ? targetName.GetString() : null;
+                    if (name == null && reference.TryGetProperty("name", out targetName)) name = targetName.GetString();
+                    files.TryAdd(path, name ?? "");
                 }
             }
         }
-        return files.Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        return files;
     }
 
     private static JsonDocument Read(string path)

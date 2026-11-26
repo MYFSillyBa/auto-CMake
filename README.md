@@ -2,9 +2,21 @@
 
 <img src="docs/images/chip.png" width="64" height="64" alt="蓝色芯片图标">
 
-面向 STM32 开发的 Windows 工具，提供**桌面程序**和 **VS Code 本地扩展**两个使用入口，集中完成 **STM32CubeMX 工程的 Keil MDK-ARM ↔ CMake 转换**、**ARM GCC 构建环境检测与自动安装**、**VS Code 一键编译与 DAPLink 烧录任务配置**，以及 C/C++、头文件和汇编源文件管理。
+面向 STM32 开发的 **VS Code 本地扩展**，集中完成 **STM32CubeMX 工程的 Keil MDK-ARM ↔ CMake 转换**、**ARM GCC 构建环境检测与自动安装**、**VS Code 一键编译与 DAPLink 烧录任务配置**，以及 C/C++、头文件和汇编源文件管理。
 
-**STM32 Project Helper** provides a Windows desktop application and a local VS Code extension for STM32CubeMX project conversion between Keil MDK5 (`.uvprojx`) and ARM GCC CMake, embedded toolchain setup, build/flash tasks, CMSIS-DAP/DAPLink and source-file management. Project conversion does not invoke STM32CubeMX.
+**STM32 Project Helper** is a local Windows VS Code extension for STM32CubeMX project conversion between Keil MDK5 (`.uvprojx`) and ARM GCC CMake, embedded toolchain setup, build/flash tasks, CMSIS-DAP/DAPLink and source-file management. Project conversion does not invoke STM32CubeMX.
+
+## VS Code 插件 v1.5.0
+
+[下载 Windows x64 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.0/stm32-project-helper-1.5.0-win32-x64.vsix) · [发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.0)
+
+**桌面 EXE 已停止维护，后续仅发布 VSIX。** [桌面 v1.7.1](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.1) 作为历史版本提供下载。
+
+在工作台点击按钮，或在工作台与已识别的 STM32 工程编辑器中按 **F8** 编译、**F7** 烧录、**F6** 调试，三项操作直接执行。默认调试模式先编译所选目标，再下载本次生成的 ELF 并启动 Cortex-Debug。编译失败会停止启动。工程存在多个未绑定的固件目标时，选择一次后可直接使用。F5 继续使用 VS Code 的原有绑定。
+
+工作台显示芯片、构建配置、探针与运行结果。**工程管理**集中放置任务设置、源码注册、本地文件导入、工程转换与同步、变更还原。**开发环境**提供工具链、代码提示和语言设置。**调试诊断**提供探针设置、固件与故障分析及串口终端，各功能保留独立入口。
+
+在 **开发环境 → 代码提示修复** 应用或恢复全局用户设置。一键修复让 clangd 负责代码提示，清理用户设置里固定的编译数据库路径，并关闭 clangd 的冲突提示。作用范围是当前 VS Code 用户配置文件内的所有工程。工作区覆盖项会在页面标出。头文件和宏不匹配时，可一键配置当前工程的 clangd 编译数据库。
 
 ## 2026-10-31 更新：桌面 v1.7.1 / 插件 v1.4.1
 
@@ -143,33 +155,33 @@ English details and release scope: [VS Code extension guide](src/STM32ProjectHel
 
 ## 下载与安装
 
-### 桌面程序
+### 桌面程序归档
 
-前往 [桌面程序最新版本](https://github.com/MYFSillyBa/auto-CMake/releases/latest) 下载：
+历史安装包见 [桌面 v1.7.1](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.1)。
 
-- **轻量版**：[STM32ProjectHelper-portable-win-x64.exe](https://github.com/MYFSillyBa/auto-CMake/releases/latest/download/STM32ProjectHelper-portable-win-x64.exe)，下载后直接运行，自带 .NET。
-- **极致轻量版**：[STM32ProjectHelper-lite-win-x64.exe](https://github.com/MYFSillyBa/auto-CMake/releases/latest/download/STM32ProjectHelper-lite-win-x64.exe)，需要电脑已安装 .NET 9 Desktop Runtime。
+- **轻量版**：[STM32ProjectHelper-portable-win-x64.exe](https://github.com/MYFSillyBa/auto-CMake/releases/download/v1.7.1/STM32ProjectHelper-portable-win-x64.exe)，下载后直接运行，自带 .NET。
+- **极致轻量版**：[STM32ProjectHelper-lite-win-x64.exe](https://github.com/MYFSillyBa/auto-CMake/releases/download/v1.7.1/STM32ProjectHelper-lite-win-x64.exe)，需要电脑已安装 .NET 9 Desktop Runtime。
 
 | 版本 | 本地发布路径 | 大小 | 运行要求 |
 | --- | --- | --- | --- |
 | 轻量版 | `artifacts/publish/portable/STM32ProjectHelper.exe` | 约 49 MB | Windows x64，自带 .NET |
 | 极致轻量版 | `artifacts/publish/lite/STM32ProjectHelper.exe` | 约 1.6 MB | Windows x64，.NET 9 Desktop Runtime |
 
-两个版本功能相同，Release 附件直接提供 EXE。应用原名“CMake · DAPLink 配置助手”；新版本继续读取已有工具设置和修改记录，并识别旧版生成的 VS Code 任务。仓库名保留 `auto-CMake`，Git 仓库保存源码和文档，克隆后可以自行构建。GitHub Actions 构建成功后会生成两个版本的下载产物。
+两个版本功能相同，Release 附件直接提供 EXE。应用原名“CMake · DAPLink 配置助手”；新版本继续读取已有工具设置和修改记录，并识别旧版生成的 VS Code 任务。仓库名保留 `auto-CMake`，Git 仓库保存源码和文档，克隆后可以自行构建。GitHub Actions 现生成 VSIX 构建产物。
 
 ### VS Code 本地扩展
 
 本地扩展提供工程配置、添加源文件、加入文件、工程转换、工具管理和修改记录，直接操作当前工作区，无需启动桌面程序。扩展适用于本地 Windows x64、VS Code 1.95 及以上版本，自带经过裁剪的后台运行时，无需另装 .NET。
 
-- **插件安装包 v1.4.0**：[stm32-project-helper-1.4.0-win32-x64.vsix](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.4.0/stm32-project-helper-1.4.0-win32-x64.vsix)。安装包约 **9 MB**，自带后台运行时及 OpenOCD 脚本，无需另装 .NET。
-- **版本说明**：[VS Code 扩展 v1.4.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.4.0)。
+- **插件安装包 v1.5.0**：[stm32-project-helper-1.5.0-win32-x64.vsix](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.0/stm32-project-helper-1.5.0-win32-x64.vsix)。安装包约 **9 MB**，自带后台运行时及 OpenOCD 脚本，无需另装 .NET。
+- **版本说明**：[VS Code 扩展 v1.5.0](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.0)。
 - **完整操作指南**：[安装、更新、使用流程与常见问题](src/STM32ProjectHelper.VSCode/README.md)。
 
-**双语插件 v1.4.0**：安装包位于 `artifacts/vsix/stm32-project-helper-1.4.0-win32-x64.vsix`。提供直接编译/烧录、下载器选择与高级设置、首次配置向导、错误说明和 Flash/RAM 静态分析；支持自定义配置、嵌套 STM32 工程及大文件列表。默认跟随 VS Code 显示语言，工作台右上角可切换中文 / English；也可设置 `stm32ProjectHelper.language`。双语覆盖工程配置、转换、开发分析等页面、确认弹窗、进度、检测说明和结果建议；语言切换保留配置与文件选择。新写入的托管任务使用当前语言，用户任务、路径、代码和原始编译输出保持原文。使用方法参见 [中文指南](src/STM32ProjectHelper.VSCode/README.md) / [English guide](src/STM32ProjectHelper.VSCode/README.en.md)。
+**双语插件 v1.5.0** 的本地安装包位于 `artifacts/vsix/stm32-project-helper-1.5.0-win32-x64.vsix`。支持自定义配置、嵌套 STM32 工程及大文件列表。默认跟随 VS Code 显示语言。在 **开发环境 → 语言与隐私** 切换简体中文或英文，也可设置 `stm32ProjectHelper.language`。切换语言会保留配置与文件选择。新写入的任务使用当前语言，用户任务、路径、代码和原始编译输出保留原文。使用方法参见 [中文指南](src/STM32ProjectHelper.VSCode/README.md) / [English guide](src/STM32ProjectHelper.VSCode/README.en.md)。
 
-1. 下载 VSIX，按 `Ctrl+Shift+X` 打开 VS Code 扩展面板，在右上角的 `…` 菜单选择“从 VSIX 安装…”，选择下载的 `stm32-project-helper-1.4.0-win32-x64.vsix`；从源码打包的文件位于 `artifacts/vsix`。
+1. 下载 VSIX，按 `Ctrl+Shift+X` 打开 VS Code 扩展面板，在右上角的 `…` 菜单选择“从 VSIX 安装…”，选择下载的 `stm32-project-helper-1.5.0-win32-x64.vsix`；从源码打包的文件位于 `artifacts/vsix`。
 2. 打开并信任包含 `CMakeLists.txt`、`.ioc` 或 `.uvprojx` 的工程文件夹，工作台自动打开；也可点击活动栏的芯片图标，或执行“STM32 工程助手：打开”。
-3. 首次配置可使用四步向导；核对检测结果及下载器设置后确认写入任务。也可先点“预览改动”查看原生文件差异。工程配置页直接提供编译与烧录按钮；缺少任务时先确认写入，再编译。烧录会再次要求明确确认，软件检查不连接硬件。
+3. 工作台的“开始配置”进入四步向导。也可以在“工程管理 → 构建与烧录设置”调整配置、预览差异或直接写入 VS Code 任务。编译、烧录和调试按钮位于工作台首页。软件检查运行编译与脚本解析。
 
 多个工程使用侧栏的“选择工作区”按钮切换；编辑另一工作区的源文件时自动切换当前工程。设置 `stm32ProjectHelper.autoOpen` 可关闭自动打开。扩展不上传工程，不保存最近工程列表。
 

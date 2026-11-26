@@ -22,5 +22,7 @@
   "language.english.description": "Use English.",
   "command.build": "STM32 Project Helper: Build",
   "command.flash": "STM32 Project Helper: Flash",
+  "command.debug": "STM32 Project Helper: Debug",
+  "command.fixIntelligence": "STM32 Project Helper: Fix Global Code Intelligence",
   "command.setup": "STM32 Project Helper: Setup Wizard"
 }

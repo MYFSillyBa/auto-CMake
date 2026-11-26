@@ -202,7 +202,8 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
     private async Task<object> BuildAsync(JsonElement payload, CancellationToken cancellation, string operation)
     {
         var flashing = operation == "flash";
-        var options = await OptionsAsync(payload, cancellation, flashing, flashing);
+        var requireFirmware = Flag(payload, "ensureFirmware");
+        var options = await OptionsAsync(payload, cancellation, flashing, flashing || requireFirmware);
         var plan = BuildPlan(options);
         var output = new List<string>(); var problems = new List<BuildProblem>(); var externalProblems = new HashSet<BuildProblem>(); bool openOcdChecked = false, flashed = false;
         async Task<bool> Run(ToolCommand command, string stage, TimeSpan limit, bool openOcd = false)
@@ -219,15 +220,34 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
         if (recovery != null) output.Add(recovery);
         progress(15, "CMake 配置", plan.BuildDirectory);
         var success = await Run(plan.Configure, "CMake 配置", TimeSpan.FromMinutes(5));
+        string? selectedFirmware = null;
         if (success)
         {
-            progress(45, "编译工程", null);
-            success = await Run(plan.Build, "编译", TimeSpan.FromMinutes(15));
+            var command = plan.Build;
+            if (requireFirmware)
+            {
+                var targets = CurrentFirmwareArtifacts.FindTargets(plan.BuildDirectory, options.BuildConfiguration, root);
+                if (options.FirmwareElfPath != null)
+                    selectedFirmware = targets.Keys.FirstOrDefault(file => file.Equals(options.FirmwareElfPath, StringComparison.OrdinalIgnoreCase));
+                if (selectedFirmware == null && targets.Count > 1)
+                    return new { success = false, needsFirmware = true, firmware = targets.Keys.Order(StringComparer.OrdinalIgnoreCase).ToArray(), output = string.Join(Environment.NewLine, output), openOcdChecked = false, flashed = false };
+                if (selectedFirmware == null && targets.Count == 1) selectedFirmware = targets.Keys.Single();
+                if (selectedFirmware == null || string.IsNullOrEmpty(targets[selectedFirmware]))
+                    throw new InvalidOperationException("当前配置没有可编译的 ELF 目标，请核对 CMake 预设和目标。");
+                command = command with { Arguments = command.Arguments.Concat(["--target", targets[selectedFirmware]]).ToArray() };
+            }
+            progress(45, "编译工程", selectedFirmware);
+            success = await Run(command, "编译", TimeSpan.FromMinutes(15));
         }
         IReadOnlyList<string> firmware = [];
         if (success)
         {
-            try { firmware = CMakeBuildPlan.FindElfs(plan.BuildDirectory, options.BuildConfiguration, root).Select(x => WorkspaceSafety.Child(plan.BuildDirectory, x)).ToArray(); }
+            try
+            {
+                firmware = CMakeBuildPlan.FindElfs(plan.BuildDirectory, options.BuildConfiguration, root).Select(x => WorkspaceSafety.Child(plan.BuildDirectory, x)).ToArray();
+                if (selectedFirmware != null && !firmware.Contains(selectedFirmware, StringComparer.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("编译结束后未找到所选 ELF，已停止下载。");
+            }
             catch (Exception ex) when (ex is IOException or InvalidOperationException or JsonException)
             { success = false; problems.Add(new("固件识别", "错误", ex.Message, null, null, null, "重新配置并核对当前构建目标。")); }
         }
@@ -243,10 +263,12 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
                 string? selected = null;
                 if (flashing)
                 {
-                    selected = options.FirmwareElfPath;
+                    selected = selectedFirmware ?? options.FirmwareElfPath;
                     if (selected != null && !firmware.Contains(selected, StringComparer.OrdinalIgnoreCase))
                         throw new InvalidOperationException("所选固件不是当前配置的目标产物，请重新选择。");
-                    if (selected == null && firmware.Count != 1)
+                    if (selected == null && firmware.Count > 1)
+                        return new { success = false, needsFirmware = true, firmware, output = string.Join(Environment.NewLine, output), openOcdChecked = false, flashed = false };
+                    if (selected == null && firmware.Count == 0)
                         throw new InvalidOperationException($"当前配置找到 {firmware.Count} 个 ELF 产物，请明确选择要烧录的固件。");
                     selected ??= firmware[0];
                     progress(90, "烧录固件", selected);

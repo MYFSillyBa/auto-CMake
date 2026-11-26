@@ -4,7 +4,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const vscode = require('vscode');
-const { confirmWrite } = require('./native-confirm.cjs');
 const { createTranslator } = require('../media/i18n.js');
 const controllerCatalog = require('../locales/controller.json');
 
@@ -31,7 +30,7 @@ async function run() {
   assert.equal(snapshot.panelOpen, true);
   assert.equal(snapshot.trusted, true);
   assert.equal(snapshot.language, language);
-  assert.deepEqual(snapshot.navigation, ['工程配置', '添加源文件', '加入文件', '工程转换', '工具管理', '修改记录'].map(label => t(label)));
+  assert.deepEqual(snapshot.navigation, ['工作台', '构建与烧录设置', '注册编译源文件', '导入本地文件', '转换与同步', '变更与还原', '工具链管理', '代码提示修复', '语言与隐私', '调试与探针设置', '固件与故障分析', '串口终端'].map(label => t(label)));
   assert.equal(snapshot.state.inspection.project.chip, 'STM32H723VGT6');
   await api.request('previewTasks');
   const selectedOptions = JSON.stringify(api.getSnapshot().state.options);
@@ -89,15 +88,8 @@ async function run() {
   await api.openPage('configure');
   }
   const beforeWriteTabs = vscode.window.tabGroups.all.flatMap(group => group.tabs).length;
-  const writing = api.request('writeTasks');
-  const writeDeadline = Date.now() + 90000;
-  const waitingPrefix = t('等待确认写入 {0} 个文件。').split('{0}')[0];
-  while (!api.getSnapshot().state.status.startsWith(waitingPrefix) && Date.now() < writeDeadline) {
-    await new Promise(resolve => setTimeout(resolve, 200));
-  }
-  assert.ok(api.getSnapshot().state.status.startsWith(waitingPrefix), api.getSnapshot().state.status);
-  const [written] = await Promise.all([writing, confirmWrite(t('确认写入'))]);
-  assert.equal(written, true, '直接写入按钮通过原生确认完成保存');
+  const written = await api.request('writeTasks');
+  assert.equal(written, true, '直接写入任务，无需再次确认');
   assert.equal(vscode.window.tabGroups.all.flatMap(group => group.tabs).length, beforeWriteTabs, '写入过程不会自动打开差异页');
   const savedTasks = fs.readFileSync(path.join(root, '.vscode', 'tasks.json'), 'utf8');
   assert.ok(savedTasks.includes('user-task') && savedTasks.includes('// User task remains unchanged.'));

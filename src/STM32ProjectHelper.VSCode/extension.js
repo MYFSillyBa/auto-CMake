@@ -11,11 +11,21 @@ const { viewState } = require('./view-state');
 const { DevelopmentTools, ACTIONS: DEVELOPMENT_ACTIONS } = require('./development-tools');
 
 const PAGES = [
-  ['configure', '工程配置', 'settings-gear'], ['sources', '添加源文件', 'new-file'],
-  ['import', '加入文件', 'files'], ['conversion', '工程转换', 'arrow-swap'],
-  ['tools', '工具管理', 'tools'], ['history', '修改记录', 'history'],
-  ['development', '开发配置', 'code'], ['analysis', '固件与故障分析', 'graph'], ['devices', '设备与诊断', 'plug']
+  ['overview', '工作台', 'home'],
+  ['configure', '构建与烧录设置', 'settings-gear', '工程管理'],
+  ['sources', '注册编译源文件', 'new-file', '工程管理'],
+  ['import', '导入本地文件', 'files', '工程管理'],
+  ['conversion', '转换与同步', 'arrow-swap', '工程管理'],
+  ['history', '变更与还原', 'history', '工程管理'],
+  ['tools', '工具链管理', 'tools', '开发环境'],
+  ['intelligence', '代码提示修复', 'code', '开发环境'],
+  ['preferences', '语言与隐私', 'settings', '开发环境'],
+  ['development', '调试与探针设置', 'debug-alt', '调试诊断'],
+  ['analysis', '固件与故障分析', 'graph', '调试诊断'],
+  ['devices', '串口终端', 'plug', '调试诊断']
 ];
+const DIRECT_SAVE = new Set(['build', 'flash', 'startDebug']);
+const BUILD_SELECTION = ['configurePreset', 'buildPreset', 'configuration', 'buildDirectory', 'firmwareElfPath', 'targetScript', 'probeType', 'adapterSpeed', 'resetMode', 'debugMode', 'debugName', 'preflightCheck'];
 const OPTIONS = new Set(['configurePreset', 'buildPreset', 'configuration', 'targetScript', 'buildDirectory', 'firmwareElfPath', 'direction', 'target', 'sourceTarget', 'sourceProject', 'folderName', 'search', 'probeType', 'adapterSpeed', 'resetMode']);
 for (const key of ['compilationDatabaseDirectory', 'debugName', 'debugMode', 'mapFilePath', 'hardFaultRegisters', 'gdbEndpoint', 'serialPort', 'serialBaud', 'serialMode', 'serialText', 'serialNewline', 'preflightCheck']) OPTIONS.add(key);
 const TOOL_KEYS = { cMake: 'cmake', ninja: 'ninja', compiler: 'compiler', openOcd: 'openOcd' };
@@ -43,14 +53,24 @@ class LocalizedOutput {
 class Navigation {
   constructor(controller) { this.controller = controller; this.emitter = new vscode.EventEmitter(); this.onDidChangeTreeData = this.emitter.event; }
   getTreeItem(item) { return item; }
-  getChildren() {
+  pageItem([id, label, icon]) {
+    const item = new vscode.TreeItem(this.controller.t(label));
+    item.iconPath = new vscode.ThemeIcon(icon);
+    item.command = { command: 'stm32ProjectHelper.open', title: this.controller.t(label), arguments: [id] };
+    return item;
+  }
+  getChildren(parent) {
+    if (parent?.group) return PAGES.filter(page => page[3] === parent.group).map(page => this.pageItem(page));
+    if (parent) return [];
     const root = new vscode.TreeItem(this.controller.folder?.name || this.controller.t('请选择本地工作区'));
     root.description = this.controller.folder?.uri.fsPath;
     root.iconPath = new vscode.ThemeIcon('root-folder');
     root.command = { command: 'stm32ProjectHelper.selectWorkspace', title: this.controller.t('选择工作区') };
-    return [root, ...PAGES.map(([id, label, icon]) => {
-      const item = new vscode.TreeItem(this.controller.t(label)); item.iconPath = new vscode.ThemeIcon(icon);
-      item.command = { command: 'stm32ProjectHelper.open', title: this.controller.t(label), arguments: [id] }; return item;
+    return [root, this.pageItem(PAGES[0]), ...[...new Set(PAGES.map(page => page[3]).filter(Boolean))].map(group => {
+      const item = new vscode.TreeItem(this.controller.t(group), vscode.TreeItemCollapsibleState.Collapsed);
+      item.id = 'group.' + group;
+      item.group = group;
+      return item;
     })];
   }
   refresh() { this.emitter.fire(); }
@@ -60,7 +80,7 @@ class Navigation {
 class Workbench {
   constructor(context) {
     this.translations = {}; this.updateLanguage();
-    this.context = context; this.states = new Map(); this.epoch = 0; this.page = 'configure'; this.busy = false;
+    this.context = context; this.states = new Map(); this.epoch = 0; this.page = 'overview'; this.busy = false;
     this.output = new LocalizedOutput(this.t('STM32 工程助手'));
     this.diagnostics = vscode.languages.createDiagnosticCollection('stm32ProjectHelper');
     this.bridge = new HostBridge(path.join(context.extensionPath, 'server', 'STM32ProjectHelper.ExtensionHost.exe'), this.output, { translate: (source, ...args) => this.t(source, ...args), onTranslations: pairs => Object.assign(this.translations, pairs) });
@@ -72,10 +92,16 @@ class Workbench {
     context.subscriptions.push(vscode.commands.registerCommand('stm32ProjectHelper.open', page => this.open(page)),
       vscode.commands.registerCommand('stm32ProjectHelper.selectWorkspace', () => this.pickWorkspace()),
       vscode.commands.registerCommand('stm32ProjectHelper.refresh', () => this.operation('refresh')),
-      vscode.commands.registerCommand('stm32ProjectHelper.build', () => this.operation('build')),
-      vscode.commands.registerCommand('stm32ProjectHelper.flash', () => this.operation('flash')),
+      vscode.commands.registerCommand('stm32ProjectHelper.build', () => this.runProjectCommand('build')),
+      vscode.commands.registerCommand('stm32ProjectHelper.flash', () => this.runProjectCommand('flash')),
+      vscode.commands.registerCommand('stm32ProjectHelper.debug', () => this.runProjectCommand('startDebug')),
+      vscode.commands.registerCommand('stm32ProjectHelper.fixIntelligence', async () => {
+        await this.operation('fixIntelligence');
+        return this.open('intelligence');
+      }),
       vscode.commands.registerCommand('stm32ProjectHelper.setup', async () => { await this.open('configure'); return this.operation('startWizard'); }));
     context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(async editor => {
+      void this.updateShortcutContext(editor);
       if (!editor || this.busy) return;
       const folder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
       if (!folder || this.folder && contains(this.folder.uri.fsPath, editor.document.uri.fsPath)) return;
@@ -91,7 +117,11 @@ class Workbench {
     context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
       this.projectCandidates.clear();
       if (this.folder && !vscode.workspace.workspaceFolders?.some(folder => folder.uri.toString() === (this.folder.workspaceFolder || this.folder).uri.toString())) this.setFolder(vscode.workspace.workspaceFolders?.[0]);
-    }), vscode.workspace.onDidGrantWorkspaceTrust(() => { if (this.panel) void this.operation('refresh'); }));
+      void this.updateShortcutContext(vscode.window.activeTextEditor);
+    }), vscode.workspace.onDidGrantWorkspaceTrust(() => {
+      void this.updateShortcutContext(vscode.window.activeTextEditor);
+      if (this.panel) void this.operation('refresh');
+    }));
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(event => {
       if (event.affectsConfiguration('stm32ProjectHelper.language')) { if (this.busy) this.pendingLanguage = true; else this.updateLanguage(); }
       for (const [uri, state] of this.states) {
@@ -107,6 +137,32 @@ class Workbench {
     this.development = new DevelopmentTools(this);
     context.subscriptions.push(this.development);
   }
+  async updateShortcutContext(editor) {
+    const revision = this.shortcutRevision = (this.shortcutRevision || 0) + 1;
+    const folder = editor && vscode.workspace.getWorkspaceFolder(editor.document.uri);
+    let matched = false;
+    try {
+      if (folder && vscode.workspace.isTrusted) matched = !!nearestProject(await this.projectsIn(folder), editor.document.uri.fsPath);
+    } catch (error) {
+      this.output.appendLine(error.message);
+    }
+    if (this.shortcutRevision === revision) await vscode.commands.executeCommand('setContext', 'stm32ProjectHelper.activeProjectEditor', matched);
+  }
+  async runProjectCommand(action) {
+    if (this.busy) return;
+    const editor = this.panel?.active ? undefined : vscode.window.activeTextEditor;
+    const workspace = (editor && vscode.workspace.getWorkspaceFolder(editor.document.uri)) || this.folder?.workspaceFolder || this.folder;
+    if (workspace && !this.panel?.active) {
+      const epoch = this.epoch;
+      const candidates = await this.projectsIn(workspace);
+      const selected = (editor && nearestProject(candidates, editor.document.uri.fsPath)) || (!editor && candidates.length === 1 ? candidates[0] : undefined);
+      if (this.busy || epoch !== this.epoch || (editor && editor !== vscode.window.activeTextEditor)) return;
+      if (!selected) return;
+      if (path.resolve(selected.root).toLowerCase() !== path.resolve(this.folder?.uri.fsPath || '').toLowerCase())
+        this.setFolder(this.projectFolder(workspace, selected.root));
+    }
+    return this.operation(action);
+  }
   updateLanguage() {
     const previousLanguage = this.language;
     const preference = vscode.workspace.getConfiguration('stm32ProjectHelper').get('language', 'auto');
@@ -121,7 +177,8 @@ class Workbench {
     if (this.output) this.output.rename(this.t('STM32 工程助手'));
     if (this.panel) this.panel.title = this.t('STM32 工程助手');
     this.navigation?.refresh();
-    if (this.states && this.state.verification) this.publishProblems(this.state.verification);
+    const result = this.states && (this.state.flashResult || this.state.buildResult || this.state.verification);
+    if (result) this.publishProblems(result);
   }
   t(source, ...args) {
     const pairs = this.translations || {};
@@ -147,8 +204,18 @@ class Workbench {
   }
   get state() {
     const key = this.folder?.uri.toString() || '';
-    if (!this.states.has(key)) this.states.set(key, { options: { configuration: 'Debug', direction: 'MdkToCMake', folderName: 'User', probeType: 'cmsis-dap', adapterSpeed: '1000', resetMode: 'default', preflightCheck: 'true' }, selectedFiles: [], sourceFiles: [], sourceRevision: 0, selectionRevision: 0, toolFingerprint: JSON.stringify(this.tools()), status: this.t('请选择操作。') });
+    if (!this.states.has(key)) {
+      const selection = key ? this.context.workspaceState.get('build.selection.' + key, {}) : {};
+      this.states.set(key, { options: { configuration: 'Debug', direction: 'MdkToCMake', folderName: 'User', probeType: 'cmsis-dap', adapterSpeed: '1000', resetMode: 'default', preflightCheck: 'true', ...selection },
+        selectedFiles: [], sourceFiles: [], sourceRevision: 0, selectionRevision: 0, toolFingerprint: JSON.stringify(this.tools()), status: this.t('请选择操作。') });
+    }
     return this.states.get(key);
+  }
+  async rememberBuildSelection() {
+    if (!this.folder) return;
+    const options = this.state.options;
+    const selection = Object.fromEntries(BUILD_SELECTION.filter(key => typeof options[key] === 'string').map(key => [key, options[key]]));
+    await this.context.workspaceState.update('build.selection.' + this.folder.uri.toString(), selection);
   }
   setFolder(folder) { this.cancelSource?.cancel(); this.development?.serial.dispose(); this.folder = folder; this.epoch++; this.diagnostics.clear(); this.pruneDiffs(); this.navigation.refresh(); this.render(); }
   projectFolder(workspaceFolder, root) {
@@ -189,18 +256,22 @@ class Workbench {
       return (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative)) || selectedSources.has(path.resolve(document.uri.fsPath).toLowerCase());
     });
   }
-  async saveDirtyDocuments(epoch, includeImportSources = false) {
+  async saveDirtyDocuments(epoch, includeImportSources = false, automatic = false) {
     let saved = false;
     while (true) {
       this.assertSession(epoch);
       const documents = this.dirtyWorkspaceDocuments(includeImportSources); if (!documents.length) return saved;
-      const scope = includeImportSources ? this.t('当前工程或选中的导入源文件') : this.t('当前工程');
-      const choice = await vscode.window.showWarningMessage(this.t('{0}有 {1} 个未保存文件。保存后继续？\n', scope, documents.length) + documents.map(document => document.uri.fsPath).join('\n'), { modal: true }, this.t('保存后继续'));
-      this.assertSession(epoch);
-      if (choice !== this.t('保存后继续')) { const error = new Error(this.t('已取消操作，未保存的编辑内容已保留。')); error.cancelled = true; throw error; }
+      if (!automatic) {
+        const scope = includeImportSources ? this.t('当前工程或选中的导入源文件') : this.t('当前工程');
+        const choice = await vscode.window.showWarningMessage(this.t('{0}有 {1} 个未保存文件。保存后继续？\n', scope, documents.length) + documents.map(document => document.uri.fsPath).join('\n'), { modal: true }, this.t('保存后继续'));
+        this.assertSession(epoch);
+        if (choice !== this.t('保存后继续')) { const error = new Error(this.t('已取消操作，未保存的编辑内容已保留。')); error.cancelled = true; throw error; }
+      }
       for (const document of documents) {
         this.assertSession(epoch);
         if (!document.isDirty) continue;
+        if (automatic && /[\\/]\.vscode[\\/](launch|tasks)\.json$/i.test(document.uri.fsPath))
+          throw new Error(this.t('请先保存正在编辑的调试或任务配置：{0}', document.uri.fsPath));
         const workspaceState = this.state;
         workspaceState.preview = undefined; workspaceState.importPreview = undefined; workspaceState.conversion = undefined; workspaceState.verification = undefined;
         const success = await document.save(); this.assertSession(epoch);
@@ -223,7 +294,7 @@ class Workbench {
     const item = await vscode.window.showQuickPick(items, { title: this.t('选择当前工程工作区') });
     if (item) { this.setFolder(item.folder); await this.open(this.page); }
   }
-  async open(page = 'configure') {
+  async open(page = 'overview') {
     if (PAGES.some(item => item[0] === page)) this.page = page;
     if (!this.panel) {
       this.panel = vscode.window.createWebviewPanel('stm32ProjectHelper.workbench', this.t('STM32 工程助手'), vscode.ViewColumn.Active,
@@ -252,6 +323,7 @@ class Workbench {
           if (message.key === 'direction') this.state.conversion = undefined;
           if (message.key === 'sourceTarget') { this.state.scan = undefined; this.state.selectedFiles = []; this.state.sourceRevision++; this.state.selectionRevision++; }
           if (message.key === 'folderName') this.state.importPreview = undefined;
+          if (BUILD_SELECTION.includes(message.key)) void this.rememberBuildSelection().catch(error => this.output.appendLine(error.message));
           this.state.preview = undefined; this.render(); return;
         }
         if (message.action === 'selectSource' && !this.busy && typeof message.file === 'string' && this.state.scan?.candidateFiles?.includes(message.file)) {
@@ -263,6 +335,12 @@ class Workbench {
       }, null, this.context.subscriptions);
     } else this.panel.reveal();
     this.render();
+    if (page === 'preferences') return;
+    if (page === 'intelligence') {
+      if (this.folder && !this.state.inspection && vscode.workspace.isTrusted) void this.operation('refresh');
+      return;
+    }
+    if (!this.folder) return;
     if (!this.state.inspection) await this.operation('refresh');
     else if (page === 'history') await this.operation('history');
     else if (page === 'tools') await this.operation('tools');
@@ -270,7 +348,34 @@ class Workbench {
   html(webview) {
     const nonce = crypto.randomBytes(24).toString('base64');
     const resource = file => webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', file));
-    return `<!DOCTYPE html><html lang="${this.language}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';"><title>${this.t('STM32 工程助手')}</title><link rel="stylesheet" href="${resource('workbench.css')}"></head><body><header><img src="${resource('chip.svg')}" alt=""><div><h1 id="app-title">${this.t('STM32 工程助手')}</h1><p id="workspace"></p></div><label class="language-selector" for="language"><span id="language-label">${this.t('语言')}</span><select id="language"><option value="auto">${this.t('跟随 VS Code')}</option><option value="zh-CN">中文</option><option value="en">English</option></select></label><button id="refresh">${this.t('重新检测')}</button></header><nav id="navigation" aria-label="${this.t('工程操作')}"></nav><div id="status" role="status" aria-live="polite"></div><main id="content"></main><footer><span id="footer-note">${this.t('当前工作区 · 写入前确认 · 软件检查')}</span><button id="cancel" hidden>${this.t('取消当前操作')}</button><button id="logs">${this.t('查看输出')}</button></footer><script nonce="${nonce}" src="${resource('i18n.js')}"></script><script nonce="${nonce}" src="${resource('ui-messages.js')}"></script><script nonce="${nonce}" src="${resource('workbench.js')}"></script></body></html>`;
+    return `<!DOCTYPE html><html lang="${this.language}">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+  <title>${this.t('STM32 工程助手')}</title>
+  <link rel="stylesheet" href="${resource('workbench.css')}">
+</head>
+<body>
+  <header>
+    <img src="${resource('chip.svg')}" alt="">
+    <div><h1 id="app-title">${this.t('STM32 工程助手')}</h1><p id="workspace"></p></div>
+    <button id="refresh" class="secondary">${this.t('重新检测')}</button>
+  </header>
+  <div class="workspace-layout">
+    <nav id="navigation" aria-label="${this.t('工程操作')}"></nav>
+    <nav id="subnavigation" aria-label="${this.t('分类功能')}" hidden></nav>
+    <div id="status" role="status" aria-live="polite"></div>
+    <main id="content"></main>
+  </div>
+  <footer>
+    <span id="footer-note">${this.t('STM32 工程助手')}</span>
+    <button id="cancel" hidden>${this.t('取消当前操作')}</button>
+    <button id="logs" class="secondary">${this.t('查看输出')}</button>
+  </footer>
+  <script nonce="${nonce}" src="${resource('i18n.js')}"></script>
+  <script nonce="${nonce}" src="${resource('ui-messages.js')}"></script>
+  <script nonce="${nonce}" src="${resource('workbench.js')}"></script>
+</body></html>`;
   }
   tools(uri = this.folder?.uri) {
     const config = vscode.workspace.getConfiguration('stm32ProjectHelper', uri);
@@ -347,7 +452,10 @@ class Workbench {
     this.state.serial = this.development?.serial.snapshot();
     this.state.telemetry = this.development?.statistics.snapshot();
     let unavailable; try { this.supported(); } catch (error) { unavailable = error.message; }
-    void this.panel.webview.postMessage({ type: 'state', page: this.page, language: this.language, languagePreference: this.languagePreference, pages: PAGES.map(([id, label, icon]) => [id, this.t(label), icon]), root: this.folder?.uri.fsPath, busy: this.busy, unavailable, state: this.localizeDisplay(viewState(this.state, this.page)), configuredTools: this.tools() });
+    const intelligence = this.page === 'intelligence' ? this.development.intelligenceStatus() : undefined;
+    const pages = PAGES.map(([id, label, icon, group]) => [id, this.t(label), icon, group && this.t(group)]);
+    const canRun = !unavailable && !!this.state.inspection?.project?.isCMakeProject;
+    void this.panel.webview.postMessage({ type: 'state', page: this.page, language: this.language, languagePreference: this.languagePreference, pages, root: this.folder?.uri.fsPath, busy: this.busy, unavailable, canRun, intelligence, state: this.localizeDisplay(viewState(this.state, this.page)), configuredTools: this.tools() });
   }
   renderProgress(percent) {
     if (!this.panel) return;
@@ -364,7 +472,7 @@ class Workbench {
   }
   async call(command, payload, epoch, progress, reviewedPreview) {
     this.assertSession(epoch);
-    const saved = this.needsSave(command, payload) ? await this.saveDirtyDocuments(epoch, command === 'importFiles') : false;
+    const saved = this.needsSave(command, payload) ? await this.saveDirtyDocuments(epoch, command === 'importFiles', ['build', 'flash'].includes(command)) : false;
     this.diskNotice();
     if (saved && REVIEWED_WRITES.has(command)) throw new Error(this.t('文件在确认期间被编辑并保存。请重新生成当前改动后再确认写入。'));
     this.assertSession(epoch);
@@ -404,7 +512,7 @@ class Workbench {
     this.state.status = this.t('工程检测完成。'); return result;
   }
   hasManagedTasks() {
-    try { return /(?:由 STM32 工程助手管理|Managed by STM32 Project Helper|由 CMake · DAPLink 配置助手管理)/.test(fs.readFileSync(path.join(this.folder.uri.fsPath, '.vscode', 'tasks.json'), 'utf8')); } catch { return false; }
+    try { return /(?:由 STM32 工程助手管理|Managed by STM32 Project Helper|由 CMake · DAPLink 配置助手管理)"/.test(fs.readFileSync(path.join(this.folder.uri.fsPath, '.vscode', 'tasks.json'), 'utf8')); } catch { return false; }
   }
   preview(result, kind) {
     this.state.preview = { ...result, kind, toolFingerprint: JSON.stringify(this.tools()) }; this.state.status = result.summary || this.t('改动已生成。可确认写入，或按需查看文件差异。'); return result;
@@ -446,17 +554,19 @@ class Workbench {
       await vscode.commands.executeCommand('vscode.diff', before, after, `${index + 1}/${preview.changes.length} · ${change.path}`, { preview: selected.length === 1 });
     }
   }
-  async applyPreview(epoch, progress) {
+  async applyPreview(epoch, progress, confirm = true, refresh = true) {
     const preview = this.state.preview;
     if (preview?.kind === 'restore') return this.execute('restore', {}, epoch, progress);
     if (!preview || !preview.changes?.length || preview.canApply === false || preview.issues?.some(issue => issue.blocking)) throw new Error(this.t('当前改动无法写入。请解决提示的问题，再点击页面上的“确认写入”重新计算。'));
     this.assertPreview(preview);
-    const files = preview.changes.slice(0, 30).map(change => `${change.before === null ? this.t('新增') : change.after === null ? this.t('删除') : this.t('修改')} · ${path.relative(this.folder.uri.fsPath, change.path)}`);
-    if (preview.changes.length > files.length) files.push(this.t('另有 {0} 个文件，可在改动列表中查看。', preview.changes.length - files.length));
-    this.state.status = this.t('等待确认写入 {0} 个文件。', preview.changes.length); this.render();
-    const choice = await vscode.window.showWarningMessage(this.t('确认写入 {0} 个文件？', preview.changes.length),
-      { modal: true, detail: [this.t('工程：') + this.folder.uri.fsPath, this.t(preview.summary || preview.label) || '', '', ...files].join('\n') }, this.t('确认写入'));
-    if (choice !== this.t('确认写入')) { if (epoch === this.epoch) this.state.status = this.t('已取消写入，工程文件保持原样。'); return false; }
+    if (confirm || preview.changes.some(change => change.after === null)) {
+      const files = preview.changes.slice(0, 30).map(change => `${change.before === null ? this.t('新增') : change.after === null ? this.t('删除') : this.t('修改')} · ${path.relative(this.folder.uri.fsPath, change.path)}`);
+      if (preview.changes.length > files.length) files.push(this.t('另有 {0} 个文件，可在改动列表中查看。', preview.changes.length - files.length));
+      this.state.status = this.t('等待确认写入 {0} 个文件。', preview.changes.length); this.render();
+      const choice = await vscode.window.showWarningMessage(this.t('确认写入 {0} 个文件？', preview.changes.length),
+        { modal: true, detail: [this.t('工程：') + this.folder.uri.fsPath, this.t(preview.summary || preview.label) || '', '', ...files].join('\n') }, this.t('确认写入'));
+      if (choice !== this.t('确认写入')) { if (epoch === this.epoch) this.state.status = this.t('已取消写入，工程文件保持原样。'); return false; }
+    }
     this.assertSession(epoch);
     this.assertPreview(preview);
     const repairing = preview.kind === 'freeRtosRepair';
@@ -481,7 +591,7 @@ class Workbench {
         throw new Error(this.t('FreeRTOS 补全已完成，但重新检查失败：{0}。请重新检查并转换工程。', error.message));
       }
       this.state.status = this.t('FreeRTOS 补全已完成，请重新转换；仍需解决其余阻断问题。');
-    } else {
+    } else if (refresh) {
       await this.inspect(epoch, progress); this.state.status = this.t('文件变更已保存。可运行软件检查。');
     }
     return true;
@@ -493,7 +603,7 @@ class Workbench {
     const blockers = preview?.issues?.filter(issue => issue.blocking) || [];
     if (!preview || preview.canApply === false || blockers.length) throw new Error(this.t('当前改动无法写入。') + blockers.map(issue => [issue.title || issue.message || issue.key, issue.action || issue.instructions].filter(Boolean).map(value => this.t(value)).join('\n')).join('\n'));
     if (!preview.changes?.length) { this.state.status = this.t('当前配置已是最新，没有需要写入的文件。'); return false; }
-    return this.applyPreview(epoch, progress);
+    return this.applyPreview(epoch, progress, preview.kind === 'conversion');
   }
   async inspectConversion(epoch, progress, preserveSelection = false) {
     const state = this.state, selected = { target: state.options.target, sourceProject: state.options.sourceProject };
@@ -523,7 +633,7 @@ class Workbench {
     const tasks = await this.call('previewTasks', this.options(), epoch, progress);
     if (tasks.changes?.length) {
       this.preview(tasks, 'tasks');
-      if (!await this.applyPreview(epoch, progress)) { this.state.status = this.t('已取消任务配置，尚未运行软件检查。'); return; }
+      if (!await this.applyPreview(epoch, progress, false, false)) return;
     }
     const result = await this.call('verify', this.options(), epoch, progress);
     this.state.verification = result; this.publishProblems(result); if (result.output) this.output.appendLine(result.output);
@@ -531,22 +641,15 @@ class Workbench {
     if (!result.success) return result;
     const firmware = result.firmware || [];
     if (!firmware.length) return result;
-    const selected = await vscode.window.showQuickPick(firmware.map(file => ({ label: path.basename(file), description: file, file })), { title: this.t('选择用于任务的实际固件 ELF'), placeHolder: this.t('取消将保留现有任务绑定') });
+    const selected = firmware.length === 1 ? { file: firmware[0] } : await vscode.window.showQuickPick(firmware.map(file => ({ label: path.basename(file), description: file, file })), { title: this.t('选择用于任务的实际固件 ELF'), placeHolder: this.t('取消将保留现有任务绑定') });
     this.assertSession(epoch); if (!selected) return result;
     this.state.options.firmwareElfPath = selected.file;
     const preview = await this.call('previewTasks', this.options(), epoch, progress); this.preview(preview, 'firmware');
-    if (preview.changes?.length) await this.applyPreview(epoch, progress);
+    if (preview.changes?.length) await this.applyPreview(epoch, progress, false, false);
     this.state.status = this.t('软件检查通过。固件任务绑定可在预览中确认；烧录任务由你在 VS Code 中手动运行。'); return result;
-  }
-  async ensureTasks(epoch, progress, buildOnly = false) {
-    const result = await this.call('previewTasks', { ...this.options(), buildOnly }, epoch, progress);
-    if (!result.changes?.length) return true;
-    this.preview({ ...result, buildOnly }, 'tasks');
-    return this.applyPreview(epoch, progress);
   }
   showBuildResult(result, action) {
     this.state[action === 'flash' ? 'flashResult' : 'buildResult'] = { ...result, output: undefined };
-    this.state.verification = { ...result, output: undefined };
     this.publishProblems(result); if (result.output) this.output.appendLine(result.output);
     if (!result.success) { this.state.status = this.t('操作未完成，请查看问题说明与完整输出。'); return; }
     const firmware = result.firmware || [];
@@ -555,8 +658,6 @@ class Workbench {
     this.state.status = action === 'flash' ? this.t('烧录完成，固件已校验并复位。') : this.t('编译完成。');
   }
   async buildOrFlash(action, epoch, progress) {
-    const readyForFlash = !!this.state.inspection?.tools?.openOcd && !!this.state.options.targetScript;
-    if (!await this.ensureTasks(epoch, progress, action === 'build' && !readyForFlash)) return;
     if (action === 'build') {
       const result = await this.call('build', this.options(), epoch, progress);
       this.showBuildResult(result, action);
@@ -566,26 +667,23 @@ class Workbench {
       }
       return result;
     }
-    const built = await this.call('build', this.options(), epoch, progress);
-    this.showBuildResult(built, 'build'); if (!built.success) return built;
-    const firmware = built.firmware || [];
-    if (!this.state.options.firmwareElfPath && firmware.length > 1) {
-      const selected = await vscode.window.showQuickPick(firmware.map(file => ({ label: path.basename(file), description: file, file })), { title: this.t('选择要烧录的实际固件 ELF') });
-      this.assertSession(epoch); if (!selected) { this.state.status = this.t('已完成编译，尚未选择烧录固件。'); return built; }
-      this.state.options.firmwareElfPath = selected.file;
-    }
-    if (!this.state.options.firmwareElfPath) throw new Error(this.t('没有可用于烧录的当前固件。'));
-    const option = this.options(), probe = { 'cmsis-dap': 'DAPLink / CMSIS-DAP', stlink: 'ST-Link', jlink: 'J-Link' }[option.probeType];
-    const confirm = this.t('确认烧录');
-    const chosen = await vscode.window.showWarningMessage(this.t('将固件写入连接的目标芯片？'), { modal: true,
-      detail: [this.folder.uri.fsPath, option.configuration, option.firmwareElfPath, probe, option.adapterSpeed + ' kHz', option.resetMode].join('\n') }, confirm);
-    this.assertSession(epoch); if (chosen !== confirm) { this.state.status = this.t('已取消烧录。'); return built; }
+    if (vscode.debug.activeDebugSession) throw new Error(this.t('请先结束当前调试会话。'));
     if (this.state.options.preflightCheck === 'true') {
       const check = await this.development.probeCheck(epoch, progress, true);
-      if (!check || check.chipConnected !== true) { this.state.status = this.t('硬件检查未通过，尚未烧录。'); return built; }
+      if (!check || check.chipConnected !== true) { this.state.status = this.t('硬件检查未通过，尚未烧录。'); return; }
     }
-    const result = await this.call('flash', { ...option, explicitFlash: true }, epoch, progress);
-    this.showBuildResult(result, action); return result;
+    const runFlash = () => this.call('flash', { ...this.options(), explicitFlash: true, ensureFirmware: true }, epoch, progress);
+    let result = await runFlash();
+    if (result.needsFirmware) {
+      const selected = await vscode.window.showQuickPick(result.firmware.map(file => ({ label: path.basename(file), description: file, file })), { title: this.t('选择要烧录的实际固件 ELF') }, this.cancelSource?.token);
+      this.assertSession(epoch);
+      if (!selected) { this.state.status = this.t('未选择烧录固件。'); return; }
+      this.state.options.firmwareElfPath = selected.file;
+      result = await runFlash();
+    }
+    this.showBuildResult(result, action);
+    if (result.success) await this.rememberBuildSelection();
+    return result;
   }
   async readMemory(epoch, progress, interactive = true) {
     const firmware = this.state.options.firmwareElfPath;
@@ -600,6 +698,11 @@ class Workbench {
   async operation(action, message = {}) {
     const actions = new Set(['refresh', 'previewTasks', 'writeTasks', 'apply', 'diff', 'verify', 'pickSourceFolder', 'scanSources', 'selectAllSources', 'previewSources', 'writeSources', 'pickImportFiles', 'previewImport', 'importDiff', 'importFiles', 'inspectConversion', 'previewConversion', 'writeConversion', 'previewFreeRtosRepair', 'pickFreeRtosPort', 'tools', 'pickTool', 'repair', 'importTool', 'activateTool', 'history', 'previewRestore', 'restore', 'logs', 'workspace', 'build', 'flash', 'memory', 'startWizard', 'wizardNext', 'wizardBack', 'wizardFinish', 'dismissWizard']);
     if (action === 'setLanguage') return this.setLanguage(message.value);
+    if (action === 'openClangdExtension') return this.development.execute(action, message);
+    if (['fixIntelligence', 'restoreIntelligence'].includes(action)) {
+      if (!this.busy) return this.development.updateIntelligence(action === 'restoreIntelligence');
+      return;
+    }
     if (!actions.has(action) && !DEVELOPMENT_ACTIONS.has(action)) return;
     if (action === 'logs') { this.output.show(true); return; }
     if (action === 'workspace') return this.pickWorkspace();
@@ -612,11 +715,13 @@ class Workbench {
     const epoch = this.epoch;
     this.diskNotice(); this.busy = true; this.state.percent = 0; this.cancelSource = new vscode.CancellationTokenSource(); this.render();
     try {
-      return await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: this.t('STM32 工程助手'), cancellable: true }, async (progress, token) => {
+      if (!this.state.inspection && DIRECT_SAVE.has(action)) await this.inspect(epoch);
+      const location = this.panel?.active ? vscode.ProgressLocation.Window : vscode.ProgressLocation.Notification;
+      return await vscode.window.withProgress({ location, title: this.t('STM32 工程助手'), cancellable: true }, async (progress, token) => {
         const subscription = token.onCancellationRequested(() => this.cancelOperation());
         try {
           if (DISK_ACTIONS.has(action) || action === 'inspectConversion' && this.state.options.direction === 'CMakeToMdk') {
-            const saved = await this.saveDirtyDocuments(epoch, ['previewImport', 'importDiff', 'importFiles'].includes(action));
+            const saved = await this.saveDirtyDocuments(epoch, action === 'importFiles', DIRECT_SAVE.has(action));
             if (saved && REVIEWED_ACTIONS.has(action)) throw new Error(this.t('编辑内容已保存。请重新预览后再确认写入。'));
           }
           const result = await this.execute(action, message, epoch, progress);
@@ -644,7 +749,7 @@ class Workbench {
       case 'writeConversion': return this.writeChanges('previewConversion', epoch, progress);
       case 'refresh': state.preview = undefined; return this.inspect(epoch, progress);
       case 'previewTasks': return this.preview(await this.call('previewTasks', this.options(), epoch, progress), 'tasks');
-      case 'apply': return this.applyPreview(epoch, progress);
+      case 'apply': return this.applyPreview(epoch, progress, false);
       case 'diff': if (state.preview) return this.showDiffs(state.preview, epoch, message.indices); return;
       case 'verify': return this.verify(epoch, progress);
       case 'build': case 'flash': return this.buildOrFlash(action, epoch, progress);
@@ -712,20 +817,12 @@ class Workbench {
         const preview = state.importPreview;
         if (!preview?.plan) throw new Error(this.t('请先预览加入文件计划。'));
         this.assertSession(epoch);
-        const text = preview.plan.folderExisted ? this.t('目标文件夹已存在，是否向其中追加所列文件？') : this.t('确认创建目标文件夹并复制所列文件？');
-        const choice = await vscode.window.showWarningMessage(text + '\n' + preview.plan.folderPath + '\n' + preview.plan.files.length + this.t(' 个文件'), { modal: true }, this.t('确认复制'));
-        this.assertSession(epoch); if (choice !== this.t('确认复制')) return;
         const result = await this.call('importFiles', { plan: preview.plan, confirmedExistingFolder: preview.plan.folderExisted }, epoch, progress);
         state.importPreview = undefined; state.sourceFiles = []; state.status = this.t('文件已复制。可在“添加源文件”中注册到构建目标。'); return result;
       }
       case 'inspectConversion': {
         state.preview = undefined;
         if (state.options.direction === 'CMakeToMdk') {
-          const options = this.options();
-          state.status = this.t('CMake → MDK 检查需要运行 CMake 配置，以读取构建目标。'); this.render();
-          const choice = await vscode.window.showWarningMessage(this.t('确认运行 CMake 配置以读取转换目标？\n该步骤会在构建目录生成缓存和构建文件。\n工程：') + this.folder.uri.fsPath + this.t('\n构建目录：') + (options.buildDirectory || this.t('由 CMake 预设确定')) + this.t('\n配置：') + options.configuration, { modal: true }, this.t('确认配置并检查'));
-          this.assertSession(epoch);
-          if (choice !== this.t('确认配置并检查')) { state.status = this.t('已取消 CMake 配置，尚未检查转换目标。'); return; }
           state.status = this.t('正在执行 CMake 配置并读取转换目标。'); this.render();
         }
         return this.inspectConversion(epoch, progress);
@@ -753,8 +850,6 @@ class Workbench {
         return this.chooseTool(message.key, epoch, progress);
       }
       case 'repair': {
-        const choice = await vscode.window.showWarningMessage(this.t('确认检查并下载修复缺失的构建工具？'), { modal: true }, this.t('确认修复'));
-        this.assertSession(epoch); if (!choice) return;
         const result = await this.call('repair', { tools: this.tools(), targetScript: state.options.targetScript }, epoch, progress);
         if (result.selectionRequired?.length) {
           await this.inspect(epoch, progress); state.repair = result;
@@ -793,9 +888,13 @@ class Workbench {
         const preview = state.preview; if (preview?.kind !== 'restore') throw new Error(this.t('请先预览要还原的记录。'));
         this.assertSession(epoch);
         const conflicts = preview.conflicts || [];
-        const text = conflicts.length ? this.t('下列文件在记录之后被修改。确认覆盖这些更改并还原？\n') + conflicts.join('\n') : this.t('确认还原此修改记录？');
-        const label = conflicts.length ? this.t('确认覆盖并还原') : this.t('确认还原');
-        const choice = await vscode.window.showWarningMessage(text, { modal: true }, label); this.assertSession(epoch); if (choice !== label) return;
+        if (conflicts.length) {
+          const text = this.t('下列文件在记录之后被修改。确认覆盖这些更改并还原？\n') + conflicts.join('\n');
+          const label = this.t('确认覆盖并还原');
+          const choice = await vscode.window.showWarningMessage(text, { modal: true }, label);
+          this.assertSession(epoch);
+          if (choice !== label) return;
+        }
         this.assertPreview(preview);
         const result = await this.call('restore', { id: preview.recordId, changes: preview.changes, overwriteChangedFiles: conflicts.length > 0 }, epoch, progress, preview);
         state.preview = undefined; await this.inspect(epoch, progress); state.history = await this.call('history', {}, epoch, progress); state.status = this.t('修改记录已还原。'); return result;
@@ -807,6 +906,7 @@ class Workbench {
 
 async function activate(context) {
   const workbench = new Workbench(context);
+  void workbench.updateShortcutContext(vscode.window.activeTextEditor);
   context.subscriptions.push({ dispose() { workbench.cancelSource?.cancel(); clearTimeout(workbench.progressTimer); workbench.bridge.dispose(); workbench.previewDocuments.clear(); workbench.projectCandidates.clear(); workbench.panel?.dispose(); } });
   if (vscode.workspace.isTrusted && process.platform === 'win32' && process.arch === 'x64' && !vscode.env.remoteName) {
     void workbench.development.promptTelemetryOnce().catch(error => workbench.output.appendLine(workbench.t(error.message)));

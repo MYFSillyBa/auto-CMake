@@ -7,6 +7,26 @@ const { SerialSession } = require('./serial-session');
 const { UsageStatistics } = require('./usage-statistics');
 const { createFaultReport } = require('./fault-report');
 const { fingerprintProject, projectDelta, RELEVANT } = require('./cubemx-sync');
+const CLANGD = 'llvm-vs-code-extensions.vscode-clangd';
+const INTELLIGENCE_BACKUP = 'intelligence.userSettingsBackup';
+const ENGINE = 'C_Cpp.intelliSenseEngine';
+const CLANGD_ARGS = 'clangd.arguments';
+const sameValue = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+function withoutPinnedDatabase(args) {
+  if (!Array.isArray(args)) return args;
+  const kept = [];
+  for (let i = 0; i < args.length; i++) {
+    const argument = args[i];
+    if (typeof argument === 'string' && argument.startsWith('--compile-commands-dir=')) continue;
+    if (argument === '--compile-commands-dir') {
+      if (typeof args[i + 1] === 'string' && !args[i + 1].startsWith('-')) i++;
+      continue;
+    }
+    kept.push(argument);
+  }
+  return kept;
+}
 
 const ACTIONS = new Set(['writeClangd', 'openClangdExtension', 'prepareCompileDatabase', 'writeDebug', 'startDebug', 'inspectSync', 'previewSync', 'writeSync', 'probeCheck', 'analyzeFirmware', 'pickMapFile', 'hardFault', 'rtos', 'listSerial', 'connectSerial', 'disconnectSerial', 'sendSerial', 'exportSerial', 'exportReport', 'toggleTelemetry']);
 const BLOCK = /^# BEGIN CMakeDapLink managed folders\r?\n[\s\S]*?^# END CMakeDapLink managed folders/gm;
@@ -27,11 +47,67 @@ class DevelopmentTools {
     if (vscode.env.onDidChangeTelemetryEnabled) workbench.context.subscriptions.push(vscode.env.onDidChangeTelemetryEnabled(allowed => { if (!allowed) for (const controller of this.statistics.inflight) controller.abort(); this.workbench.render(); }));
   }
   t(source, ...args) { return this.workbench.t(source, ...args); }
+  intelligenceStatus() {
+    const scoped = vscode.workspace.getConfiguration(undefined, this.workbench.folder?.uri);
+    const engine = scoped.inspect(ENGINE), args = scoped.inspect(CLANGD_ARGS);
+    return {
+      clangdInstalled: !!vscode.extensions.getExtension(CLANGD),
+      hasBackup: !!this.workbench.context.globalState.get(INTELLIGENCE_BACKUP),
+      engineOverride: [engine?.workspaceValue, engine?.workspaceFolderValue].some(value => value !== undefined && value !== 'disabled'),
+      databaseOverride: [args?.workspaceValue, args?.workspaceFolderValue].some(value => !sameValue(value, withoutPinnedDatabase(value)))
+    };
+  }
+  async updateIntelligence(restore) {
+    const w = this.workbench;
+    if (this.intelligenceBusy) return;
+    this.intelligenceBusy = true;
+    try {
+      const config = vscode.workspace.getConfiguration();
+      const storage = w.context.globalState;
+      let backup = storage.get(INTELLIGENCE_BACKUP);
+      const current = key => vscode.workspace.getConfiguration().inspect(key)?.globalValue;
+      if (restore) {
+        if (!backup) return;
+        for (const [key, values] of Object.entries(backup)) {
+          if (sameValue(current(key), values.after)) await config.update(key, values.before, vscode.ConfigurationTarget.Global);
+        }
+        await storage.update(INTELLIGENCE_BACKUP, undefined);
+        w.state.intelligenceNotice = this.t('已恢复本工具修改的用户设置，之后手动编辑的设置已保留。');
+      } else {
+        if (!vscode.extensions.getExtension(CLANGD)) {
+          w.state.intelligenceNotice = this.t('请先安装并启用 clangd 扩展，再应用全局修复。');
+          return;
+        }
+        const desired = [
+          [ENGINE, 'disabled'],
+          ['clangd.detectExtensionConflicts', false],
+          ['clangd.onConfigChanged', 'restart'],
+          [CLANGD_ARGS, withoutPinnedDatabase(current(CLANGD_ARGS))]
+        ];
+        if (current('clangd.enable') === false) desired.unshift(['clangd.enable', true]);
+        backup = { ...backup };
+        for (const [key, after] of desired) {
+          const before = current(key);
+          if (sameValue(before, after)) continue;
+          if (!backup[key] || !sameValue(before, backup[key].after)) backup[key] = { before, after };
+          await storage.update(INTELLIGENCE_BACKUP, backup);
+          await config.update(key, after, vscode.ConfigurationTarget.Global);
+        }
+        w.state.intelligenceNotice = this.t('全局代码提示修复已生效。请用构建结果核对仍存在的诊断。');
+      }
+    } catch (error) {
+      w.output.appendLine(error.message);
+      w.state.intelligenceNotice = this.t('更新用户设置失败：{0}', error.message);
+    } finally {
+      this.intelligenceBusy = false;
+      w.render();
+    }
+  }
   async confirmTelemetry() {
     const answer = await vscode.window.showInformationMessage(this.t('同意向应用开发者发送匿名使用统计？'), {
       modal: true,
       detail: [this.statistics.snapshot().host,
-        this.t('统计默认关闭。可选择暂不开启，之后在“设备与诊断”中修改。'),
+        this.t('统计默认关闭，可在“开发环境 → 语言与隐私”中修改。'),
         this.t('仅发送随机匿名标识、版本、语言、功能名称与成功状态。网络服务仍可看到来源 IP；不发送工程路径、源码、日志或芯片序列号。VS Code 总统计开关关闭时不发送。')].filter(Boolean).join('\n\n')
     }, this.t('同意并启用'), this.t('暂不开启'));
     return answer === this.t('同意并启用');
@@ -124,52 +200,82 @@ class DevelopmentTools {
     const result = await w.call('probeCheck', { ...this.options(), explicitHardware: true }, epoch, progress); w.state.probeCheck = result;
     if (result.output) w.output.appendLine(result.output); return result;
   }
-  async confirmDebug(epoch, configuration) {
-    if (!['launch', 'attach'].includes(configuration?.request)) throw new Error(this.t('调试模式必须为 launch 或 attach。'));
-    const launching = configuration.request === 'launch';
-    const label = this.t(launching ? '确认下载并调试' : '确认仅附加');
-    const answer = await vscode.window.showWarningMessage(
-      this.t(launching ? '将编译当前配置、下载所选固件并启动调试？' : '将仅附加到目标，不编译、不下载固件？'),
-      { modal: true, detail: [this.t('固件：{0}', configuration.executable),
-        this.t(launching ? '编译成功后会写入芯片并暂停或复位目标。编译失败时请修复错误，不要选择仍然调试。' : '请确认板上固件与所选 ELF 一致。附加可能暂停或复位目标。')].join('\n\n') }, label);
-    this.workbench.assertSession(epoch); return answer === label;
+  async startDebug(epoch, progress) {
+    const w = this.workbench, state = w.state;
+    if (vscode.debug.activeDebugSession) throw new Error(this.t('请先结束当前调试会话。'));
+    if (!['launch', 'attach'].includes(this.options().debugMode)) throw new Error(this.t('调试模式必须为 launch 或 attach。'));
+    if (!vscode.extensions.getExtension('marus25.cortex-debug')) {
+      await vscode.commands.executeCommand('workbench.extensions.search', '@id:marus25.cortex-debug');
+      throw new Error(this.t('请安装 Cortex-Debug 扩展，再启动调试。'));
+    }
+    const launching = this.options().debugMode === 'launch';
+    if (launching) {
+      const preferred = state.options.firmwareElfPath;
+      const build = () => w.call('build', { ...this.options(), ensureFirmware: true }, epoch, progress);
+      let built = await build();
+      if (built.needsFirmware) {
+        const selected = await vscode.window.showQuickPick(built.firmware.map(file => ({ label: path.basename(file), description: file, file })), { title: this.t('选择用于调试的最新 ELF') }, w.cancelSource?.token);
+        w.assertSession(epoch);
+        if (!selected) { state.status = this.t('未选择调试固件。'); return; }
+        state.options.firmwareElfPath = selected.file;
+        built = await build();
+      }
+      w.showBuildResult(built, 'build');
+      if (!built.success) return built;
+      const firmware = built.firmware || [];
+      if (!firmware.length) throw new Error(this.t('本次编译没有生成可调试的 ELF。'));
+      if (firmware.length > 1 && !state.options.firmwareElfPath) {
+        const selected = await vscode.window.showQuickPick(firmware.map(file => ({ label: path.basename(file), description: file, file })), { title: this.t('选择用于调试的最新 ELF') }, w.cancelSource?.token);
+        w.assertSession(epoch);
+        if (!selected) { state.status = this.t('未选择调试固件。'); return; }
+        state.options.firmwareElfPath = selected.file;
+      } else if (preferred && firmware.some(file => file.toLowerCase() === preferred.toLowerCase())) {
+        state.options.firmwareElfPath = firmware.find(file => file.toLowerCase() === preferred.toLowerCase());
+      }
+    }
+    const options = this.options();
+    const preview = await w.call('previewDebug', options, epoch, progress);
+    const config = preview.configuration;
+    if (config?.request !== options.debugMode) throw new Error(this.t('调试模式必须为 launch 或 attach。'));
+    if (preview.changes?.length) {
+      w.preview(preview, 'writeDebug');
+      if (!await w.applyPreview(epoch, progress, false, false)) return;
+    }
+    await w.rememberBuildSelection();
+    w.assertSession(epoch);
+    if (vscode.debug.activeDebugSession) throw new Error(this.t('请先结束当前调试会话。'));
+    // The saved F5 entry keeps its preLaunchTask. This invocation already built
+    // successfully and uses the ELF returned for the just-completed build.
+    const configuration = { ...config };
+    delete configuration.preLaunchTask;
+    const started = await vscode.debug.startDebugging(w.folder.workspaceFolder || w.folder, configuration);
+    state.status = this.t(started ? '调试会话已启动。' : '调试会话未启动，请查看调试控制台。');
+    return { success: started };
   }
   async execute(action, message, epoch, progress) {
     const w = this.workbench, state = w.state;
     switch (action) {
       case 'writeClangd': case 'writeDebug': {
-        let preview = await w.call(action === 'writeClangd' ? 'previewClangd' : 'previewDebug', this.options(), epoch, progress);
+        const options = { ...this.options(), disableWorkspaceIntelliSense: false };
+        let preview = await w.call(action === 'writeClangd' ? 'previewClangd' : 'previewDebug', options, epoch, progress);
         if (action === 'writeClangd' && preview.compileDatabaseFound === false) {
           const active = state.options.buildDirectory || state.inspection?.project?.buildDirectory;
           if (active && path.resolve(w.folder.uri.fsPath, active).toLowerCase() !== path.dirname(preview.compileDatabasePath).toLowerCase())
             throw new Error(this.t('指定目录没有编译数据库，请选择已有数据库或清空目录以使用当前构建目录。'));
           const generated = await this.execute('prepareCompileDatabase', {}, epoch, progress);
           if (!generated?.success) return;
-          preview = await w.call('previewClangd', this.options(), epoch, progress);
+          preview = await w.call('previewClangd', options, epoch, progress);
           if (!preview.compileDatabaseFound) throw new Error(this.t('编译数据库生成失败，请查看输出。'));
         }
-        w.preview(preview, action); if (preview.changes?.length) return w.applyPreview(epoch, progress);
+        w.preview(preview, action); if (preview.changes?.length) return w.applyPreview(epoch, progress, false);
         state.status = this.t('当前配置已是最新，没有需要写入的文件。'); return;
       }
-      case 'openClangdExtension': return vscode.commands.executeCommand('workbench.extensions.search', '@id:llvm-vs-code-extensions.vscode-clangd');
+      case 'openClangdExtension': return vscode.commands.executeCommand('workbench.extensions.search', '@id:' + CLANGD);
       case 'prepareCompileDatabase': {
-        const answer = await vscode.window.showWarningMessage(this.t('将运行 CMake 配置以生成编译数据库，不编译或连接硬件。'), { modal: true }, this.t('确认配置'));
-        w.assertSession(epoch); if (answer !== this.t('确认配置')) return;
         const result = await w.call('prepareCompileDatabase', { ...this.options(), explicitConfigure: true }, epoch, progress); state.compileDatabase = result;
         if (result.output) w.output.appendLine(result.output); state.status = this.t(result.success ? '编译数据库已生成。' : '编译数据库生成失败，请查看输出。'); return result;
       }
-      case 'startDebug': {
-        if (!vscode.extensions.getExtension('marus25.cortex-debug')) {
-          await vscode.commands.executeCommand('workbench.extensions.search', '@id:marus25.cortex-debug'); throw new Error(this.t('请安装 Cortex-Debug 扩展，再启动调试。'));
-        }
-        const preview = await w.call('previewDebug', this.options(), epoch, progress); w.preview(preview, 'writeDebug');
-        if (preview.changes?.length && !await w.applyPreview(epoch, progress)) return;
-        const configuration = preview.configuration;
-        if (!configuration) throw new Error(this.t('请在运行和调试面板选择已生成的 STM32 调试配置。'));
-        if (!await this.confirmDebug(epoch, configuration)) return;
-        const started = await vscode.debug.startDebugging(w.folder.workspaceFolder || w.folder, configuration);
-        state.status = this.t(started ? '调试会话已启动。' : '调试会话未启动，请查看调试控制台。'); return;
-      }
+      case 'startDebug': return this.startDebug(epoch, progress);
       case 'inspectSync': return this.inspectSync();
       case 'previewSync': return this.syncPreview(epoch, progress);
       case 'writeSync': { const preview = await this.syncPreview(epoch, progress); if (!preview) return; if (preview.changes?.length && !await w.applyPreview(epoch, progress)) return; const root = w.folder.uri.fsPath; this.baselines.delete(root); await this.baseline(); return; }

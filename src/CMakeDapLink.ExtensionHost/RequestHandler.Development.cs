@@ -11,7 +11,7 @@ internal sealed partial class RequestHandler
         if (Text(payload, "compilationDatabaseDirectory") is { Length: > 0 } databaseDirectory)
             options = options with { BuildDirectory = WorkspaceSafety.Child(root, databaseDirectory, allowRoot: true) };
         foreach (var path in new[] { ".clangd", ".vscode/settings.json" }) WorkspaceSafety.Child(root, path);
-        var changes = DevelopmentConfiguration.PreviewClangd(options);
+        var changes = DevelopmentConfiguration.PreviewClangdForWorkspace(options, Flag(payload, "disableWorkspaceIntelliSense", true));
         WorkspaceSafety.Changes(root, changes);
         var database = WorkspaceSafety.Child(root, Path.Combine(options.BuildDirectory!, "compile_commands.json"));
         return new

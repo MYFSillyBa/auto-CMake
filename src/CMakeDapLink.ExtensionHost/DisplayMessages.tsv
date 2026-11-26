@@ -808,3 +808,5 @@ FreeRTOS 补全不支持符号链接或联接目录。	FreeRTOS repair does not 
 FreeRTOS 补全计划与当前工程不匹配，请重新预览。	The FreeRTOS repair plan does not match the current project. Generate a new preview.
 使用“下载并预览 FreeRTOS 补全”获取官方同版本移植层，或通过“本地移植层导入”提供 {0} 和 portmacro.h；确认后只添加缺失文件，保留原 Keil 移植层。	Use Download and Preview FreeRTOS Repair to obtain the official matching port, or import a local directory containing {0} and portmacro.h. Confirmation adds only missing files and preserves the original Keil port.
 移植文件的核心/浮点上下文特征与所需 {0} 不匹配，未写入工程。	The port's core or floating-point context features do not match the required {0}. No project files were written.
+当前配置没有可编译的 ELF 目标，请核对 CMake 预设和目标。	No buildable ELF target in this configuration. Check the CMake presets and targets.
+编译结束后未找到所选 ELF，已停止下载。	The selected ELF was missing after the build. Firmware download was stopped.

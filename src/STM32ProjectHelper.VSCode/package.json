@@ -2,7 +2,7 @@
   "name": "stm32-project-helper",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "publisher": "myfsillyba",
   "license": "MIT",
   "repository": {
@@ -78,8 +78,33 @@
         "title": "%command.flash%"
       },
       {
+        "command": "stm32ProjectHelper.debug",
+        "title": "%command.debug%"
+      },
+      {
+        "command": "stm32ProjectHelper.fixIntelligence",
+        "title": "%command.fixIntelligence%"
+      },
+      {
         "command": "stm32ProjectHelper.setup",
         "title": "%command.setup%"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "stm32ProjectHelper.build",
+        "key": "f8",
+        "when": "isWorkspaceTrusted && !inDebugMode && stm32ProjectHelper.activeProjectEditor && editorTextFocus || isWorkspaceTrusted && !inDebugMode && !terminalFocus && activeWebviewPanelId == stm32ProjectHelper.workbench"
+      },
+      {
+        "command": "stm32ProjectHelper.flash",
+        "key": "f7",
+        "when": "isWorkspaceTrusted && !inDebugMode && stm32ProjectHelper.activeProjectEditor && editorTextFocus || isWorkspaceTrusted && !inDebugMode && !terminalFocus && activeWebviewPanelId == stm32ProjectHelper.workbench"
+      },
+      {
+        "command": "stm32ProjectHelper.debug",
+        "key": "f6",
+        "when": "isWorkspaceTrusted && !inDebugMode && stm32ProjectHelper.activeProjectEditor && editorTextFocus || isWorkspaceTrusted && !inDebugMode && !terminalFocus && activeWebviewPanelId == stm32ProjectHelper.workbench"
       }
     ],
     "viewsContainers": {

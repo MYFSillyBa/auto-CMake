@@ -11,7 +11,9 @@ public static class DevelopmentConfiguration
     public const string DebugName = "STM32 Project Helper: Debug";
     public const string DebugGroup = "STM32 Project Helper (managed)";
 
-    public static IReadOnlyList<FileChange> PreviewClangd(SetupOptions options)
+    public static IReadOnlyList<FileChange> PreviewClangd(SetupOptions options) => PreviewClangdForWorkspace(options, true);
+
+    public static IReadOnlyList<FileChange> PreviewClangdForWorkspace(SetupOptions options, bool disableWorkspaceIntelliSense)
     {
         var directory = Path.GetFullPath(options.BuildDirectory ?? Path.Combine(options.Root, "build", "daplink-debug"), options.Root).Replace('\\', '/');
         var compiler = Path.GetFullPath(options.Compiler, options.Root).Replace('\\', '/');
@@ -28,9 +30,9 @@ public static class DevelopmentConfiguration
             };
             var desired = new JsonObject
             {
-                ["clangd.arguments"] = ClangdArguments(arguments, directory, compiler),
-                ["C_Cpp.intelliSenseEngine"] = "disabled"
+                ["clangd.arguments"] = ClangdArguments(arguments, directory, compiler)
             };
+            if (disableWorkspaceIntelliSense) desired["C_Cpp.intelliSenseEngine"] = "disabled";
             return JsoncDevelopmentEditor.SetObject(text, desired);
         }));
         return changes;

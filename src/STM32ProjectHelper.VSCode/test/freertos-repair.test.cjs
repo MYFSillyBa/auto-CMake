@@ -130,7 +130,7 @@ test('conversion repair buttons remain available with blockers and require an ex
   ]) {
     const buttons = [];
     const render = vm.runInNewContext(`(${conversion})`, { current: { root, busy },
-      t: value => value, section: () => ({}), field() {}, configurationField() {}, text() {}, issues() {}, append() {}, element() {}, actions() {},
+      t: value => value, section: () => ({}), field() {}, configurationField() {}, text() {}, issues() {}, append() {}, element() {}, actions() {}, detailPanel() {}, syncControls() {},
       button: (text, action) => { const result = { text, action, disabled: busy }; buttons.push(result); return result; },
       lock: (button, disabled) => { button.disabled ||= disabled; return button; }
     });
@@ -248,6 +248,6 @@ test('repair completion rechecks plan-level blockers without retaining a convers
   const displayed = [];
   vm.runInNewContext(`(${conversion})`, { current: { root: 'C:\\project' }, t: value => value, section: () => ({}),
     field() {}, configurationField() {}, text() {}, issues: (panel, values) => { displayed.push(...values || []); },
-    append() {}, element() {}, actions() {}, button: () => ({}), lock: button => button })(state);
+    append() {}, element() {}, actions() {}, detailPanel() {}, syncControls() {}, button: () => ({}), lock: button => button })(state);
   assert.ok(displayed.includes(blocker), 'Plan-level blockers are rendered on the conversion page');
 });

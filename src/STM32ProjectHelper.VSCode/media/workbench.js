@@ -177,17 +177,36 @@
   }
   function execution(state) {
     const options = state.options, firmware = firmwareChoices(state);
-    const panel = section(t('编译与烧录'), t('烧录会先重新编译，并在原生确认后连接所选探针。'));
-    text(panel, t('芯片'), state.inspection?.project?.chip); text(panel, t('构建配置'), options.configuration); text(panel, t('构建目录'), options.buildDirectory || t('由 CMake 预设确定')); text(panel, t('调试探针'), probeName(options.probeType));
-    if (firmware.length) field(panel, 'firmwareElfPath', t('固件 ELF'), options.firmwareElfPath || (firmware.length === 1 ? firmware[0] : ''), [{ value: '', label: firmware.length > 1 ? t('请选择固件目标') : t('使用唯一编译输出') }, ...firmware.map(value => ({ value, label: value }))]);
-    else text(panel, t('固件 ELF'), t('编译后确定固件输出'));
+    const panel = section(t('编译、烧录与调试'));
+    panel.classList.add('command-card');
+    const toolbar = element('div', undefined, 'quick-actions');
+    for (const [label, action, key] of [['编译', 'build', 'F8'], ['烧录', 'flash', 'F7'], ['调试', 'startDebug', 'F6']]) {
+      const item = lock(button(t(label), action, {}, action !== 'build'), !current.canRun);
+      item.append(element('kbd', key));
+      item.setAttribute('aria-keyshortcuts', key);
+      toolbar.append(item);
+    }
+    panel.append(toolbar);
+    const summary = element('dl', undefined, 'project-summary');
+    for (const [label, value] of [['芯片', state.inspection?.project?.chip], ['构建配置', options.configuration], ['调试探针', probeName(options.probeType)]]) {
+      summary.append(append(element('div'), element('dt', t(label)), element('dd', value || '—')));
+    }
+    panel.append(summary);
+    if (firmware.length > 1) field(panel, 'firmwareElfPath', t('固件 ELF'), options.firmwareElfPath, [{ value: '', label: t('请选择固件目标') }, ...firmware.map(value => ({ value, label: value }))]);
+    else text(panel, t('固件 ELF'), firmware[0] || t('编译后确定固件输出'));
     if (firmware.length > 1 && !options.firmwareElfPath) append(panel, element('p', t('存在多个固件输出；烧录或分析前请选择目标。'), 'warning'));
-    actions(panel, button(t('立即编译'), 'build'), button(t('烧录…'), 'flash', {}, true), button(t('分析 Flash / RAM'), 'memory', {}, true));
-    for (const [kind, result] of [['build', state.buildResult], ['flash', state.flashResult], ['verify', state.verification]]) {
-      if (!result) continue;
+    const wizardPending = state.wizard && !state.wizard.complete && !state.wizard.dismissed;
+    const setup = button(t(wizardPending ? '开始配置' : '查看构建与烧录设置'), 'navigate', { page: 'configure' }, true);
+    setup.classList.add('text-action');
+    panel.append(setup);
+    const entries = [['build', state.buildResult], ['flash', state.flashResult], ['verify', state.verification]].filter(([, result]) => result);
+    if (!entries.length) return;
+    const results = section(t('运行结果'));
+    for (const [kind, result] of entries) {
       const title = kind === 'build' ? t('编译结果') : kind === 'flash' ? t('烧录结果') : t('软件检查结果');
-      const details = detailPanel(panel, `result-${kind}`, `${title} · ${result.success ? t('成功') : t('失败')}`);
-      if (!local.details.has(`result-${kind}`)) details.open = true;
+      const details = detailPanel(results, `result-${kind}`, `${title} · ${result.success ? t('成功') : t('失败')}`);
+      details.classList.add(result.success ? 'result-success' : 'result-failure');
+      if (!result.success && !local.details.has(`result-${kind}`)) details.open = true;
       if (result.openOcdChecked !== undefined) text(details, t('OpenOCD 脚本解析'), result.openOcdChecked ? t('已检查') : t('未检查'));
       if (kind === 'flash') text(details, t('写入设备'), result.flashed ? t('已完成') : t('未执行'));
       list(details, result.firmware, t('尚无固件输出。')); problemRows(details, result.problems);
@@ -218,10 +237,8 @@
   }
   function configure(state) {
     const project = state.inspection?.project || {}, options = state.options;
-    if (setupWizard(state)) { memoryReport(state); return; }
-    execution(state); memoryReport(state);
-    const settings = section(t('工程配置'), t('生成 VS Code 编译和烧录任务；软件检查只进行配置、编译与脚本解析。'));
-    const panel = detailPanel(settings, 'project-settings', t('工程配置详情'));
+    if (setupWizard(state)) return;
+    const panel = section(t('构建与烧录设置'), t('生成 VS Code 编译和烧录任务；软件检查只进行配置、编译与脚本解析。'));
     text(panel, t('芯片'), project.chip); if (project.chipEvidence) text(panel, t('识别依据'), project.chipEvidence);
     presetFields(panel, state);
     configurationField(panel, state);
@@ -229,14 +246,13 @@
     field(panel, 'targetScript', t('OpenOCD 目标脚本'), options.targetScript);
     probeFields(panel, state);
     if (options.firmwareElfPath) text(panel, t('已选择的固件'), options.firmwareElfPath);
-    issues(panel, state.inspection?.issues); list(panel, project.notes, '');
-    actions(settings, button(t('确认写入…'), 'writeTasks'), button(t('预览改动'), 'previewTasks', {}, true), button(t('运行软件检查'), 'verify', {}, true), button(t('重新打开配置向导'), 'startWizard', {}, true));
-    const environment = section(t('构建工具'), t('检测到多个安装时请选择使用的版本；工具路径验证通过后保存到当前工作区。'));
-    toolRows(environment, state);
-    actions(environment, button(t('修复缺失工具…'), 'repair', {}, true));
+    actions(panel, button(t('写入 VS Code 任务'), 'writeTasks'), button(t('预览改动'), 'previewTasks', {}, true));
+    const more = detailPanel(panel, 'project-checks', t('软件检查与配置向导'));
+    issues(more, state.inspection?.issues); list(more, project.notes, '');
+    actions(more, button(t('运行软件检查'), 'verify', {}, true), button(t('重新打开配置向导'), 'startWizard', {}, true));
   }
   function sources(state) {
-    const panel = section(t('添加源文件'), t('扫描当前工作区内的文件夹，选择源文件及头文件，再更新所选 CMake 构建目标。已经注册的文件会自动去重。'));
+    const panel = section(t('注册编译源文件'), t('扫描当前工作区内的文件夹，选择源文件及头文件，再更新所选 CMake 构建目标。已经注册的文件会自动去重。'));
     text(panel, t('源文件夹'), state.folder);
     actions(panel, button(t('选择源文件夹…'), 'pickSourceFolder'), button(t('重新扫描'), 'scanSources', {}, true));
     const targets = state.scan?.targets || state.inspection?.targets || [];
@@ -338,6 +354,8 @@
           lock(button(t('本地移植层导入…'), 'pickFreeRtosPort', {}, true), !ready));
       }
     }
+    const sync = detailPanel(panel, 'conversion-sync', t('CubeMX 生成后同步'));
+    syncControls(sync, state);
   }
   function tools(state) {
     const panel = section(t('工具路径'), t('工具路径保存在当前工作区设置中。离线导入和版本激活使用本地工具管理目录。'));
@@ -345,7 +363,6 @@
     toolRows(panel, state);
     text(panel, t('内置 OpenOCD scripts'), detected.scripts);
     append(panel, element('p', t('OpenOCD 使用随扩展附带的完整脚本目录。'), 'muted'));
-    for (const version of state.inspection?.versions || []) text(panel, version.key, version.available ? version.version || version.path : version.problem || t('不可用'));
     issues(panel, state.inspection?.issues);
     actions(panel, button(t('修复缺失工具…'), 'repair'), button(t('导入离线 ZIP…'), 'importTool', {}, true), button(t('刷新版本列表'), 'tools', {}, true));
     if (state.repair?.problems?.length) list(panel, state.repair.problems);
@@ -383,15 +400,37 @@
     const firmware = firmwareChoices(state);
     field(panel, 'firmwareElfPath', t('固件 ELF'), state.options.firmwareElfPath, firmware.length ? [{ value: '', label: t('请选择固件目标') }, ...firmware.map(value => ({ value, label: value }))] : undefined);
   };
-  function development(state) {
+  function intelligence(state) {
+    const info = current.intelligence || {};
+    const panel = section(t('修复重复红线与补全冲突'), t('让 clangd 负责代码提示，并清理用户设置中固定到某个工程的编译数据库路径。适用于当前 VS Code 用户配置文件下的所有工程。'));
+    const fix = button(t('一键修复全局代码提示'), 'fixIntelligence');
+    const install = button(t('查看 clangd 扩展'), 'openClangdExtension', {}, true);
+    const buttons = [fix, install];
+    if (info.hasBackup) buttons.push(button(t('恢复之前的用户设置'), 'restoreIntelligence', {}, true));
+    for (const node of buttons) { node.dataset.globalControl = ''; node.disabled = !!current.busy; }
+    actions(panel, ...buttons);
+    if (!info.clangdInstalled) panel.append(element('p', t('请先安装并启用 clangd 扩展，再应用全局修复。'), 'warning'));
+    if (state.intelligenceNotice) panel.append(element('p', state.intelligenceNotice, 'issue'));
+    if (info.engineOverride) panel.append(element('p', t('当前工作区重新开启了 C/C++ IntelliSense。请移除工作区中的 C_Cpp.intelliSenseEngine 设置以继承全局设置。'), 'issue warning'));
+    if (info.databaseOverride) panel.append(element('p', t('当前工作区单独指定了 clangd 数据库。路径过期时，请重新配置当前工程的数据库。'), 'issue warning'));
+    const details = detailPanel(panel, 'diagnostics-help', t('红线仍然存在怎么办？'));
+    list(details, [
+      t('同一位置出现两条诊断：在“问题”面板查看来源。有 clangd 和 C/C++ 两个来源时，应用全局修复并检查工作区覆盖。'),
+      t('编译通过但编辑器找不到头文件、宏或标准库：为当前工程生成编译数据库，配置 .clangd 和 ARM GCC 查询路径，随后重启 clangd。'),
+      t('编译器也报错：查看构建输出并修正源码或编译配置。全局修复保留真实编译诊断。')
+    ], '');
+    if (current.unavailable) return;
     const options = state.options;
-    const code = section(t('代码智能提示'), t('从真实 CMake 配置生成 compile_commands.json，再写入 .clangd。生成配置文件前会要求确认。'));
+    const code = section(t('当前工程的编译数据库'), t('嵌入式工程的头文件和宏取决于所选 CMake 配置。以下操作只更新当前工程。'));
     presetFields(code, state); configurationField(code, state);
     field(code, 'compilationDatabaseDirectory', t('编译数据库目录'), options.compilationDatabaseDirectory || options.buildDirectory, undefined, t('填写实际包含 compile_commands.json 的构建目录。'));
-    actions(code, button(t('配置并生成编译数据库…'), 'prepareCompileDatabase'), button(t('写入 .clangd…'), 'writeClangd', {}, true), button(t('查看 clangd 扩展'), 'openClangdExtension', {}, true));
+    actions(code, button(t('一键配置当前工程 clangd'), 'writeClangd'), button(t('配置并生成编译数据库…'), 'prepareCompileDatabase', {}, true));
     if (state.compileDatabase) { text(code, 'compile_commands.json', state.compileDatabase.compileCommands); list(code, state.compileDatabase.notes, ''); }
+  }
 
-    const debug = section(t('Cortex-Debug 调试'), t('默认先编译、下载当前 ELF，再调试；仅附加模式不下载固件。写入配置前会显示确认。'));
+  function development(state) {
+    const options = state.options;
+    const debug = section(t('Cortex-Debug 调试'), t('按 F6 编译、下载本次生成的 ELF 并调试。仅附加模式用于观察板上已有的固件。'));
     field(debug, 'debugName', t('调试配置名称'), options.debugName);
     field(debug, 'debugMode', t('调试模式'), options.debugMode || 'launch', [
       { value: 'launch', label: t('编译、下载并调试（推荐）') }, { value: 'attach', label: t('仅附加（不下载固件）') }
@@ -399,18 +438,10 @@
     analysisFirmwareField(debug, state);
     field(debug, 'targetScript', t('OpenOCD 目标脚本'), options.targetScript);
     probeFields(debug, state);
-    actions(debug, button(t('写入调试配置…'), 'writeDebug'), button(t('启动调试…'), 'startDebug', {}, true));
+    actions(debug, button(t('写入调试配置…'), 'writeDebug', {}, true));
 
-    const sync = section(t('CMake / MDK 同步'), t('监视工程配置变化并提示同步；预览文件差异后，再确认写入。'));
-    if (state.sync) {
-      sync.append(element('p', state.sync.changed ? t('检测到配置变化，请检查同步差异。') : t('配置变化检查已完成。'), state.sync.changed ? 'issue warning' : 'muted'));
-      if (state.sync.status) text(sync, t('同步状态'), t(state.sync.status));
-      list(sync, (state.sync.files || []).map(item => typeof item === 'string' ? item : item.path || item.name || ''), '');
-      list(sync, state.sync.notes, '');
-    } else sync.append(element('p', t('检查一次以记录同步基线；之后的变化会显示提醒。'), 'muted'));
-    actions(sync, button(t('检查同步状态'), 'inspectSync'), button(t('预览同步差异'), 'previewSync', {}, true), button(t('写入同步结果…'), 'writeSync', {}, true));
-
-    const probe = section(t('探针与芯片检查'), t('点击按钮将连接目标，可能暂停或复位芯片。'));
+    const probe = detailPanel(debug, 'probe-check', t('探针与芯片检查'));
+    append(probe, element('p', t('点击按钮将连接目标，可能暂停或复位芯片。'), 'muted'));
     checkbox(probe, 'preflightCheck', t('烧录前执行探针与芯片检查'), options.preflightCheck === true || options.preflightCheck === 'true');
     const result = state.probeCheck;
     for (const [key, title] of [['scriptFound', t('目标脚本可用')], ['probeFound', t('探针已发现')], ['chipConnected', t('芯片已连接')]]) {
@@ -421,11 +452,24 @@
     list(probe, result?.notes, '');
     actions(probe, button(t('连接并检查硬件…'), 'probeCheck'));
   }
+  function syncControls(sync, state) {
+    append(sync, element('p', t('监视工程配置变化并提示同步；预览文件差异后，再确认写入。'), 'muted'));
+    if (state.sync) {
+      sync.append(element('p', state.sync.changed ? t('检测到配置变化，请检查同步差异。') : t('配置变化检查已完成。'), state.sync.changed ? 'issue warning' : 'muted'));
+      if (state.sync.status) text(sync, t('同步状态'), t(state.sync.status));
+      list(sync, (state.sync.files || []).map(item => typeof item === 'string' ? item : item.path || item.name || ''), '');
+      list(sync, state.sync.notes, '');
+    } else sync.append(element('p', t('检查一次以记录同步基线；之后的变化会显示提醒。'), 'muted'));
+    actions(sync, button(t('检查同步状态'), 'inspectSync'), button(t('预览同步差异'), 'previewSync', {}, true), button(t('写入同步结果…'), 'writeSync', {}, true));
+
+  }
   function analysis(state) {
     const firmware = section(t('固件与 MAP 分析'), t('读取 ELF 符号和可选 MAP 文件，检查符号大小与段分布。'));
     analysisFirmwareField(firmware, state);
     field(firmware, 'mapFilePath', t('MAP 文件（可选）'), state.options.mapFilePath);
     actions(firmware, button(t('分析固件'), 'analyzeFirmware'), button(t('选择 MAP 文件…'), 'pickMapFile', {}, true));
+    const storage = detailPanel(firmware, 'memory-controls', t('Flash / RAM 用量'));
+    actions(storage, button(t('分析 Flash / RAM'), 'memory', {}, true));
     const report = state.advancedAnalysis;
     if (report) {
       const symbols = detailPanel(firmware, 'firmware-symbols', t('符号大小'));
@@ -438,7 +482,10 @@
       list(firmware, report.notes, '');
     }
 
-    const fault = section(t('HardFault 诊断'), t('粘贴异常寄存器 JSON 或文本；使用所选 ELF 解析地址，不连接硬件。'));
+    memoryReport(state);
+    const diagnostics = section(t('运行时诊断'));
+    const fault = detailPanel(diagnostics, 'hardfault-controls', t('HardFault 诊断'));
+    fault.append(element('p', t('粘贴异常寄存器 JSON 或文本；使用所选 ELF 解析地址，不连接硬件。'), 'muted'));
     field(fault, 'hardFaultRegisters', t('异常寄存器'), state.options.hardFaultRegisters, undefined, t('支持 CFSR、HFSR、PC、LR 等寄存器的名称与十六进制值。'), true);
     actions(fault, button(t('诊断 HardFault'), 'hardFault'));
     if (state.hardFault) {
@@ -451,7 +498,8 @@
       list(fault, state.hardFault.notes, '');
     }
 
-    const rtos = section(t('RTOS 任务'), t('手动连接现有 GDB 服务读取任务；连接可能暂停目标。每次点击才刷新，不会自动轮询。'));
+    const rtos = detailPanel(diagnostics, 'rtos-controls', t('RTOS 任务'));
+    rtos.append(element('p', t('手动连接现有 GDB 服务读取任务；连接可能暂停目标。每次点击才刷新，不会自动轮询。'), 'muted'));
     field(rtos, 'gdbEndpoint', t('GDB 服务地址'), state.options.gdbEndpoint || 'localhost:3333');
     actions(rtos, button(t('连接并刷新任务…'), 'rtos'));
     if (state.rtos) {
@@ -461,7 +509,8 @@
       if (state.rtos.output) detailPanel(rtos, 'rtos-output', t('查看 GDB 输出')).append(element('pre', state.rtos.output, 'raw-output'));
     }
 
-    const exported = section(t('故障报告'), t('生成脱敏报告，先在编辑器预览，再选择保存位置。'));
+    const exported = detailPanel(diagnostics, 'report-controls', t('故障报告'));
+    exported.append(element('p', t('生成脱敏报告，先在编辑器预览，再选择保存位置。'), 'muted'));
     actions(exported, button(t('预览并导出报告…'), 'exportReport'));
     if (state.report) {
       if (state.report.path) text(exported, t('报告位置'), state.report.path);
@@ -509,7 +558,20 @@
       }
     } };
     serialView.update(serial);
-
+  }
+  function preferences(state) {
+    const languagePanel = section(t('界面语言'));
+    const wrapper = append(element('label', undefined, 'field'), element('span', t('语言')));
+    const language = element('select');
+    language.id = 'language';
+    for (const [value, title] of [['auto', t('跟随 VS Code')], ['zh-CN', '简体中文'], ['en', 'English']]) {
+      const option = element('option', title); option.value = value; language.append(option);
+    }
+    language.value = current.languagePreference || 'auto';
+    language.dataset.busyControl = '';
+    language.dataset.globalControl = '';
+    language.addEventListener('change', () => send('setLanguage', { value: language.value }));
+    languagePanel.append(append(wrapper, language));
     const telemetry = state.telemetry || {};
     const privacy = section(t('匿名使用统计'), t('统计默认关闭。授权后仅向应用开发者的 PostHog 项目发送匿名功能事件，无需配置自己的项目。'));
     text(privacy, t('接收方'), t('应用开发者'));
@@ -519,22 +581,21 @@
     lock(enabled, !telemetry.enabled && (!telemetry.configured || telemetry.allowed === false));
     if (telemetry.allowed === false) privacy.append(element('p', t('当前 VS Code 遥测设置不允许发送统计。'), 'muted'));
   }
-  const renderers = { configure, sources, import: importFiles, conversion, tools, history, development, analysis, devices };
+  const renderers = { overview: execution, configure, sources, import: importFiles, conversion, tools, history, development, intelligence, analysis, devices, preferences };
   function updateProgress(message) {
     const status = document.getElementById('status');
     const value = message.unavailable || message.status || current?.state?.status || '';
     status.textContent = value; status.className = message.unavailable ? 'error' : message.busy ? 'running' : '';
     document.getElementById('refresh').disabled = message.busy || !!current?.unavailable;
     document.getElementById('cancel').hidden = !message.busy;
-    document.getElementById('language').disabled = !!message.busy;
     let bar = document.getElementById('operation-progress');
     if (!bar) { bar = element('progress'); bar.id = 'operation-progress'; bar.max = 100; document.querySelector('footer').insertBefore(bar, document.getElementById('cancel')); }
     bar.hidden = !message.busy; bar.setAttribute('aria-label', t('操作进度'));
     const percent = typeof message.percent === 'number' && Number.isFinite(message.percent) ? Math.min(100, Math.max(0, message.percent)) : null;
     if (percent === null) bar.removeAttribute('value'); else bar.value = percent;
     bar.title = percent === null ? value : `${value} · ${Math.round(percent)}%`;
-    for (const node of document.querySelectorAll('[data-busy-control]')) node.disabled = !!message.busy || !!current?.unavailable || node.dataset.locked === 'true';
-    for (const node of document.getElementById('navigation').children) node.disabled = !!message.busy;
+    for (const node of document.querySelectorAll('[data-busy-control]')) node.disabled = !!message.busy || (!!current?.unavailable && node.dataset.globalControl === undefined) || node.dataset.locked === 'true';
+    for (const node of document.querySelectorAll('nav button')) node.disabled = !!message.busy;
     if (current?.state && sourceView) sourceView.update(current.state);
   }
   function contentKey(message) {
@@ -542,7 +603,36 @@
     state.options = { ...state.options }; delete state.options.search;
     if (message.page === 'devices') state.serialPorts = ignoredSerial?.ports;
     if (message.page === 'sources' && sourceRevision !== undefined) state.scan = state.scan ? { sourceRevision } : undefined;
-    return JSON.stringify([message.root, message.page, message.language, message.unavailable, message.configuredTools, state]);
+    return JSON.stringify([message.root, message.page, message.language, message.languagePreference, message.unavailable, message.canRun, message.configuredTools, message.intelligence, state]);
+  }
+  function renderNavigation(message) {
+    const navigation = document.getElementById('navigation'), secondary = document.getElementById('subnavigation');
+    navigation.setAttribute('aria-label', t('工程操作'));
+    secondary.setAttribute('aria-label', t('分类功能'));
+    const next = JSON.stringify([message.pages, message.page]);
+    if (next === navigationKey) return;
+    navigationKey = next;
+    navigation.replaceChildren(); secondary.replaceChildren();
+    const pages = message.pages || [];
+    const activeCategory = pages.find(([id]) => id === message.page)?.[3];
+    const displayed = new Set();
+    const tab = (id, label, active, currentType) => {
+      const item = element('button', label, active ? 'active' : '');
+      item.dataset.destination = id;
+      if (active) item.setAttribute('aria-current', currentType);
+      item.addEventListener('click', () => {
+        if (id === current.page) return;
+        window.scrollTo(0, 0);
+        send('navigate', { page: id });
+      });
+      return item;
+    };
+    for (const [id, title, , category] of pages) {
+      if (!category || !displayed.has(category)) navigation.append(tab(id, category || title, category ? category === activeCategory : id === message.page, category ? 'true' : 'page'));
+      if (category) displayed.add(category);
+      if (category && category === activeCategory) secondary.append(tab(id, title, id === message.page, 'page'));
+    }
+    secondary.hidden = !secondary.childElementCount;
   }
   function renderState(message) {
     const focused = document.activeElement;
@@ -558,33 +648,28 @@
     t = window.STM32I18n.createTranslator(window.STM32UiMessages, message.language);
     document.documentElement.lang = message.language;
     document.title = t('STM32 工程助手');
-    for (const [id, source] of [['app-title', 'STM32 工程助手'], ['language-label', '语言'], ['footer-note', '当前工作区 · 写入前确认 · 软件检查'], ['refresh', '重新检测'], ['logs', '查看输出'], ['cancel', '取消当前操作']]) {
+    for (const [id, source] of [['app-title', 'STM32 工程助手'], ['footer-note', 'STM32 工程助手'], ['refresh', '重新检测'], ['logs', '查看输出'], ['cancel', '取消当前操作']]) {
       const node = document.getElementById(id); if (node) node.textContent = t(source);
     }
-    const language = document.getElementById('language');
-    language.value = message.languagePreference || 'auto';
-    for (const option of language.options) if (option.value === 'auto') option.textContent = t('跟随 VS Code');
-    language.setAttribute('aria-label', t('语言'));
-    document.getElementById('workspace').textContent = message.root || t('尚未打开工作区');
-    const navigation = document.getElementById('navigation'); navigation.setAttribute('aria-label', t('工程操作'));
-    const nextNavigation = JSON.stringify([message.pages, message.page]);
-    if (nextNavigation !== navigationKey) {
-      navigationKey = nextNavigation; navigation.replaceChildren();
-      for (const [id, title] of message.pages || []) {
-        const item = element('button', title, id === message.page ? 'active' : '');
-        item.setAttribute('aria-current', id === message.page ? 'page' : 'false'); item.addEventListener('click', () => send('navigate', { page: id })); navigation.append(item);
-      }
-    }
+    const workspace = document.getElementById('workspace');
+    const projectName = message.root?.split(/[\\/]/).filter(Boolean).pop();
+    document.getElementById('app-title').textContent = projectName || t('STM32 工程助手');
+    workspace.textContent = message.root || t('尚未打开工作区');
+    workspace.title = message.root || '';
+    renderNavigation(message);
     const nextKey = contentKey(message);
     if (nextKey !== renderedKey) {
       renderedKey = nextKey; sourceView = undefined; serialView = undefined; previewKey = undefined; content.replaceChildren();
       for (const notice of [message.state?.savedFilesNotice, message.state?.staleToolsNotice, message.state?.syncNotice]) if (notice) content.append(element('p', notice, 'issue warning'));
-      if (message.unavailable) {
+      if (message.unavailable && !['intelligence', 'preferences'].includes(message.page)) {
         const panel = section(t('打开当前工程'), message.unavailable), pick = element('button', t('选择工作区…'));
         pick.addEventListener('click', () => send('workspace')); panel.append(pick);
       } else renderers[message.page]?.(message.state);
       previewHost = element('div', undefined, 'preview-content'); content.append(previewHost);
-      const target = focusedKey ? [...content.querySelectorAll('[data-field]')].find(node => node.dataset.field === focusedKey) : focusedSearch ? content.querySelector('[data-source-search]') : null;
+      const target = focusedKey ? [...content.querySelectorAll('[data-field]')].find(node => node.dataset.field === focusedKey)
+        : focusedSearch ? content.querySelector('[data-source-search]')
+        : focused?.id === 'language' ? document.getElementById('language')
+        : focused?.dataset.destination ? document.querySelector('#subnavigation [aria-current="page"], #navigation [aria-current="page"]') : null;
       if (target) { target.focus({ preventScroll: true }); if (typeof selectionStart === 'number' && (['text', 'search', 'password'].includes(target.type) || target.tagName === 'TEXTAREA')) target.setSelectionRange(selectionStart, selectionEnd); }
     }
     if (previewHost) {
@@ -609,17 +694,6 @@
       serialView?.update(current.state.serial);
     }
   });
-  let language = document.getElementById('language');
-  if (!language) {
-    const wrapper = element('label', undefined, 'language-selector');
-    const label = element('span', '语言'); label.id = 'language-label';
-    language = element('select'); language.id = 'language';
-    for (const [value, title] of [['auto', '跟随 VS Code'], ['zh-CN', '简体中文'], ['en', 'English']]) {
-      const option = element('option', title); option.value = value; language.append(option);
-    }
-    append(wrapper, label, language); document.querySelector('header').append(wrapper);
-  }
-  language.addEventListener('change', () => send('setLanguage', { value: language.value }));
   document.getElementById('refresh').addEventListener('click', () => send('refresh'));
   document.getElementById('logs').addEventListener('click', () => send('logs'));
   document.getElementById('cancel').addEventListener('click', () => send('cancel'));
