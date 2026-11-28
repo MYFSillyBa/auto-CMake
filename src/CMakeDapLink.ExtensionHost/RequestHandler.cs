@@ -223,16 +223,17 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
         progress(15, "CMake 配置", plan.BuildDirectory);
         var success = await Run(plan.Configure, "CMake 配置", TimeSpan.FromMinutes(5));
         string? selectedFirmware = null;
+        string? effectiveConfiguration = null;
         if (success)
         {
             var command = plan.Build;
             if (requireFirmware)
             {
-                var targets = CurrentFirmwareArtifacts.FindTargets(plan.BuildDirectory, options.BuildConfiguration, root);
+                var targets = CurrentFirmwareArtifacts.FindTargets(plan.BuildDirectory, options.BuildConfiguration, root, out effectiveConfiguration);
                 if (options.FirmwareElfPath != null)
                     selectedFirmware = targets.Keys.FirstOrDefault(file => file.Equals(options.FirmwareElfPath, StringComparison.OrdinalIgnoreCase));
                 if (selectedFirmware == null && targets.Count > 1)
-                    return new { success = false, needsFirmware = true, firmware = targets.Keys.Order(StringComparer.OrdinalIgnoreCase).ToArray(), output = string.Join(Environment.NewLine, output), openOcdChecked = false, flashed = false };
+                    return new { success = false, needsFirmware = true, effectiveConfiguration, firmware = targets.Keys.Order(StringComparer.OrdinalIgnoreCase).ToArray(), output = string.Join(Environment.NewLine, output), openOcdChecked = false, flashed = false };
                 if (selectedFirmware == null && targets.Count == 1) selectedFirmware = targets.Keys.Single();
                 if (selectedFirmware == null || string.IsNullOrEmpty(targets[selectedFirmware]))
                     throw new InvalidOperationException("当前配置没有可编译的 ELF 目标，请核对 CMake 预设和目标。");
@@ -246,7 +247,8 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
         {
             try
             {
-                firmware = CMakeBuildPlan.FindElfs(plan.BuildDirectory, options.BuildConfiguration, root).Select(x => WorkspaceSafety.Child(plan.BuildDirectory, x)).ToArray();
+                firmware = CurrentFirmwareArtifacts.Find(plan.BuildDirectory, options.BuildConfiguration, root, out effectiveConfiguration)
+                    .Select(x => WorkspaceSafety.Child(plan.BuildDirectory, x)).ToArray();
                 if (selectedFirmware != null && !firmware.Contains(selectedFirmware, StringComparer.OrdinalIgnoreCase))
                     throw new InvalidOperationException("编译结束后未找到所选 ELF，已停止下载。");
             }
@@ -269,7 +271,7 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
                     if (selected != null && !firmware.Contains(selected, StringComparer.OrdinalIgnoreCase))
                         throw new InvalidOperationException("所选固件不是当前配置的目标产物，请重新选择。");
                     if (selected == null && firmware.Count > 1)
-                        return new { success = false, needsFirmware = true, firmware, output = string.Join(Environment.NewLine, output), openOcdChecked = false, flashed = false };
+                        return new { success = false, needsFirmware = true, effectiveConfiguration, firmware, output = string.Join(Environment.NewLine, output), openOcdChecked = false, flashed = false };
                     if (selected == null && firmware.Count == 0)
                         throw new InvalidOperationException($"当前配置找到 {firmware.Count} 个 ELF 产物，请明确选择要烧录的固件。");
                     selected ??= firmware[0];
@@ -284,7 +286,7 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
             { success = false; problems.Add(new(flashing ? "OpenOCD 烧录" : "OpenOCD 脚本", "错误", ex.Message, null, null, null,
                 flashing ? "核对所选固件、探针、复位模式和 OpenOCD Target。" : "核对 Target 和 OpenOCD 版本。脚本检查不会连接硬件。")); }
         }
-        return new { success, firmware, problems = problems.Select(p => new { p.Stage, p.Severity, p.Message, p.FilePath, p.Line, p.Column, p.Suggestion, rawMessage = externalProblems.Contains(p) }), output = string.Join(Environment.NewLine, output), outputStreamed = log != null, openOcdChecked, flashed };
+        return new { success, effectiveConfiguration, firmware, problems = problems.Select(p => new { p.Stage, p.Severity, p.Message, p.FilePath, p.Line, p.Column, p.Suggestion, rawMessage = externalProblems.Contains(p) }), output = string.Join(Environment.NewLine, output), outputStreamed = log != null, openOcdChecked, flashed };
     }
 
     private CMakeBuildPlan BuildPlan(SetupOptions options)

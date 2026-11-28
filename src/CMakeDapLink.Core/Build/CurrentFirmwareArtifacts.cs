@@ -12,9 +12,15 @@ public static class CurrentFirmwareArtifacts
     }
 
     public static IReadOnlyList<string> Find(string buildDirectory, string configuration, string? sourceRoot = null)
-        => FindTargets(buildDirectory, configuration, sourceRoot).Keys.Where(File.Exists).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        => Find(buildDirectory, configuration, sourceRoot, out _);
 
     public static IReadOnlyDictionary<string, string> FindTargets(string buildDirectory, string configuration, string? sourceRoot = null)
+        => FindTargets(buildDirectory, configuration, sourceRoot, out _);
+
+    public static IReadOnlyList<string> Find(string buildDirectory, string configuration, string? sourceRoot, out string effectiveConfiguration)
+        => FindTargets(buildDirectory, configuration, sourceRoot, out effectiveConfiguration).Keys.Where(File.Exists).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+
+    public static IReadOnlyDictionary<string, string> FindTargets(string buildDirectory, string configuration, string? sourceRoot, out string effectiveConfiguration)
     {
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(buildDirectory));
         var reply = Path.Combine(root, ".cmake", "api", "v1", "reply");
@@ -37,11 +43,15 @@ public static class CurrentFirmwareArtifacts
             throw new InvalidOperationException("CMake 目标信息与当前工程目录不一致，请重新配置工程。");
         var configurations = modelRoot.GetProperty("configurations").EnumerateArray().ToArray();
         var selected = configurations.FirstOrDefault(x => string.Equals(x.GetProperty("name").GetString(), configuration, StringComparison.Ordinal));
+        var singleConfig = index.RootElement.TryGetProperty("cmake", out var cmake) &&
+            cmake.TryGetProperty("generator", out var generator) &&
+            generator.TryGetProperty("multiConfig", out var multiConfig) && multiConfig.ValueKind == JsonValueKind.False;
         if (selected.ValueKind == JsonValueKind.Undefined && configurations.Length == 1 &&
-            string.IsNullOrEmpty(configurations[0].GetProperty("name").GetString()))
+            (singleConfig || string.IsNullOrEmpty(configurations[0].GetProperty("name").GetString())))
             selected = configurations[0];
         if (selected.ValueKind == JsonValueKind.Undefined)
             throw new InvalidOperationException($"CMake 构建目标中没有 {configuration} 配置，请重新配置并编译所选配置。");
+        effectiveConfiguration = selected.GetProperty("name").GetString() ?? "";
         var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (!selected.TryGetProperty("targets", out var targets)) return files;
         foreach (var reference in targets.EnumerateArray())

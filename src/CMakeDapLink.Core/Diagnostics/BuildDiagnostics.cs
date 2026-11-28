@@ -92,6 +92,8 @@ public static class BuildDiagnostics
 
     public static string Advice(string message)
     {
+        if (message.Contains("Manually-specified variables were not used by the project", StringComparison.OrdinalIgnoreCase))
+            return "工程未使用日志所列的命令行变量。请核对变量名，或检查 CMakeLists.txt 和预设是否覆盖了这些变量。";
         if (message.Contains("missing and no known rule", StringComparison.OrdinalIgnoreCase))
             return "Ninja 缺少输入文件或生成规则。检查日志中的文件路径及 add_custom_command 的 OUTPUT/DEPENDS；若移动了工程或更改了生成器，请重新配置当前构建目录。";
         if (message.Contains("loading 'build.ninja'", StringComparison.OrdinalIgnoreCase) || message.Contains("loading build.ninja", StringComparison.OrdinalIgnoreCase))

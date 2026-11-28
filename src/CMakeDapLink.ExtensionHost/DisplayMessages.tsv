@@ -67,6 +67,7 @@ OpenOCD target 必须是 target/xxx.cfg。	OpenOCD target must be target/xxx.cfg
 工具退出代码：{0}	Tool exit code: {0}
 展开完整日志并修正工程配置。	Expand the full log and correct the project configuration.
 重新配置并核对当前构建目标。	Reconfigure and check the current build targets.
+工程未使用日志所列的命令行变量。请核对变量名，或检查 CMakeLists.txt 和预设是否覆盖了这些变量。	The project did not use the command-line variables listed in the log. Check their names and whether CMakeLists.txt or the presets override them.
 OpenOCD 工具未找到。	OpenOCD was not found.
 核对 Target 和 OpenOCD 版本。脚本检查不会连接硬件。	Check the Target and OpenOCD version. Script checking does not connect to hardware.
 导入预览不属于当前工程。	The import preview does not belong to the current project.

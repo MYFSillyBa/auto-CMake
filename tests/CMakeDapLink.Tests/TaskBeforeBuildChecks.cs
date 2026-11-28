@@ -41,6 +41,10 @@ internal static class TaskBeforeBuildChecks
             Execute(build);
             var resolved = Execute(flash, resolve: true);
             if (!resolved.Contains("actual_firmware.elf") || resolved.Contains("Chassis.elf")) throw new Exception("runner guessed an old output");
+            File.AppendAllText(Path.Combine(project, "CMakeLists.txt"), "\nset(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING \"Build type\" FORCE)\n");
+            Execute(configure); Execute(build);
+            if (!Execute(flash, resolve: true).Contains("actual_firmware.elf"))
+                throw new Exception("runner did not use the effective single-config firmware");
             if (ConfigurationWriter.Preview(options).Count != 0 || Directory.EnumerateFiles(project, "*.ps1", SearchOption.AllDirectories).Any()) throw new Exception("runner configuration not stable");
             var snapshot = ChangeHistory.List(project).Single();
             File.AppendAllText(Path.Combine(project, "CMakeLists.txt"), "add_executable(other main.c)\nset_target_properties(other PROPERTIES OUTPUT_NAME other.v2 SUFFIX .elf)\ntarget_compile_options(other PRIVATE -mcpu=cortex-m7 -mthumb)\ntarget_link_options(other PRIVATE -mcpu=cortex-m7 -mthumb -nostdlib -Wl,-e,main)\n");

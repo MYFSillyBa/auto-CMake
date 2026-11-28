@@ -39,6 +39,25 @@ internal static class FirmwareArtifactChecks
                 !found.Contains(Path.Combine(root, "Debug", "loader.elf"))) throw new Exception("current executable targets mismatch");
             if (CMakeBuildPlan.FindElfs(root, "Release").Single() != Path.Combine(root, "Release", "current.elf"))
                 throw new Exception("configuration selection mismatch");
+            var relWithDebInfo = Target("relwithdebinfo", "EXECUTABLE", "updated.elf");
+            Write("single.json", new { paths = new { build = root }, configurations = new[] {
+                new { name = "RelWithDebInfo", targets = new[] { relWithDebInfo } }
+            } });
+            void WriteGeneratorIndex(bool multiConfig) => Write("index-2026-11-28.json", new
+            {
+                cmake = new { generator = new { multiConfig } },
+                objects = new[] { new { kind = "codemodel", version = new { major = 2 }, jsonFile = "single.json" } }
+            });
+            WriteGeneratorIndex(false);
+            if (CMakeBuildPlan.FindElfs(root, "Debug").Single() != Path.Combine(root, "updated.elf"))
+                throw new Exception("single-config generator must select the actual CMake configuration");
+            WriteGeneratorIndex(true);
+            try
+            {
+                CMakeBuildPlan.FindElfs(root, "Debug");
+                throw new Exception("multi-config generator must require the requested configuration even with one entry");
+            }
+            catch (InvalidOperationException) { }
             CurrentFirmwareArtifacts.PrepareQuery(root);
             if (!File.Exists(Path.Combine(root, ".cmake", "api", "v1", "query", "client-cmake-daplink", "codemodel-v2")))
                 throw new Exception("missing artifact query");
