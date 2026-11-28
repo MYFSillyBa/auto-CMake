@@ -557,8 +557,22 @@ class Workbench {
     return result;
   }
   async inspect(epoch, progress) {
-    const result = await this.call('inspect', this.options(), epoch, progress); this.state.inspection = result;
+    const options = this.options(), state = this.state, previous = state.inspection?.project;
+    const normalize = directory => path.resolve(this.folder.uri.fsPath, directory).toLowerCase();
+    const usesPresetDirectory = !!options.configurePreset && previous?.configurePreset === options.configurePreset &&
+      !!options.buildDirectory && !!previous.buildDirectory && normalize(options.buildDirectory) === normalize(previous.buildDirectory);
+    if (usesPresetDirectory) delete options.buildDirectory;
+    const result = await this.call('inspect', options, epoch, progress); state.inspection = result;
     const project = result.project || {};
+    if (usesPresetDirectory && project.configurePreset === previous.configurePreset && project.buildDirectory &&
+        normalize(project.buildDirectory) !== normalize(previous.buildDirectory)) {
+      state.options.buildDirectory = project.buildDirectory; state.options.firmwareElfPath = undefined;
+      state.preview = undefined; state.verification = undefined; state.buildResult = undefined; state.flashResult = undefined;
+      state.memory = undefined; state.advancedAnalysis = undefined; state.conversion = undefined; state.rtos = undefined;
+      await this.rememberBuildSelection();
+      this.assertSession(epoch);
+    }
+    if (project.configurePreset) state.options.configurePreset = project.configurePreset;
     if (!this.state.options.sourceTarget && result.targets?.length) this.state.options.sourceTarget = result.targets[0];
     for (const key of ['configurePreset', 'buildPreset', 'buildDirectory', 'targetScript']) if (this.state.options[key] === undefined && project[key]) this.state.options[key] = project[key];
     this.syncConfiguration();

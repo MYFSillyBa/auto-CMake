@@ -45,7 +45,7 @@ internal static class InspectionEnhancementChecks
             Assert(debug.ToolchainFile == toolchain && debug.BuildDirectory == Path.Combine(root, "build", "Debug") && debug.BuildPreset == "DebugBuild", "default Debug inherited paths");
             Assert(debug.ConfigurePresets.Single(p => p.Name == "Debug").BuildConfiguration == "Debug", "first parent wins in multiple inheritance");
             Assert(ProjectInspector.TargetForChip("STM32F407VGT6") == "target/stm32f4x.cfg", "manual chip confirmation mapping");
-            var release = ProjectInspector.Inspect(root, "Release");
+            var release = ProjectInspector.Inspect(root, "release");
             Assert(release.ConfigurePreset == "Release" && release.BuildPreset == "ReleaseBuild" && release.BuildDirectory == Path.Combine(root, "build", "Release"), "explicit Release selection and inherited build preset");
             Assert(release.ConfigurePresets.Single(p => p.Name == "Release").BuildConfiguration == "Release", "Release configuration exposed");
             var local = ProjectInspector.Inspect(root, "Local");

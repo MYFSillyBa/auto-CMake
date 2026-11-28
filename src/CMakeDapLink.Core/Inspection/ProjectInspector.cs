@@ -27,9 +27,10 @@ public static class ProjectInspector
 
         var reader = new CMakePresetReader(root, notes);
         var presets = reader.Read();
+        var presetName = selectedPreset == null ? null : CMakeConfigurations.MatchName(presets.Select(p => p.Name), selectedPreset);
         var chosen = !usePresets ? null : selectedPreset == null
             ? presets.FirstOrDefault(p => p.Name.Contains("debug", StringComparison.OrdinalIgnoreCase)) ?? presets.FirstOrDefault()
-            : presets.FirstOrDefault(p => p.Name == selectedPreset);
+            : presets.FirstOrDefault(p => p.Name == presetName);
         if (usePresets && selectedPreset != null && chosen == null) notes.Add("所选配置预设不可用：" + selectedPreset + "。请重新选择可见预设。");
         var buildDirectory = chosen?.BinaryDirectory;
         if (chosen == null) buildDirectory = Path.Combine(root, "build", "daplink-debug");

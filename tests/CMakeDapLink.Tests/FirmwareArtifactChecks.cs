@@ -37,8 +37,8 @@ internal static class FirmwareArtifactChecks
             var found = CMakeBuildPlan.FindElfs(root, "Debug");
             if (found.Count != 2 || !found.Contains(Path.Combine(root, "Debug", "current.elf")) ||
                 !found.Contains(Path.Combine(root, "Debug", "loader.elf"))) throw new Exception("current executable targets mismatch");
-            if (CMakeBuildPlan.FindElfs(root, "Release").Single() != Path.Combine(root, "Release", "current.elf"))
-                throw new Exception("configuration selection mismatch");
+            if (CMakeBuildPlan.FindElfs(root, "release").Single() != Path.Combine(root, "Release", "current.elf"))
+                throw new Exception("unambiguous configuration spelling did not resolve to the actual configuration");
             var relWithDebInfo = Target("relwithdebinfo", "EXECUTABLE", "updated.elf");
             Write("single.json", new { paths = new { build = root }, configurations = new[] {
                 new { name = "RelWithDebInfo", targets = new[] { relWithDebInfo } }

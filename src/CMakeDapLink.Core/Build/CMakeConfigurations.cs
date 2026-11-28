@@ -13,6 +13,25 @@ public static class CMakeConfigurations
         return value;
     }
 
+    public static string? MatchName(IEnumerable<string> names, string requested)
+    {
+        var matches = names.Where(name => string.Equals(name, requested, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.Ordinal).ToArray();
+        return matches.Length == 1 ? matches[0] : matches.FirstOrDefault(name => name == requested);
+    }
+
+    public static JsonElement FindInFileApi(JsonElement index, JsonElement model, string requested)
+    {
+        var configurations = model.GetProperty("configurations").EnumerateArray().ToArray();
+        static string Name(JsonElement item) => item.GetProperty("name").GetString() ?? "";
+        var name = MatchName(configurations.Select(Name), requested);
+        if (name != null) return configurations.First(item => Name(item) == name);
+        var singleConfig = index.TryGetProperty("cmake", out var cmake) &&
+            cmake.TryGetProperty("generator", out var generator) &&
+            generator.TryGetProperty("multiConfig", out var multiConfig) && multiConfig.ValueKind == JsonValueKind.False;
+        return configurations.Length == 1 && (singleConfig || Name(configurations[0]).Length == 0) ? configurations[0] : default;
+    }
+
     public static IReadOnlyList<string> Discover(ProjectInfo project, string? buildDirectory = null)
     {
         var names = new HashSet<string>(StringComparer.Ordinal);

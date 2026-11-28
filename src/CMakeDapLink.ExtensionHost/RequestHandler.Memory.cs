@@ -17,7 +17,7 @@ internal sealed partial class RequestHandler
         var selected = Text(payload, "firmwareElfPath");
         if (string.IsNullOrWhiteSpace(selected))
         {
-            var firmware = CMakeBuildPlan.FindElfs(build, configuration);
+            var firmware = CMakeBuildPlan.FindElfs(build, configuration, root);
             if (firmware.Count != 1) throw new ArgumentException("请选择一个实际编译生成的 ELF，再分析内存。");
             selected = firmware[0];
         }
@@ -62,9 +62,7 @@ internal sealed partial class RequestHandler
                 var paths = model.RootElement.GetProperty("paths");
                 if (!MemoryPathEquals(Required(paths, "source"), root) || !MemoryPathEquals(Required(paths, "build"), build))
                     throw new InvalidDataException("File API 工程或构建目录不匹配；请重新配置并编译后分析内存。");
-                var configurations = MemoryArray(model.RootElement, "configurations");
-                var chosen = configurations.FirstOrDefault(item => Text(item, "name") == configuration);
-                if (chosen.ValueKind == JsonValueKind.Undefined && configurations.Length == 1 && string.IsNullOrEmpty(Text(configurations[0], "name"))) chosen = configurations[0];
+                var chosen = CMakeConfigurations.FindInFileApi(index.RootElement, model.RootElement, configuration);
                 if (chosen.ValueKind == JsonValueKind.Undefined) throw new InvalidDataException("File API 中没有当前配置；请编译所选配置后分析内存。");
                 var matches = new List<(string[] Fragments, string Directory)>();
                 var cache = WorkspaceSafety.Child(build, Path.Combine(build, "CMakeCache.txt"));

@@ -148,19 +148,27 @@ internal sealed partial class RequestHandler(string root, JsonSerializerOptions 
         }
         if (requireTarget && target.Length == 0) throw new ArgumentException("请确认芯片并选择匹配的 OpenOCD Target。");
         if (requireTarget && !File.Exists(tools.OpenOcd)) throw new FileNotFoundException("请先补齐 OpenOCD 工具，再预览任务。");
-        var buildDirectory = WorkspaceSafety.Child(root, Text(payload, "buildDirectory") ?? project.BuildDirectory ?? Path.Combine(root, "build", "daplink-debug"));
-        if (project.ConfigurePreset != null && project.BuildDirectory != null && !buildDirectory.Equals(Path.GetFullPath(project.BuildDirectory), StringComparison.OrdinalIgnoreCase))
+        if (Text(payload, "configurePreset") is { Length: > 0 } selectedPreset && project.ConfigurePreset == null)
+            throw new ArgumentException($"所选配置预设不可用：{selectedPreset}。请重新选择可见预设。");
+        var buildDirectory = Path.TrimEndingDirectorySeparator(WorkspaceSafety.Child(root,
+            Text(payload, "buildDirectory") ?? project.BuildDirectory ?? Path.Combine(root, "build", "daplink-debug")));
+        if (project.ConfigurePreset != null && project.BuildDirectory != null &&
+            !buildDirectory.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(project.BuildDirectory)), StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("预设构建目录与所选目录不一致，请使用该预设的 binaryDir。");
-        var buildPreset = Text(payload, "buildPreset") ?? project.BuildPreset;
-        if (buildPreset != null && !project.ConfigurePresets.Any(x => x.Name == project.ConfigurePreset && x.BuildPresets.Any(p => p.Name == buildPreset)))
-            throw new ArgumentException("编译预设必须属于当前配置预设。");
-        var configuration = Configuration(payload);
         var preset = project.ConfigurePresets.FirstOrDefault(x => x.Name == project.ConfigurePreset);
-        var configured = preset?.ConfigureConfiguration;
-        var built = preset?.BuildPresets.FirstOrDefault(x => x.Name == buildPreset)?.Configuration;
-        foreach (var (kind, fixedConfiguration) in new[] { ("配置", configured), ("编译", built) })
-            if (!string.IsNullOrWhiteSpace(fixedConfiguration) && !fixedConfiguration.Equals(configuration, StringComparison.Ordinal))
-                throw new ArgumentException($"当前{kind}预设固定使用 {fixedConfiguration}，与所选 {configuration} 不一致。请选择 {fixedConfiguration} 配置或切换对应预设，然后重新预览。");
+        var buildPreset = project.BuildPreset;
+        if (Text(payload, "buildPreset") is { Length: > 0 } requestedBuild)
+        {
+            buildPreset = CMakeConfigurations.MatchName(project.ConfigurePresets.SelectMany(p => p.BuildPresets).Select(p => p.Name), requestedBuild);
+            if (buildPreset == null || preset?.BuildPresets.Any(p => p.Name == buildPreset) != true)
+                throw new ArgumentException("编译预设必须属于当前配置预设。");
+        }
+        var built = preset?.BuildPresets.FirstOrDefault(p => p.Name == buildPreset)?.Configuration;
+        var configured = preset?.IsMultiConfig == true ? built : preset?.ConfigureConfiguration;
+        var configuration = Text(payload, "configuration") ?? (string.IsNullOrWhiteSpace(configured) ? "Debug" : configured);
+        if (preset?.IsMultiConfig == true)
+            configuration = CMakeConfigurations.MatchName(preset.Configurations, configuration) ?? configuration;
+        CMakeConfigurations.Validate(configuration);
         var firmware = useFirmware ? Text(payload, "firmwareElfPath") : null;
         if (string.IsNullOrWhiteSpace(firmware)) firmware = null;
         if (firmware != null) firmware = WorkspaceSafety.Child(buildDirectory, WorkspaceSafety.Child(root, firmware));

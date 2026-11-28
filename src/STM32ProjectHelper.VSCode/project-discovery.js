@@ -20,8 +20,14 @@ async function discoverProjects(workspaceRoot, { signal, maximumDirectories = 60
     directory = path.resolve(directory);
     if (!contains(root, directory)) return;
     const previous = found.get(directory.toLowerCase());
-    if (previous) { if (!previous.evidence.includes(evidence)) previous.evidence.push(evidence); return; }
+    if (previous) { if (!previous.evidence.includes(evidence)) previous.evidence.push(evidence); previous.chip ||= chip || undefined; return; }
     found.set(directory.toLowerCase(), { root: directory, evidence: [evidence], chip: chip || undefined });
+  };
+  const enclosingCMakeProject = async directory => {
+    for (let candidate = directory; contains(root, candidate); candidate = path.dirname(candidate)) {
+      if (await readSmall(path.join(candidate, 'CMakeLists.txt'))) return candidate;
+      if (candidate === root) break;
+    }
   };
   while (queue.length && visited++ < maximumDirectories) {
     if (signal?.aborted) break;
@@ -43,17 +49,16 @@ async function discoverProjects(workspaceRoot, { signal, maximumDirectories = 60
         const content = await readSmall(file);
         const device = content.match(/<Device>\s*(STM32[^<]*)<\/Device>/i)?.[1].match(CHIP)?.[0];
         if (device) add(/^(?:mdk-arm|keil|mdk)$/i.test(path.basename(directory)) ? path.dirname(directory) : directory, path.relative(root, file), device.toUpperCase());
-      } else if (lower === 'cmakelists.txt') {
+      } else if (lower === 'cmakelists.txt' || lower.endsWith('.cmake')) {
         const content = (await readSmall(file)).replace(/#\[(=*)\[[\s\S]*?\]\1\]/g, '').replace(/#.*$/gm, '');
         const chip = content.match(CHIP)?.[0];
-        if (chip || /(?:cmake[\\/]stm32cubemx|stm32[a-z0-9]+_(?:hal|ll)|startup[_-]stm32[a-z0-9]+)/i.test(content)) add(directory, path.relative(root, file), chip?.toUpperCase());
-      } else if (/^startup[_-]stm32[a-z0-9]+\.(?:s|asm)$/i.test(lower)) {
-        let candidate = directory;
-        while (contains(root, candidate)) {
-          if (await readSmall(path.join(candidate, 'CMakeLists.txt'))) { add(candidate, path.relative(root, file), entry.name.match(CHIP)?.[0]?.toUpperCase()); break; }
-          if (candidate === root) break;
-          candidate = path.dirname(candidate);
+        if (chip || /(?:cmake[\\/]stm32cubemx|stm32[a-z0-9]+_(?:hal|ll)|startup[_-]stm32[a-z0-9]+)/i.test(content)) {
+          const candidate = lower === 'cmakelists.txt' ? directory : await enclosingCMakeProject(directory);
+          if (candidate) add(candidate, path.relative(root, file), chip?.toUpperCase());
         }
+      } else if (/^startup[_-]stm32[a-z0-9]+\.(?:s|asm)$/i.test(lower)) {
+        const candidate = await enclosingCMakeProject(directory);
+        if (candidate) add(candidate, path.relative(root, file), entry.name.match(CHIP)?.[0]?.toUpperCase());
       }
     }
   }

@@ -41,14 +41,7 @@ public static class CurrentFirmwareArtifacts
             throw new InvalidOperationException("CMake 目标信息与当前构建目录不一致，请重新配置工程。");
         if (sourceRoot != null && !Path.TrimEndingDirectorySeparator(Path.GetFullPath(modelRoot.GetProperty("paths").GetProperty("source").GetString()!)).Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(sourceRoot)), StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("CMake 目标信息与当前工程目录不一致，请重新配置工程。");
-        var configurations = modelRoot.GetProperty("configurations").EnumerateArray().ToArray();
-        var selected = configurations.FirstOrDefault(x => string.Equals(x.GetProperty("name").GetString(), configuration, StringComparison.Ordinal));
-        var singleConfig = index.RootElement.TryGetProperty("cmake", out var cmake) &&
-            cmake.TryGetProperty("generator", out var generator) &&
-            generator.TryGetProperty("multiConfig", out var multiConfig) && multiConfig.ValueKind == JsonValueKind.False;
-        if (selected.ValueKind == JsonValueKind.Undefined && configurations.Length == 1 &&
-            (singleConfig || string.IsNullOrEmpty(configurations[0].GetProperty("name").GetString())))
-            selected = configurations[0];
+        var selected = CMakeConfigurations.FindInFileApi(index.RootElement, modelRoot, configuration);
         if (selected.ValueKind == JsonValueKind.Undefined)
             throw new InvalidOperationException($"CMake 构建目标中没有 {configuration} 配置，请重新配置并编译所选配置。");
         effectiveConfiguration = selected.GetProperty("name").GetString() ?? "";
