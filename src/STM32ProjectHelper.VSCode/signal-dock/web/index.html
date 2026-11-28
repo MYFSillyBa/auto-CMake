@@ -11,44 +11,47 @@
 <div id="app">
   <header class="topbar">
     <div class="toolbar">
-      <select id="transport" aria-label="连接类型" data-label="连接类型"></select>
-      <select id="serialPort" data-serial-ports aria-label="串口设备" data-label="串口设备" hidden></select>
-      <input id="serialBaud" aria-label="波特率" data-label="波特率" title="波特率" data-title="波特率" type="number" min="1" max="12000000" list="baudRates" hidden>
-      <datalist id="baudRates"><option value="9600"><option value="19200"><option value="38400"><option value="57600"><option value="100000"><option value="115200"><option value="230400"><option value="460800"><option value="921600"><option value="1000000"></datalist>
-      <select id="engine" aria-label="协议引擎" data-label="协议引擎"></select>
-      <button id="connectionSettings" title="连接设置" data-title="连接设置"><span>⚙</span> <span data-t="连接设置">连接设置</span></button>
+      <button id="backWorkbench" class="workbench-return" aria-label="返回工作台" data-label="返回工作台" title="返回工作台" data-title="返回工作台"><span aria-hidden="true">←</span> <span data-t="返回工作台">返回工作台</span></button>
+      <div class="connection-controls">
+        <select id="transport" aria-label="连接类型" data-label="连接类型"></select>
+        <select id="serialPort" data-serial-ports aria-label="串口设备" data-label="串口设备" hidden></select>
+        <input id="serialBaud" aria-label="波特率" data-label="波特率" title="波特率" data-title="波特率" type="number" min="1" max="12000000" list="baudRates" hidden>
+        <datalist id="baudRates"><option value="9600"><option value="19200"><option value="38400"><option value="57600"><option value="100000"><option value="115200"><option value="230400"><option value="460800"><option value="921600"><option value="1000000"></datalist>
+        <select id="engine" aria-label="协议引擎" data-label="协议引擎"></select>
+        <button id="connectionSettings" aria-label="连接设置" data-label="连接设置" title="连接设置" data-title="连接设置"><span aria-hidden="true">⚙</span></button>
+      </div>
       <button id="connect" class="primary"><span data-t="连接">连接</span></button>
       <button id="startDemo" data-action="demo" data-t="运行示例">运行示例</button>
-      <span class="split"></span>
-      <button id="saveData" title="保存本次采集的全部数据" data-title="保存本次采集的全部数据" data-t="保存数据">保存数据</button>
-      <span id="captureState" class="muted"></span>
-      <details class="menu">
-        <summary data-t="文件">文件</summary>
-        <div class="menu-items">
-          <button data-action="loadCsv" data-t="载入采样 CSV">载入采样 CSV</button>
-          <button data-action="saveCsv" data-t="导出采样 CSV">导出采样 CSV</button>
-          <button data-action="saveTimed" data-t="导出 CSV（含名义时间）">导出 CSV（含名义时间）</button>
-          <button id="clearSamples" class="danger" data-action="clearSamples" data-t="清空采样">清空采样</button>
-          <hr>
-          <button data-action="loadArchive" data-t="载入配置 / VOFA+ 1.3">载入配置 / VOFA+ 1.3</button>
-          <button data-archive="commands" data-t="导出命令树">导出命令树</button>
-          <button data-archive="tab" data-t="导出当前标签">导出当前标签</button>
-          <button data-archive="layout" data-t="导出窗口布局">导出窗口布局</button>
-          <button data-archive="all" data-t="导出全部配置">导出全部配置</button>
-          <button data-action="screenshot" data-t="保存画布截图">保存画布截图</button>
-        </div>
-      </details>
-      <details class="menu">
-        <summary data-t="视图">视图</summary>
-        <div class="menu-items">
-          <button data-view="sidebar" data-t="工具侧栏">工具侧栏</button>
-          <button data-view="inspector" data-t="通道检查器">通道检查器</button>
-          <button data-view="terminal" data-t="串口终端">串口终端</button>
-          <button data-action="plugins" data-t="协议和控件扩展">协议和控件扩展</button>
-          <button data-action="appearance" data-t="外观与性能">外观与性能</button>
-          <button data-action="help" data-t="VOFA+ 协议文档">VOFA+ 协议文档</button>
-        </div>
-      </details>
+      <button id="recordData" disabled>开始记录</button>
+      <button id="clearSamples" class="danger" data-action="clearSamples" data-t="清除数据" disabled>清除数据</button>
+      <div class="toolbar-menus">
+        <details class="menu">
+          <summary data-t="文件">文件</summary>
+          <div class="menu-items">
+            <button data-action="loadCsv" data-t="载入采样 CSV">载入采样 CSV</button>
+            <button data-action="saveCsv" data-t="导出采样 CSV">导出采样 CSV</button>
+            <button data-action="saveTimed" data-t="导出 CSV（含名义时间）">导出 CSV（含名义时间）</button>
+            <hr>
+            <button data-action="loadArchive" data-t="载入配置 / VOFA+ 1.3">载入配置 / VOFA+ 1.3</button>
+            <button data-archive="commands" data-t="导出命令树">导出命令树</button>
+            <button data-archive="tab" data-t="导出当前标签">导出当前标签</button>
+            <button data-archive="layout" data-t="导出窗口布局">导出窗口布局</button>
+            <button data-archive="all" data-t="导出全部配置">导出全部配置</button>
+            <button data-action="screenshot" data-t="保存画布截图">保存画布截图</button>
+          </div>
+        </details>
+        <details class="menu">
+          <summary data-t="视图">视图</summary>
+          <div class="menu-items">
+            <button data-view="sidebar" data-t="工具侧栏">工具侧栏</button>
+            <button data-view="inspector" data-t="通道检查器">通道检查器</button>
+            <button data-view="terminal" data-t="串口终端">串口终端</button>
+            <button data-action="plugins" data-t="协议和控件扩展">协议和控件扩展</button>
+            <button data-action="appearance" data-t="外观与性能">外观与性能</button>
+            <button data-action="help" data-t="VOFA+ 协议文档">VOFA+ 协议文档</button>
+          </div>
+        </details>
+      </div>
     </div>
   </header>
   <div class="workarea">
@@ -57,7 +60,7 @@
       <button data-sidebar="commands" title="命令" data-title="命令">⌘</button>
       <button data-sidebar="connection" title="连接" data-title="连接">⇆</button>
       <button id="toggleTerminal" title="终端" data-title="终端">›_</button>
-      <button id="toggleInspector" title="通道" data-title="通道">☷</button>
+      <button id="toggleInspector" title="实时通道" data-title="实时通道" aria-label="实时通道" data-label="实时通道" aria-controls="inspector" aria-expanded="false">☷</button>
       <button data-action="appearance" class="rail-bottom" title="设置" data-title="设置">⚙</button>
     </nav>
     <aside id="sidebar" class="sidebar panel" aria-label="工具侧栏" data-label="工具侧栏"></aside>
@@ -80,7 +83,7 @@
     <aside id="inspector" class="inspector panel" aria-label="检查器" data-label="检查器">
       <div class="panel-heading"><span data-t="检查器">检查器</span><span id="channelCount" class="pill">0 CH</span></div>
       <section class="live-channels" aria-label="实时通道" data-label="实时通道">
-        <div class="subheading"><span data-t="实时通道">实时通道</span><span class="muted">LIVE</span></div>
+        <div class="subheading" data-t="实时通道">实时通道</div>
         <div id="waveChannelToolbar" class="wave-channel-toolbar" hidden>
           <select id="waveChannelTarget" aria-label="选择波形图" data-label="选择波形图"></select>
           <div id="waveChannelActions" class="wave-channel-actions">
@@ -129,9 +132,14 @@
     <span id="endpoint" class="muted"></span>
     <span id="statusError" hidden></span>
     <span class="spacer"></span>
-    <span id="rxStat">RX 0 B</span><span id="txStat">TX 0 B</span><span id="frameStat">0 帧</span>
-    <span id="capacityStat">0 / 50,000</span>
-    <span id="dtStat">Δt 10 ms</span>
+    <span id="frameStat" class="muted">0 帧</span>
+    <details class="menu status-details">
+      <summary data-t="数据统计">数据统计</summary>
+      <div class="menu-items">
+        <span id="rxStat">RX 0 B</span><span id="txStat">TX 0 B</span>
+        <span id="capacityStat">0 / 50,000</span><span id="dtStat">Δt 10 ms</span>
+      </div>
+    </details>
   </footer>
 </div>
 <dialog id="dialog"><div class="dialog-head"><h2 id="dialogTitle"></h2><button id="closeDialog" title="关闭" data-title="关闭">×</button></div><div id="dialogBody"></div><div id="dialogFoot"></div></dialog>

@@ -1,5 +1,6 @@
 import './app.css';
 import './instruments.css';
+import './recording.css';
 import { toPng } from 'html-to-image';
 import config from '../src/config.cjs';
 import { INSTRUMENTS, defaults, mountInstrument, instrumentFields } from './instruments.mjs';
@@ -113,7 +114,8 @@ function renderShell() {
   if (!engines.some(([name]) => name === state.connection.engine)) engines.push([state.connection.engine, state.connection.engine + ' (unavailable)']);
   options($('#engine'), engines, state.connection.engine);
   $('#sidebar').hidden = !viewVisible('sidebar');
-  $('#inspector').hidden = !viewVisible('inspector');
+  const showInspector = viewVisible('inspector');
+  $('#inspector').hidden = !showInspector;
   $('#terminal').hidden = !state.view.terminal;
   document.documentElement.style.setProperty('--terminal-height', state.view.terminalHeight + 'px');
   $('#span').value = viewSpan();
@@ -123,7 +125,9 @@ function renderShell() {
   $('#lockLayout').ariaPressed = String(!!tab().locked);
   $('#sendMode').value = state.terminal.sendHex ? 'hex' : 'text';
   $('#toggleTerminal').classList.toggle('is-active', state.view.terminal);
-  $('#toggleInspector').classList.toggle('is-active', viewVisible('inspector'));
+  const inspectorToggle = $('#toggleInspector');
+  inspectorToggle.classList.toggle('is-active', showInspector);
+  inspectorToggle.setAttribute('aria-expanded', String(showInspector));
   for (const node of $$('[data-sidebar]')) node.classList.toggle('is-active', viewVisible('sidebar') && model.sidebar === node.dataset.sidebar);
   renderStatus();
 }
@@ -562,6 +566,18 @@ function formatBytes(bytes = 0) {
   return (bytes / 1048576).toFixed(2) + ' MiB';
 }
 
+function renderRecording() {
+  const { recording, status } = model.data;
+  const record = $('#recordData');
+  const state = recording === 'active' || recording === 'pending' ? recording
+    : status === 'connected' ? 'ready' : 'idle';
+  const label = t(state === 'active' ? '正在记录，点击停止并保存'
+    : state === 'pending' ? '保存记录 CSV' : '开始记录');
+  if (record.textContent !== label) record.textContent = label;
+  record.dataset.state = state;
+  record.disabled = state === 'idle' || !!model.recordingAction;
+}
+
 function renderStatus() {
   const data = model.data;
   const config = model.state.connection;
@@ -572,11 +588,11 @@ function renderStatus() {
   $('#connect').textContent = t(connecting ? '连接中' : active ? '断开' : '连接');
   $('#connect').disabled = connecting;
   $('#startDemo').disabled = active || connecting;
+  $('#startDemo').hidden = active || connecting;
   $('#transport').disabled = active || connecting;
   $('#engine').disabled = active || connecting;
-  $('#saveData').disabled = !data.captured;
   $('#clearSamples').disabled = !data.captured && !data.stats.images;
-  $('#captureState').textContent = t(data.capturing ? '自动采集中' : '已采集') + ' ' + (data.captured ?? 0).toLocaleString();
+  renderRecording();
   $('#stopSend').disabled = !data.sending;
   $('#send').disabled = !active || config.kind === 'demo';
   $('#sendFile').disabled = $('#send').disabled;
@@ -836,6 +852,7 @@ document.addEventListener('keydown', event => {
   }
 });
 $('#closeDialog').onclick = () => $('#dialog').close();
+$('#backWorkbench').onclick = () => tell('backWorkbench');
 $('#connectionSettings').onclick = connectionDialog;
 $('#transport').onchange = event => {
   model.state.connection.kind = event.target.value;
@@ -880,9 +897,20 @@ $('#connect').onclick = async () => {
   renderStatus();
   renderPorts();
 };
-$('#saveData').onclick = async () => {
-  const saved = await rpc('saveCsv', { time: true });
-  if (saved) notify(t('数据已保存'));
+$('#recordData').onclick = async () => {
+  if (model.recordingAction) return;
+  model.recordingAction = true;
+  renderRecording();
+  try {
+    if (model.data.recording === 'active' || model.data.recording === 'pending') {
+      if (await rpc('saveRecording')) notify('记录已保存');
+    } else {
+      await rpc('startRecording');
+    }
+  } finally {
+    model.recordingAction = false;
+    renderRecording();
+  }
 };
 $('#toggleTerminal').onclick = () => toggleView('terminal');
 $('#toggleInspector').onclick = () => toggleView('inspector');

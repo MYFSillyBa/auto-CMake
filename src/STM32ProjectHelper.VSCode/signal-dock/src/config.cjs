@@ -17,7 +17,8 @@ function initialState() {
     connection: { ...CONNECTION },
     terminal: { ...TERMINAL },
     dtMs: 10, fps: 0, refreshVersion: 1, capacity: 50000,
-    view: { span: 500, align: 10, sidebar: true, inspector: true, terminal: true, terminalHeight: 205 },
+    panelLayoutVersion: 2,
+    view: { span: 500, align: 10, sidebar: false, inspector: true, terminal: false, terminalHeight: 175 },
     appearance: { theme: 'auto', scale: 1, font: '', background: '', language: 'zh' },
     themes: [], commands: [], channelSettings: {}, plugins: [],
     tabs: [{ id: 'default', title: '实时监测', widgets: [
@@ -86,12 +87,19 @@ function normalizeCommands(nodes, depth = 0) {
 function normalizeState(value) {
   const base = initialState();
   const state = value && typeof value === 'object' ? value : {};
+  const view = { ...base.view, ...state.view };
+  const panels = ['sidebar', 'inspector', 'terminal'];
+  if (state.panelLayoutVersion == null && panels.every(name => state.view?.[name] === true)) {
+    for (const name of panels) view[name] = base.view[name];
+  }
+  if (state.panelLayoutVersion === 1) view.inspector = base.view.inspector;
   return {
     ...base,
     ...state,
     connection: { ...base.connection, ...state.connection },
     terminal: { ...base.terminal, ...state.terminal },
-    view: { ...base.view, ...state.view },
+    view,
+    panelLayoutVersion: base.panelLayoutVersion,
     appearance: { ...base.appearance, ...state.appearance },
     capacity: Math.round(bounded(state.capacity, 1, 2_000_000, base.capacity)),
     dtMs: bounded(state.dtMs, 0.000001, 3_600_000, base.dtMs),

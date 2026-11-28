@@ -127,22 +127,21 @@ button { border-radius: 6px; transition: background-color 140ms ease-out, border
   .header-tools { grid-column: 1 / -1; justify-content: space-between; flex-wrap: wrap; }
   .quick-actions button { flex: 1 1 74px; min-width: 0; padding-inline: 8px; gap: 4px; }
 }
-.signals-mode { display: flex; flex-direction: column; min-height: 100vh; }
-.signals-mode:not(.operation-running) { padding-bottom: 14px; }
+.signals-mode { display: flex; flex-direction: column; height: 100vh; padding: 0; overflow: hidden; }
+.signals-mode > header,
+.signals-mode #navigation,
+.signals-mode #subnavigation,
+.signals-mode #status,
 .signals-mode:not(.operation-running) > footer,
-.signals-mode:not(.operation-running) #status,
 [hidden] { display: none !important; }
-.signals-mode > header, .signals-mode .workspace-layout { width: 100%; max-width: 1440px; }
-.signals-mode .workspace-layout { flex: 1; display: flex; flex-direction: column; }
-#signals-region { flex: 1; display: flex; min-height: 450px; }
+.signals-mode .workspace-layout { flex: 1; display: flex; flex-direction: column; width: 100%; max-width: none; min-height: 0; }
+#signals-region { flex: 1; position: relative; min-height: 0; }
 #signals-frame {
-  display: block;
-  flex: 1;
-  min-width: 0;
-  min-height: 450px;
+  position: absolute;
+  inset: 0;
   width: 100%;
-  border: 1px solid var(--workbench-border);
-  border-radius: 9px;
+  height: 100%;
+  border: 0;
   background: var(--vscode-editor-background);
 }
 @media (prefers-reduced-motion: reduce) { button { transition: none; } }

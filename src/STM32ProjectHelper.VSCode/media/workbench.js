@@ -4,6 +4,7 @@
   const content = document.getElementById('content');
   const signalsRegion = document.getElementById('signals-region');
   let signalsFrame, requestingSignals;
+  let lastWorkbenchPage = 'overview';
   let current;
   let sourceView, serialView, previewHost, renderedKey, previewKey, navigationKey;
   let fieldSequence = 0;
@@ -654,6 +655,7 @@
     const selectionStart = focused?.selectionStart, selectionEnd = focused?.selectionEnd;
     if (focusedKey && focused.value !== String(current?.state?.options?.[focusedKey] ?? '')) local?.drafts.set(focusedKey, focused.value);
     current = message;
+    if (message.page !== 'signals') lastWorkbenchPage = message.page;
     const viewKey = `${message.root || ''}\n${message.page}`;
     if (!views.has(viewKey)) views.set(viewKey, { drafts: new Map(), details: new Map(), sourceScroll: 0, search: undefined });
     local = views.get(viewKey);
@@ -677,7 +679,6 @@
     signalsRegion.setAttribute('aria-label', t('实时波形'));
     if (signalsFrame) signalsFrame.title = t('实时波形');
     if (message.page === 'signals') {
-      if (focused?.dataset.destination) document.querySelector('#navigation [aria-current="page"]')?.focus({ preventScroll: true });
       updateProgress({ ...message, status: message.state?.status, percent: message.percent ?? message.state?.percent });
       return;
     }
@@ -705,8 +706,11 @@
   window.addEventListener('message', event => {
     const message = event.data;
     if (signalsFrame && event.source === signalsFrame.contentWindow) {
-      if (event.origin === 'null' && message?.type === 'signalMessage' && typeof message.payload?.type === 'string')
-        send('signalMessage', { payload: message.payload });
+      if (event.origin === 'null' && message?.type === 'signalMessage' && typeof message.payload?.type === 'string') {
+        if (message.payload.type === 'backWorkbench') {
+          if (current?.page === 'signals') send('navigate', { page: lastWorkbenchPage });
+        } else send('signalMessage', { payload: message.payload });
+      }
       return;
     }
     if (event.origin === 'null') return;

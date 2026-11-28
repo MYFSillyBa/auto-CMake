@@ -74,6 +74,7 @@ class TelemetrySession extends EventEmitter {
             this.status = 'idle';
             this.abortSending();
             this.flushDecoders();
+            this.stopRecording();
             this.flushLog();
             this.peers = [];
             this.peer = '';
@@ -120,6 +121,7 @@ class TelemetrySession extends EventEmitter {
       await transport?.close();
     } finally {
       this.flushDecoders();
+      this.stopRecording();
       this.flushLog();
       this.status = 'idle';
       this.peers = [];
@@ -167,6 +169,7 @@ class TelemetrySession extends EventEmitter {
       this.stats.samples++;
       this.version++;
       this.captureSample(frame.values);
+      if (this.recording?.active) this.recording.capture.append(frame.values);
     } else if (frame.kind === 'image') {
       this.stats.images++;
       this.images.delete(frame.id);
@@ -291,9 +294,55 @@ class TelemetrySession extends EventEmitter {
     await this.capture.save(path, names, this.state.dtMs, time);
   }
 
+  get recordingStatus() {
+    if (!this.recording) return 'idle';
+    return this.recording.active ? 'active' : 'pending';
+  }
+
+  startRecording() {
+    if (this.status !== 'connected') throw new Error('请先连接设备。');
+    if (this.recording) throw new Error('当前记录尚未保存。');
+    const capture = new CaptureFile(error => {
+      if (this.recording?.capture !== capture) return;
+      this.recording = undefined;
+      this.report(error);
+      void capture.dispose().catch(error => this.report(error));
+    });
+    this.recording = { capture, active: true, dtMs: this.state.dtMs };
+  }
+
+  stopRecording() {
+    const recording = this.recording;
+    if (!recording?.active) return !!recording;
+    const { capture } = recording;
+    capture.finish();
+    if (!capture.count) {
+      this.recording = undefined;
+      void capture.dispose().catch(error => this.report(error));
+      return false;
+    }
+    recording.active = false;
+    recording.names = Array.from({ length: capture.width }, (_, i) => channelAt(i, this.state.channelSettings).name);
+    return true;
+  }
+
+  async saveRecording(path) {
+    const recording = this.recording;
+    if (!recording || recording.active) throw new Error('没有可保存的采样数据');
+    await recording.capture.save(path, recording.names, recording.dtMs, true);
+    this.recording = undefined;
+    await recording.capture.dispose().catch(error => this.report(error));
+  }
+
   async dispose() {
-    await this.disconnect();
-    await this.clearSamples();
+    try {
+      await this.disconnect();
+      await this.clearSamples();
+    } finally {
+      const recording = this.recording;
+      this.recording = undefined;
+      await recording?.capture.dispose();
+    }
   }
 
   sendFrames(frames, options) {

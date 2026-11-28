@@ -1,0 +1,35 @@
+#recordData {
+  max-width: 100%;
+  white-space: normal;
+  font-weight: 600;
+}
+
+#recordData[data-state="ready"] {
+  color: #fff1dc;
+  background: #533619;
+  border-color: #f5bd57;
+}
+
+#recordData[data-state="ready"]:enabled {
+  animation: recording-ready 2.8s ease-in-out infinite;
+}
+
+#recordData[data-state="active"] {
+  color: #e3fff0;
+  background: #1a4934;
+  border-color: #54d796;
+}
+
+#recordData[data-state="pending"] {
+  color: #fff1dc;
+  background: #533619;
+  border-color: #f5bd57;
+}
+
+@keyframes recording-ready {
+  50% { background: #612e2b; border-color: #ff8a80; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #recordData[data-state="ready"]:enabled { animation: none; }
+}

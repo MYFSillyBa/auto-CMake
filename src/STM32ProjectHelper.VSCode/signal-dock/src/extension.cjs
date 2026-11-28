@@ -40,6 +40,7 @@ class SignalDock {
     this.context = context;
     this.host = host;
     this.decoders = new Map();
+    this.savingRecording = false;
     this.state = normalizeState(context.workspaceState.get(STATE_KEY, initialState()));
     this.session = new TelemetrySession(this.state, this.decoders);
     const assets = vscode.Uri.joinPath(context.extensionUri, 'signal-dock', 'dist');
@@ -141,7 +142,7 @@ class SignalDock {
     const after = clear ? session.logClearedAt : view.log;
     const statusKey = [session.status, session.stats.rx, session.stats.tx, session.stats.invalid, session.error,
       session.peer, session.peers.map(peer => peer.id).join(','), session.capture?.count ?? 0,
-      session.captureError, session.pendingSends > 0].join('|');
+      session.captureError, session.recordingStatus, session.pendingSends > 0].join('|');
     if (!seriesChanged && !latestChanged && !imageChanged && !clear && after === session.logSeq && statusKey === view.statusKey) return;
     const log = (after === session.logSeq ? [] : session.log.slice(-100).filter(entry => entry.seq > after)).map(entry => {
       const encoding = session.state.terminal.encoding;
@@ -159,7 +160,7 @@ class SignalDock {
       type: 'tick', frameId, viewRevision: view.revision, status: session.status, stats: session.stats, count: ring.count,
       start: ring.start, end: ring.end, capacity: ring.capacity, dtMs: session.state.dtMs,
       error: session.error, peers: session.peers, peer: session.peer,
-      captured: session.capture?.count ?? 0, capturing: session.status === 'connected' && !session.captureError,
+      captured: session.capture?.count ?? 0, recording: session.recordingStatus,
       sending: session.pendingSends > 0, log, clear, channels,
       latest: latestChanged ? (ring.count ? ring.row(ring.end - 1).map(value => Number.isFinite(value) ? value : null) : []) : undefined,
       series: seriesChanged ? ring.slice(start, end, budget) : undefined,
@@ -365,6 +366,20 @@ class SignalDock {
         this.resetViewport();
         return;
       case 'loadCsv': return this.importData();
+      case 'startRecording': return session.startRecording();
+      case 'saveRecording': {
+        if (this.savingRecording) return false;
+        if (!session.stopRecording()) throw new Error('没有可保存的采样数据');
+        this.savingRecording = true;
+        try {
+          const uri = await saveFile(this.host.t('保存记录 CSV'), 'signal-dock-recording.csv', { CSV: ['csv'] });
+          if (!uri) return false;
+          await session.saveRecording(uri.fsPath);
+          return true;
+        } finally {
+          this.savingRecording = false;
+        }
+      }
       case 'saveCsv': {
         if (!session.capture?.count) throw new Error('没有可保存的采样数据');
         const uri = await saveFile(this.host.t('保存数据'), 'signal-dock-samples.csv', { CSV: ['csv'] });

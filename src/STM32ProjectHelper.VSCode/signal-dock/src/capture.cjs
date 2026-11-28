@@ -46,8 +46,12 @@ class CaptureFile {
     const snapshot = { bytes: this.bytes, count: this.count, width: this.width };
     this.readers++;
     try {
-      // A stream write callback completes after all earlier records have reached the file.
-      await new Promise((resolve, reject) => this.file.write('', error => error ? reject(error) : resolve()));
+      if (this.file.writableEnded) {
+        await this.done;
+      } else {
+        // The callback completes after all earlier records have reached the file.
+        await new Promise((resolve, reject) => this.file.write('', error => error ? reject(error) : resolve()));
+      }
       if (this.error) throw this.error;
       return snapshot;
     } catch (error) {
@@ -101,9 +105,13 @@ class CaptureFile {
     await rm(this.directory, { recursive: true, force: true });
   }
 
+  finish() {
+    if (!this.file.writableEnded) this.file.end();
+  }
+
   async dispose() {
     this.discarded = true;
-    if (!this.file.writableEnded) this.file.end();
+    this.finish();
     await this.done.catch(() => {});
     if (!this.readers) await this.remove();
   }

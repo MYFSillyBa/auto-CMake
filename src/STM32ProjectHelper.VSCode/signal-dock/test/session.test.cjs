@@ -15,6 +15,20 @@ test('refresh follows the display by default and supports manual limits above 60
   assert.equal(normalizeState({ fps: 144 }).fps, 144);
 });
 
+test('the waveform shows the channel inspector by default and keeps newly saved panel choices', () => {
+  const visible = state => ['sidebar', 'inspector', 'terminal'].map(key => state.view[key]);
+  assert.deepEqual(visible(initialState()), [false, true, false]);
+  const oldDefaults = { sidebar: true, inspector: true, terminal: true, terminalHeight: 235 };
+  const upgraded = normalizeState({ view: oldDefaults });
+  assert.deepEqual(visible(upgraded), [false, true, false]);
+  assert.equal(upgraded.view.terminalHeight, 235);
+  assert.deepEqual(visible(normalizeState({ view: { ...oldDefaults, inspector: false } })), [true, false, true]);
+  const compact = normalizeState({ panelLayoutVersion: 1, view: { sidebar: false, inspector: false, terminal: true } });
+  assert.deepEqual(visible(compact), [false, true, true]);
+  assert.deepEqual(visible(normalizeState({ ...compact, view: { ...compact.view, inspector: false } })), [false, false, true]);
+  assert.deepEqual(visible(normalizeState({ ...upgraded, view: oldDefaults })), [true, true, true]);
+});
+
 function storage() {
   try {
     return require('../src/samples.cjs');
