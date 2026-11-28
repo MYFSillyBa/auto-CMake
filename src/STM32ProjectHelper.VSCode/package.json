@@ -2,7 +2,7 @@
   "name": "stm32-project-helper",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.5.1",
+  "version": "1.6.8",
   "publisher": "myfsillyba",
   "license": "MIT",
   "repository": {
@@ -38,6 +38,7 @@
   ],
   "activationEvents": [
     "onStartupFinished",
+    "onView:stm32ProjectHelper.liveWatch",
     "workspaceContains:**/CMakeLists.txt",
     "workspaceContains:**/*.ioc",
     "workspaceContains:**/*.uvprojx",
@@ -82,6 +83,16 @@
         "title": "%command.debug%"
       },
       {
+        "command": "stm32ProjectHelper.signals",
+        "title": "%command.signals%",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "stm32ProjectHelper.openLiveWatch",
+        "title": "%command.liveWatch%",
+        "icon": "media/live-watch-label.svg"
+      },
+      {
         "command": "stm32ProjectHelper.fixIntelligence",
         "title": "%command.fixIntelligence%"
       },
@@ -120,7 +131,15 @@
       "stm32ProjectHelper": [
         {
           "id": "stm32ProjectHelper.navigation",
-          "name": "%view%"
+          "name": "%view%",
+          "when": "!stm32ProjectHelper.liveWatchExpanded",
+          "initialSize": 1
+        },
+        {
+          "id": "stm32ProjectHelper.liveWatch",
+          "name": "%view.liveWatch%",
+          "type": "webview",
+          "initialSize": 2
         }
       ]
     },
@@ -170,6 +189,34 @@
           "description": "%stm32ProjectHelper.tools.openOcd%",
           "scope": "machine-overridable"
         },
+        "stm32ProjectHelper.liveWatch.tclPort": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "default": 0,
+          "description": "%stm32ProjectHelper.liveWatch.tclPort%",
+          "scope": "machine-overridable"
+        },
+        "stm32ProjectHelper.liveWatch.gdbPath": {
+          "type": "string",
+          "default": "",
+          "description": "%stm32ProjectHelper.liveWatch.gdbPath%",
+          "scope": "machine-overridable"
+        },
+        "stm32ProjectHelper.liveWatch.elfPath": {
+          "type": "string",
+          "default": "",
+          "description": "%stm32ProjectHelper.liveWatch.elfPath%",
+          "scope": "machine-overridable"
+        },
+        "stm32ProjectHelper.liveWatch.ramRegions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "%stm32ProjectHelper.liveWatch.ramRegions%"
+        },
         "stm32ProjectHelper.language": {
           "type": "string",
           "scope": "application",
@@ -195,14 +242,24 @@
     }
   },
   "scripts": {
-    "check": "node --check extension.js && node --check bridge.js && node --check project-discovery.js && node --check view-state.js && node --check process-tree.js && node --check development-tools.js && node --check serial-session.js && node --check usage-statistics.js && node --check fault-report.js && node --check cubemx-sync.js && node --check media/workbench.js && node --check media/i18n.js && node --check media/ui-messages.js",
+    "check": "node --check extension.js && node --check bridge.js && node --check project-discovery.js && node --check view-state.js && node --check process-tree.js && node --check development-tools.js && node --check serial-session.js && node --check usage-statistics.js && node --check fault-report.js && node --check cubemx-sync.js && node --check media/workbench.js && node --check media/i18n.js && node --check media/ui-messages.js && node --check media/live-watch.js",
     "build": "node scripts/package.mjs",
     "package": "node scripts/package.mjs",
     "smoke": "node scripts/test-vscode.cjs",
-    "test": "node --test test/*.test.cjs"
+    "test": "node --test test/*.test.cjs signal-dock/test/*.test.*",
+    "build:signals": "node scripts/build-signals.mjs",
+    "build:live-watch": "node scripts/build-live-watch.mjs"
   },
   "devDependencies": {
+    "@vscode/test-electron": "3.1.0",
     "@vscode/vsce": "4.0.0",
-    "@vscode/test-electron": "3.1.0"
+    "esbuild": "0.28.2",
+    "html-to-image": "1.11.13",
+    "three": "0.187.0"
+  },
+  "dependencies": {
+    "csv-parse": "7.0.3",
+    "iconv-lite": "0.7.3",
+    "serialport": "13.0.0"
   }
 }

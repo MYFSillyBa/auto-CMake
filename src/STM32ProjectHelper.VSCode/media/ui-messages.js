@@ -5,7 +5,12 @@
   else root.STM32UiMessages = catalog;
 })(typeof globalThis !== 'undefined' ? globalThis : this, () => Object.freeze({
   "分类功能": "Features in this category",
+  "实时波形": "Live Signals",
   "编译、烧录与调试": "Build, flash and debug",
+  "实际构建配置": "Effective build configuration",
+  "编译": "Build",
+  "烧录": "Flash",
+  "调试": "Debug",
   "开始配置": "Start setup",
   "查看构建与烧录设置": "Open build and flash settings",
   "运行结果": "Run results",

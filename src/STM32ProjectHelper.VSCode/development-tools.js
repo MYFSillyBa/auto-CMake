@@ -107,7 +107,7 @@ class DevelopmentTools {
     const answer = await vscode.window.showInformationMessage(this.t('同意向应用开发者发送匿名使用统计？'), {
       modal: true,
       detail: [this.statistics.snapshot().host,
-        this.t('统计默认关闭，可在“开发环境 → 语言与隐私”中修改。'),
+        this.t('统计默认关闭，可在“开发环境 → 隐私设置”中修改。'),
         this.t('仅发送随机匿名标识、版本、语言、功能名称与成功状态。网络服务仍可看到来源 IP；不发送工程路径、源码、日志或芯片序列号。VS Code 总统计开关关闭时不发送。')].filter(Boolean).join('\n\n')
     }, this.t('同意并启用'), this.t('暂不开启'));
     return answer === this.t('同意并启用');

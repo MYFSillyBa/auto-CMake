@@ -33,6 +33,8 @@ live-buttons.png
 # VS Code extension build outputs
 **/node_modules/
 src/STM32ProjectHelper.VSCode/server/
+src/STM32ProjectHelper.VSCode/signal-dock/dist/
+src/STM32ProjectHelper.VSCode/live-watch/dist/
 *.vsix
 
 # Local assistant workspace data

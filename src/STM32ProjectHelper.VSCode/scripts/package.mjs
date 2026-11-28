@@ -18,6 +18,8 @@ function run(executable, args) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
+run(process.execPath, [path.join(extensionRoot, 'scripts', 'build-signals.mjs')]);
+run(process.execPath, [path.join(extensionRoot, 'scripts', 'build-live-watch.mjs')]);
 run('dotnet', ['publish', path.join(repositoryRoot, 'src', 'CMakeDapLink.ExtensionHost'),
   '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true',
   '-p:PublishSingleFile=true', '-p:EnableCompressionInSingleFile=true',

@@ -30,7 +30,7 @@ async function run() {
   assert.equal(snapshot.panelOpen, true);
   assert.equal(snapshot.trusted, true);
   assert.equal(snapshot.language, language);
-  assert.deepEqual(snapshot.navigation, ['工作台', '构建与烧录设置', '注册编译源文件', '导入本地文件', '转换与同步', '变更与还原', '工具链管理', '代码提示修复', '语言与隐私', '调试与探针设置', '固件与故障分析', '串口终端'].map(label => t(label)));
+  assert.deepEqual(snapshot.navigation, ['工作台', '构建与烧录设置', '注册编译源文件', '导入本地文件', '转换与同步', '变更与还原', '工具链管理', '代码提示修复', '隐私设置', '调试与探针设置', '固件与故障分析', '串口终端', '实时波形', '实时变量查看'].map(label => t(label)));
   assert.equal(snapshot.state.inspection.project.chip, 'STM32H723VGT6');
   await api.request('previewTasks');
   const selectedOptions = JSON.stringify(api.getSnapshot().state.options);

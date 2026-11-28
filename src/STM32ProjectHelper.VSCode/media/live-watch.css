@@ -1,0 +1,58 @@
+* { box-sizing: border-box; }
+:root { --line: var(--vscode-panel-border, #68768a55); --link: var(--vscode-textLink-foreground, #92b9ff); --green: var(--vscode-testing-iconPassed, #2a956c); --change: color-mix(in srgb, var(--link) 32%, transparent); }
+body { margin: 0; padding: 0 10px; background: var(--vscode-sideBar-background); color: var(--vscode-foreground); font: var(--vscode-font-size, 13px) var(--vscode-font-family, sans-serif); }
+[hidden] { display: none !important; }
+header { padding: 9px 0; }
+.connection-row, .status, .actions, form { display: flex; align-items: center; gap: 7px; }
+.connection-row { justify-content: space-between; }
+#sidebar-size { padding: 2px 6px; line-height: 1.2; flex-shrink: 0; }
+.status { min-height: 24px; padding: 1px 0; }
+.status strong { font-weight: 600; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vscode-descriptionForeground); }
+.status[data-state="connecting"] .dot { background: var(--vscode-editorWarning-foreground, #dfa84d); }
+.status[data-state="connected"] .dot { background: var(--green); }
+#endpoint { font: 11px var(--vscode-editor-font-family, monospace); color: var(--vscode-descriptionForeground); }
+.actions { flex-wrap: wrap; margin: 5px 0 8px; }
+button, input, select { color: inherit; font: inherit; min-width: 0; border: 1px solid var(--line); border-radius: 4px; }
+button { background: var(--vscode-button-secondaryBackground, transparent); padding: 4px 7px; cursor: pointer; }
+select { color: var(--vscode-dropdown-foreground, inherit); background: var(--vscode-dropdown-background, var(--vscode-sideBar-background)); padding: 4px 5px; cursor: pointer; }
+button:hover { background: var(--vscode-list-hoverBackground); }
+button:disabled { cursor: default; opacity: .6; }
+button:focus-visible, input:focus-visible, select:focus-visible, tr:focus-visible { outline: 1px solid var(--vscode-focusBorder, var(--link)); outline-offset: -1px; }
+input { background: var(--vscode-input-background); padding: 6px 8px; width: 100%; }
+form button { flex-shrink: 0; }
+#firmware { color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .88em; }
+#notice { font-size: .9em; color: var(--vscode-editorWarning-foreground, #dfa84d); margin: 7px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.watch-table { overflow: auto; border: 1px solid var(--line); border-radius: 5px; }
+table { width: 100%; min-width: 215px; border-collapse: collapse; table-layout: fixed; font: .92em var(--vscode-editor-font-family, monospace); }
+th, td { text-align: left; border-bottom: 1px solid var(--line); padding: 5px 6px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+th { color: var(--vscode-descriptionForeground); background: var(--vscode-sideBarSectionHeader-background, transparent); }
+th:first-child { width: 33%; }
+th:nth-child(2) { width: 25%; }
+th:nth-child(3) { width: 25%; }
+tfoot td { border-bottom: 0; }
+tfoot #name { padding: 4px 6px; border-color: transparent; background: transparent; }
+tfoot #name::placeholder { color: var(--vscode-descriptionForeground); font-style: italic; }
+tr[data-selected] { background: var(--vscode-list-inactiveSelectionBackground); }
+td:nth-child(2) { color: var(--link); }
+td input { font: inherit; padding: 2px; }
+.disclosure { width: 16px; padding: 0; background: transparent; border: 0; }
+.disclosure[disabled] { visibility: hidden; }
+body[data-sidebar-expanded="true"] { display: flex; flex-direction: column; height: 100vh; padding-bottom: 8px; }
+body[data-sidebar-expanded="true"] .watch-table { flex: 1; min-height: 0; }
+#menu { position: fixed; z-index: 2; display: grid; gap: 2px; max-width: 100%; padding: 4px; background: var(--vscode-menu-background, var(--vscode-sideBar-background)); border: 1px solid var(--line); border-radius: 5px; box-shadow: 0 4px 12px #0005; }
+#menu button { text-align: start; border-color: transparent; background: transparent; }
+#menu button:hover { background: var(--vscode-list-hoverBackground); }
+
+@media (max-width: 320px) {
+  body { padding-inline: 8px; }
+  table { font-size: .83em; }
+  th, td { padding-inline: 4px; }
+  th { white-space: normal; overflow-wrap: anywhere; }
+  th:first-child { width: 29%; }
+  th:nth-child(2) { width: 20%; }
+  th:nth-child(3) { width: 30%; }
+  td:nth-child(4) { white-space: normal; overflow-wrap: anywhere; }
+  #options-text { display: none; }
+  #options::before { content: '⋯'; }
+}

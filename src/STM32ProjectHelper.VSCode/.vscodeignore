@@ -1,4 +1,9 @@
-node_modules/**
+node_modules/@serialport/bindings-cpp/prebuilds/!(win32-x64)/**
+node_modules/@serialport/bindings-cpp/src/**
+node_modules/@serialport/bindings-cpp/deps/**
+signal-dock/web/**
+signal-dock/test/**
+live-watch/src/**
 test/**
 scripts/**
 package-lock.json

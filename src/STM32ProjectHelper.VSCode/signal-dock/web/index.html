@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="__LANGUAGE__">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-__NONCE__'; style-src 'nonce-__NONCE__'; img-src data: blob:; font-src data:; frame-src 'self' data: blob:;">
+  <style nonce="__NONCE__">__STYLE__</style>
+  <title>Signal Dock</title>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="toolbar">
+      <select id="transport" aria-label="连接类型" data-label="连接类型"></select>
+      <select id="serialPort" data-serial-ports aria-label="串口设备" data-label="串口设备" hidden></select>
+      <input id="serialBaud" aria-label="波特率" data-label="波特率" title="波特率" data-title="波特率" type="number" min="1" max="12000000" list="baudRates" hidden>
+      <datalist id="baudRates"><option value="9600"><option value="19200"><option value="38400"><option value="57600"><option value="100000"><option value="115200"><option value="230400"><option value="460800"><option value="921600"><option value="1000000"></datalist>
+      <select id="engine" aria-label="协议引擎" data-label="协议引擎"></select>
+      <button id="connectionSettings" title="连接设置" data-title="连接设置"><span>⚙</span> <span data-t="连接设置">连接设置</span></button>
+      <button id="connect" class="primary"><span data-t="连接">连接</span></button>
+      <button id="startDemo" data-action="demo" data-t="运行示例">运行示例</button>
+      <span class="split"></span>
+      <button id="saveData" title="保存本次采集的全部数据" data-title="保存本次采集的全部数据" data-t="保存数据">保存数据</button>
+      <span id="captureState" class="muted"></span>
+      <details class="menu">
+        <summary data-t="文件">文件</summary>
+        <div class="menu-items">
+          <button data-action="loadCsv" data-t="载入采样 CSV">载入采样 CSV</button>
+          <button data-action="saveCsv" data-t="导出采样 CSV">导出采样 CSV</button>
+          <button data-action="saveTimed" data-t="导出 CSV（含名义时间）">导出 CSV（含名义时间）</button>
+          <button id="clearSamples" class="danger" data-action="clearSamples" data-t="清空采样">清空采样</button>
+          <hr>
+          <button data-action="loadArchive" data-t="载入配置 / VOFA+ 1.3">载入配置 / VOFA+ 1.3</button>
+          <button data-archive="commands" data-t="导出命令树">导出命令树</button>
+          <button data-archive="tab" data-t="导出当前标签">导出当前标签</button>
+          <button data-archive="layout" data-t="导出窗口布局">导出窗口布局</button>
+          <button data-archive="all" data-t="导出全部配置">导出全部配置</button>
+          <button data-action="screenshot" data-t="保存画布截图">保存画布截图</button>
+        </div>
+      </details>
+      <details class="menu">
+        <summary data-t="视图">视图</summary>
+        <div class="menu-items">
+          <button data-view="sidebar" data-t="工具侧栏">工具侧栏</button>
+          <button data-view="inspector" data-t="通道检查器">通道检查器</button>
+          <button data-view="terminal" data-t="串口终端">串口终端</button>
+          <button data-action="plugins" data-t="协议和控件扩展">协议和控件扩展</button>
+          <button data-action="appearance" data-t="外观与性能">外观与性能</button>
+          <button data-action="help" data-t="VOFA+ 协议文档">VOFA+ 协议文档</button>
+        </div>
+      </details>
+    </div>
+  </header>
+  <div class="workarea">
+    <nav class="rail" aria-label="工作台视图" data-label="工作台视图">
+      <button data-sidebar="instruments" title="控件" data-title="控件">◫</button>
+      <button data-sidebar="commands" title="命令" data-title="命令">⌘</button>
+      <button data-sidebar="connection" title="连接" data-title="连接">⇆</button>
+      <button id="toggleTerminal" title="终端" data-title="终端">›_</button>
+      <button id="toggleInspector" title="通道" data-title="通道">☷</button>
+      <button data-action="appearance" class="rail-bottom" title="设置" data-title="设置">⚙</button>
+    </nav>
+    <aside id="sidebar" class="sidebar panel" aria-label="工具侧栏" data-label="工具侧栏"></aside>
+    <main class="center">
+      <div class="tabbar">
+        <div id="tabs" role="tablist"></div>
+        <button id="addTab" class="icon-button" title="新建标签" data-title="新建标签">＋</button>
+        <button id="tabOptions" class="icon-button" title="标签选项" data-title="标签选项">⋯</button>
+        <button id="lockLayout" class="icon-button" title="锁定布局" data-title="锁定布局">♧</button>
+      </div>
+      <div id="board" class="board" aria-label="仪表画布" data-label="仪表画布"></div>
+      <div class="timeline">
+        <button id="freeze" title="暂停或跟随最新" data-title="暂停或跟随最新">⏸</button>
+        <input id="timeline" type="range" value="0" min="0" max="0" aria-label="采样位置" data-label="采样位置">
+        <label data-t="可视点">可视点</label><input id="span" type="number" min="2" max="2000000" step="10" aria-label="可视点数" data-label="可视点数">
+        <button id="sampleOptions" title="采样参数" data-title="采样参数">Δt</button>
+        <span id="rangeText" class="muted"></span>
+      </div>
+    </main>
+    <aside id="inspector" class="inspector panel" aria-label="检查器" data-label="检查器">
+      <div class="panel-heading"><span data-t="检查器">检查器</span><span id="channelCount" class="pill">0 CH</span></div>
+      <section class="live-channels" aria-label="实时通道" data-label="实时通道">
+        <div class="subheading"><span data-t="实时通道">实时通道</span><span class="muted">LIVE</span></div>
+        <div id="waveChannelToolbar" class="wave-channel-toolbar" hidden>
+          <select id="waveChannelTarget" aria-label="选择波形图" data-label="选择波形图"></select>
+          <div id="waveChannelActions" class="wave-channel-actions">
+            <button id="selectAllChannels" data-t="全选">全选</button>
+            <button id="clearAllChannels" data-t="全不选">全不选</button>
+            <span id="selectedChannelCount" class="muted"></span>
+          </div>
+          <div id="waveChannelHelp" class="muted" data-t="在控件设置中编辑 XY 配对" hidden>在控件设置中编辑 XY 配对</div>
+        </div>
+        <div id="channels"></div>
+        <div id="channelPager" class="wave-channel-actions" hidden>
+          <button id="previousChannels" aria-label="上一页通道" data-label="上一页通道">‹</button>
+          <span id="channelPageNumber"></span>
+          <button id="nextChannels" aria-label="下一页通道" data-label="下一页通道">›</button>
+        </div>
+      </section>
+      <div id="widgetInspector" hidden></div>
+    </aside>
+  </div>
+  <section id="terminal" class="terminal" aria-label="RX TX 终端" data-label="RX TX 终端">
+    <div id="terminalGrip" title="拖动调整终端高度" data-title="拖动调整终端高度"></div>
+    <div class="terminal-head">
+      <b data-t="数据终端">数据终端</b>
+      <div class="terminal-filters">
+        <button id="rx" title="显示接收" data-title="显示接收">RX</button><button id="tx" title="显示发送" data-title="显示发送">TX</button>
+        <button id="hex" title="十六进制显示" data-title="十六进制显示">HEX</button>
+      </div>
+      <div class="spacer"></div>
+      <button id="olderLog" title="上一页" data-title="上一页">‹</button><span id="logPage" class="muted"></span><button id="newerLog" title="下一页" data-title="下一页">›</button>
+      <button id="copyLog" title="复制当前页" data-title="复制当前页">⧉</button>
+      <button id="clearLog" data-t="清屏">清屏</button>
+      <button id="terminalOptions" title="终端设置" data-title="终端设置">⚙</button>
+    </div>
+    <div id="logs" tabindex="0" role="log" aria-label="接收和发送日志" data-label="接收和发送日志"></div>
+    <div class="sendbar">
+      <select id="sendMode" aria-label="发送格式" data-label="发送格式"><option value="text">TEXT</option><option value="hex">HEX</option></select>
+      <textarea id="sendText" rows="1" placeholder="键入下行命令…" data-placeholder="键入下行命令…" aria-label="发送内容" data-label="发送内容" spellcheck="false"></textarea>
+      <button id="history" title="发送历史" data-title="发送历史">↶</button>
+      <button id="sendFile" title="发送原始文件" data-title="发送原始文件">↥</button>
+      <button id="stopSend" title="停止连续发送" data-title="停止连续发送">■</button>
+      <button id="send" class="primary" data-t="发送">发送</button>
+    </div>
+  </section>
+  <footer class="statusbar">
+    <span id="status"><span class="status-dot"></span><span id="statusText">离线</span></span>
+    <span id="endpoint" class="muted"></span>
+    <span id="statusError" hidden></span>
+    <span class="spacer"></span>
+    <span id="rxStat">RX 0 B</span><span id="txStat">TX 0 B</span><span id="frameStat">0 帧</span>
+    <span id="capacityStat">0 / 50,000</span>
+    <span id="dtStat">Δt 10 ms</span>
+  </footer>
+</div>
+<dialog id="dialog"><div class="dialog-head"><h2 id="dialogTitle"></h2><button id="closeDialog" title="关闭" data-title="关闭">×</button></div><div id="dialogBody"></div><div id="dialogFoot"></div></dialog>
+<div id="contextMenu" class="menu-items context-menu" hidden></div>
+<div id="toast" role="status" hidden></div>
+<script nonce="__NONCE__">__SCRIPT__</script>
+</body>
+</html>

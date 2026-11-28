@@ -2,6 +2,8 @@
 (() => {
   const vscode = acquireVsCodeApi();
   const content = document.getElementById('content');
+  const signalsRegion = document.getElementById('signals-region');
+  let signalsFrame, requestingSignals;
   let current;
   let sourceView, serialView, previewHost, renderedKey, previewKey, navigationKey;
   let fieldSequence = 0;
@@ -11,6 +13,26 @@
   const send = (action, detail = {}) => vscode.postMessage({ action, ...detail });
   const element = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = String(text); if (className) node.className = className; return node; };
   const append = (parent, ...nodes) => { parent.append(...nodes.filter(Boolean)); return parent; };
+  function updateSignalsTheme() {
+    if (!signalsFrame?.contentWindow) return;
+    const style = getComputedStyle(document.body);
+    const variables = Object.fromEntries([
+      'editor-background', 'editor-foreground', 'sideBar-background', 'editorWidget-background',
+      'input-background', 'panel-border', 'editorGroup-border', 'descriptionForeground',
+      'button-background', 'button-foreground', 'errorForeground', 'font-family', 'editor-font-family'
+    ].map(key => ['--vscode-' + key, style.getPropertyValue('--vscode-' + key)]));
+    signalsFrame.contentWindow.postMessage({ type: 'signalsTheme', light: document.body.classList.contains('vscode-light') ||
+      document.body.classList.contains('vscode-high-contrast-light'), variables }, '*');
+  }
+  function showSignals(show) {
+    content.hidden = show;
+    signalsRegion.hidden = !show;
+    document.body.classList.toggle('signals-mode', show);
+    if (show && !signalsFrame && !requestingSignals) {
+      requestingSignals = true;
+      send('mountSignals');
+    }
+  }
   const button = (text, action, detail = {}, secondary = false) => {
     const node = element('button', text, secondary ? 'secondary' : ''); node.dataset.busyControl = ''; node.disabled = current.busy || !!current.unavailable;
     node.addEventListener('click', () => {
@@ -207,6 +229,7 @@
       const details = detailPanel(results, `result-${kind}`, `${title} · ${result.success ? t('成功') : t('失败')}`);
       details.classList.add(result.success ? 'result-success' : 'result-failure');
       if (!result.success && !local.details.has(`result-${kind}`)) details.open = true;
+      if (result.effectiveConfiguration) text(details, t('实际构建配置'), result.effectiveConfiguration);
       if (result.openOcdChecked !== undefined) text(details, t('OpenOCD 脚本解析'), result.openOcdChecked ? t('已检查') : t('未检查'));
       if (kind === 'flash') text(details, t('写入设备'), result.flashed ? t('已完成') : t('未执行'));
       list(details, result.firmware, t('尚无固件输出。')); problemRows(details, result.problems);
@@ -560,18 +583,6 @@
     serialView.update(serial);
   }
   function preferences(state) {
-    const languagePanel = section(t('界面语言'));
-    const wrapper = append(element('label', undefined, 'field'), element('span', t('语言')));
-    const language = element('select');
-    language.id = 'language';
-    for (const [value, title] of [['auto', t('跟随 VS Code')], ['zh-CN', '简体中文'], ['en', 'English']]) {
-      const option = element('option', title); option.value = value; language.append(option);
-    }
-    language.value = current.languagePreference || 'auto';
-    language.dataset.busyControl = '';
-    language.dataset.globalControl = '';
-    language.addEventListener('change', () => send('setLanguage', { value: language.value }));
-    languagePanel.append(append(wrapper, language));
     const telemetry = state.telemetry || {};
     const privacy = section(t('匿名使用统计'), t('统计默认关闭。授权后仅向应用开发者的 PostHog 项目发送匿名功能事件，无需配置自己的项目。'));
     text(privacy, t('接收方'), t('应用开发者'));
@@ -584,9 +595,11 @@
   const renderers = { overview: execution, configure, sources, import: importFiles, conversion, tools, history, development, intelligence, analysis, devices, preferences };
   function updateProgress(message) {
     const status = document.getElementById('status');
+    document.body.classList.toggle('operation-running', !!message.busy);
     const value = message.unavailable || message.status || current?.state?.status || '';
     status.textContent = value; status.className = message.unavailable ? 'error' : message.busy ? 'running' : '';
     document.getElementById('refresh').disabled = message.busy || !!current?.unavailable;
+    document.getElementById('language').disabled = !!message.busy;
     document.getElementById('cancel').hidden = !message.busy;
     let bar = document.getElementById('operation-progress');
     if (!bar) { bar = element('progress'); bar.id = 'operation-progress'; bar.max = 100; document.querySelector('footer').insertBefore(bar, document.getElementById('cancel')); }
@@ -648,15 +661,26 @@
     t = window.STM32I18n.createTranslator(window.STM32UiMessages, message.language);
     document.documentElement.lang = message.language;
     document.title = t('STM32 工程助手');
-    for (const [id, source] of [['app-title', 'STM32 工程助手'], ['footer-note', 'STM32 工程助手'], ['refresh', '重新检测'], ['logs', '查看输出'], ['cancel', '取消当前操作']]) {
+    for (const [id, source] of [['app-title', 'STM32 工程助手'], ['footer-note', 'STM32 工程助手'], ['language-label', '语言'], ['refresh', '重新检测'], ['logs', '查看输出'], ['cancel', '取消当前操作']]) {
       const node = document.getElementById(id); if (node) node.textContent = t(source);
     }
+    const language = document.getElementById('language');
+    language.options[0].textContent = t('跟随 VS Code');
+    language.value = message.languagePreference || 'auto';
     const workspace = document.getElementById('workspace');
     const projectName = message.root?.split(/[\\/]/).filter(Boolean).pop();
     document.getElementById('app-title').textContent = projectName || t('STM32 工程助手');
     workspace.textContent = message.root || t('尚未打开工作区');
     workspace.title = message.root || '';
     renderNavigation(message);
+    showSignals(message.page === 'signals');
+    signalsRegion.setAttribute('aria-label', t('实时波形'));
+    if (signalsFrame) signalsFrame.title = t('实时波形');
+    if (message.page === 'signals') {
+      if (focused?.dataset.destination) document.querySelector('#navigation [aria-current="page"]')?.focus({ preventScroll: true });
+      updateProgress({ ...message, status: message.state?.status, percent: message.percent ?? message.state?.percent });
+      return;
+    }
     const nextKey = contentKey(message);
     if (nextKey !== renderedKey) {
       renderedKey = nextKey; sourceView = undefined; serialView = undefined; previewKey = undefined; content.replaceChildren();
@@ -668,7 +692,6 @@
       previewHost = element('div', undefined, 'preview-content'); content.append(previewHost);
       const target = focusedKey ? [...content.querySelectorAll('[data-field]')].find(node => node.dataset.field === focusedKey)
         : focusedSearch ? content.querySelector('[data-source-search]')
-        : focused?.id === 'language' ? document.getElementById('language')
         : focused?.dataset.destination ? document.querySelector('#subnavigation [aria-current="page"], #navigation [aria-current="page"]') : null;
       if (target) { target.focus({ preventScroll: true }); if (typeof selectionStart === 'number' && (['text', 'search', 'password'].includes(target.type) || target.tagName === 'TEXTAREA')) target.setSelectionRange(selectionStart, selectionEnd); }
     }
@@ -681,7 +704,25 @@
   }
   window.addEventListener('message', event => {
     const message = event.data;
-    if (message?.type === 'state') renderState(message);
+    if (signalsFrame && event.source === signalsFrame.contentWindow) {
+      if (event.origin === 'null' && message?.type === 'signalMessage' && typeof message.payload?.type === 'string')
+        send('signalMessage', { payload: message.payload });
+      return;
+    }
+    if (event.origin === 'null') return;
+    if (message?.type === 'signalsDocument' && requestingSignals && typeof message.html === 'string') {
+      requestingSignals = false;
+      const frame = element('iframe');
+      frame.id = 'signals-frame';
+      frame.title = t('实时波形');
+      frame.setAttribute('sandbox', 'allow-scripts');
+      frame.addEventListener('load', updateSignalsTheme);
+      frame.srcdoc = message.html;
+      signalsFrame = frame;
+      signalsRegion.append(frame);
+    } else if (message?.type === 'signalMessage' && signalsFrame) {
+      signalsFrame.contentWindow.postMessage(message, '*');
+    } else if (message?.type === 'state') renderState(message);
     else if (message?.type === 'progress' && current) { current.busy = message.busy; if (message.status !== undefined) current.state.status = message.status; if (message.percent !== undefined) current.state.percent = message.percent; updateProgress(message); }
     else if (message?.type === 'sourceSelection' && current?.page === 'sources') {
       sourceView?.applySelection(message); current.state.preview = undefined;
@@ -694,7 +735,11 @@
       serialView?.update(current.state.serial);
     }
   });
+  const themeObserver = new MutationObserver(updateSignalsTheme);
+  themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'] });
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style'] });
   document.getElementById('refresh').addEventListener('click', () => send('refresh'));
+  document.getElementById('language').addEventListener('change', event => send('setLanguage', { value: event.target.value }));
   document.getElementById('logs').addEventListener('click', () => send('logs'));
   document.getElementById('cancel').addEventListener('click', () => send('cancel'));
   send('ready');

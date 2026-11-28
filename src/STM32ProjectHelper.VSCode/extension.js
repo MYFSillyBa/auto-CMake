@@ -19,10 +19,12 @@ const PAGES = [
   ['history', '变更与还原', 'history', '工程管理'],
   ['tools', '工具链管理', 'tools', '开发环境'],
   ['intelligence', '代码提示修复', 'code', '开发环境'],
-  ['preferences', '语言与隐私', 'settings', '开发环境'],
+  ['preferences', '隐私设置', 'settings', '开发环境'],
   ['development', '调试与探针设置', 'debug-alt', '调试诊断'],
   ['analysis', '固件与故障分析', 'graph', '调试诊断'],
-  ['devices', '串口终端', 'plug', '调试诊断']
+  ['devices', '串口终端', 'plug', '调试诊断'],
+  ['signals', '实时波形', 'pulse'],
+  ['liveWatch', '实时变量查看', 'live-watch-label.svg']
 ];
 const DIRECT_SAVE = new Set(['build', 'flash', 'startDebug']);
 const BUILD_SELECTION = ['configurePreset', 'buildPreset', 'configuration', 'buildDirectory', 'firmwareElfPath', 'targetScript', 'probeType', 'adapterSpeed', 'resetMode', 'debugMode', 'debugName', 'preflightCheck'];
@@ -55,7 +57,9 @@ class Navigation {
   getTreeItem(item) { return item; }
   pageItem([id, label, icon]) {
     const item = new vscode.TreeItem(this.controller.t(label));
-    item.iconPath = new vscode.ThemeIcon(icon);
+    item.iconPath = icon.endsWith('.svg')
+      ? vscode.Uri.joinPath(this.controller.context.extensionUri, 'media', icon)
+      : new vscode.ThemeIcon(icon);
     item.command = { command: 'stm32ProjectHelper.open', title: this.controller.t(label), arguments: [id] };
     return item;
   }
@@ -66,12 +70,18 @@ class Navigation {
     root.description = this.controller.folder?.uri.fsPath;
     root.iconPath = new vscode.ThemeIcon('root-folder');
     root.command = { command: 'stm32ProjectHelper.selectWorkspace', title: this.controller.t('选择工作区') };
-    return [root, this.pageItem(PAGES[0]), ...[...new Set(PAGES.map(page => page[3]).filter(Boolean))].map(group => {
+    const groups = new Set();
+    const sections = PAGES.flatMap(page => {
+      const group = page[3];
+      if (!group) return [this.pageItem(page)];
+      if (groups.has(group)) return [];
+      groups.add(group);
       const item = new vscode.TreeItem(this.controller.t(group), vscode.TreeItemCollapsibleState.Collapsed);
       item.id = 'group.' + group;
       item.group = group;
-      return item;
-    })];
+      return [item];
+    });
+    return [root, ...sections];
   }
   refresh() { this.emitter.fire(); }
   dispose() { this.emitter.dispose(); }
@@ -95,6 +105,8 @@ class Workbench {
       vscode.commands.registerCommand('stm32ProjectHelper.build', () => this.runProjectCommand('build')),
       vscode.commands.registerCommand('stm32ProjectHelper.flash', () => this.runProjectCommand('flash')),
       vscode.commands.registerCommand('stm32ProjectHelper.debug', () => this.runProjectCommand('startDebug')),
+      vscode.commands.registerCommand('stm32ProjectHelper.signals', () => this.open('signals')),
+      vscode.commands.registerCommand('stm32ProjectHelper.openLiveWatch', () => this.open('liveWatch')),
       vscode.commands.registerCommand('stm32ProjectHelper.fixIntelligence', async () => {
         await this.operation('fixIntelligence');
         return this.open('intelligence');
@@ -136,6 +148,12 @@ class Workbench {
     this.setFolder((active && vscode.workspace.getWorkspaceFolder(active.document.uri)) || vscode.workspace.workspaceFolders?.[0]);
     this.development = new DevelopmentTools(this);
     context.subscriptions.push(this.development);
+    const liveWatchModule = path.join(context.extensionPath, 'live-watch', 'dist', 'controller.cjs');
+    if (fs.existsSync(liveWatchModule)) {
+      const { LiveWatchController } = require(liveWatchModule);
+      this.liveWatch = new LiveWatchController(context, this);
+      context.subscriptions.push(this.liveWatch);
+    }
   }
   async updateShortcutContext(editor) {
     const revision = this.shortcutRevision = (this.shortcutRevision || 0) + 1;
@@ -176,6 +194,8 @@ class Workbench {
     }
     if (this.output) this.output.rename(this.t('STM32 工程助手'));
     if (this.panel) this.panel.title = this.t('STM32 工程助手');
+    this.signals?.refreshLanguage();
+    this.liveWatch?.refresh();
     this.navigation?.refresh();
     const result = this.states && (this.state.flashResult || this.state.buildResult || this.state.verification);
     if (result) this.publishProblems(result);
@@ -217,7 +237,12 @@ class Workbench {
     const selection = Object.fromEntries(BUILD_SELECTION.filter(key => typeof options[key] === 'string').map(key => [key, options[key]]));
     await this.context.workspaceState.update('build.selection.' + this.folder.uri.toString(), selection);
   }
-  setFolder(folder) { this.cancelSource?.cancel(); this.development?.serial.dispose(); this.folder = folder; this.epoch++; this.diagnostics.clear(); this.pruneDiffs(); this.navigation.refresh(); this.render(); }
+  setFolder(folder) {
+    const changed = this.folder?.uri.toString() !== folder?.uri.toString();
+    this.cancelSource?.cancel(); this.development?.serial.dispose(); this.folder = folder; this.epoch++;
+    this.diagnostics.clear(); this.pruneDiffs(); this.navigation.refresh(); this.render();
+    if (changed) this.liveWatch?.updateProject();
+  }
   projectFolder(workspaceFolder, root) {
     return { uri: vscode.Uri.file(root), name: path.relative(workspaceFolder.uri.fsPath, root) || workspaceFolder.name, workspaceFolder };
   }
@@ -295,16 +320,33 @@ class Workbench {
     if (item) { this.setFolder(item.folder); await this.open(this.page); }
   }
   async open(page = 'overview') {
+    if (page === 'liveWatch') {
+      if (this.liveWatch) return this.liveWatch.open();
+      return vscode.window.showErrorMessage(this.t('实时变量查看尚未构建，请运行 npm run build:live-watch。'));
+    }
+    if (page === 'signals') {
+      try { this.signalDock(); }
+      catch (error) { this.output.appendLine(error.message); return vscode.window.showErrorMessage(error.message); }
+    }
     if (PAGES.some(item => item[0] === page)) this.page = page;
     if (!this.panel) {
       this.panel = vscode.window.createWebviewPanel('stm32ProjectHelper.workbench', this.t('STM32 工程助手'), vscode.ViewColumn.Active,
         { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'media')] });
       this.panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'chip.svg');
       this.panel.webview.html = this.html(this.panel.webview);
-      this.panel.onDidDispose(() => { this.panel = undefined; this.cancelOperation(); this.development?.serial.dispose(); clearTimeout(this.progressTimer); this.pruneDiffs(); }, null, this.context.subscriptions);
+      this.panel.onDidDispose(() => {
+        this.panel = undefined; this.signals?.detach(); this.cancelOperation();
+        this.development?.serial.dispose(); clearTimeout(this.progressTimer); this.pruneDiffs();
+      }, null, this.context.subscriptions);
+      this.panel.onDidChangeViewState(() => this.signals?.updateVisibility(), null, this.context.subscriptions);
       this.panel.webview.onDidReceiveMessage(message => {
         if (!message || typeof message !== 'object') return;
         if (message.action === 'ready') { this.render(); return; }
+        if (message.action === 'mountSignals') {
+          this.signals?.attach(this.panel.webview, this.webviewNonce);
+          return;
+        }
+        if (message.action === 'signalMessage') { this.signals?.receive(message.payload); return; }
         if (message.action === 'navigate' && PAGES.some(item => item[0] === message.page)) { void this.open(message.page); return; }
         if (message.action === 'cancel') { this.cancelOperation(); return; }
         if (message.action === 'setOption' && !this.busy && OPTIONS.has(message.key) && typeof message.value === 'string' && message.value.length <= 4096) {
@@ -335,7 +377,8 @@ class Workbench {
       }, null, this.context.subscriptions);
     } else this.panel.reveal();
     this.render();
-    if (page === 'preferences') return;
+    this.signals?.updateVisibility();
+    if (page === 'preferences' || page === 'signals') return;
     if (page === 'intelligence') {
       if (this.folder && !this.state.inspection && vscode.workspace.isTrusted) void this.operation('refresh');
       return;
@@ -345,27 +388,42 @@ class Workbench {
     else if (page === 'history') await this.operation('history');
     else if (page === 'tools') await this.operation('tools');
   }
+  signalDock() {
+    if (!vscode.workspace.isTrusted || process.platform !== 'win32' || process.arch !== 'x64' || vscode.env.remoteName)
+      throw new Error(this.t('实时波形需要受信任的本机 Windows x64 环境。'));
+    if (!this.signals) {
+      const { SignalDock } = require('./signal-dock/src/extension.cjs');
+      this.signals = new SignalDock(this.context, this);
+    }
+    return this.signals;
+  }
   html(webview) {
-    const nonce = crypto.randomBytes(24).toString('base64');
+    const nonce = this.webviewNonce = crypto.randomBytes(24).toString('base64');
     const resource = file => webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'media', file));
     return `<!DOCTYPE html><html lang="${this.language}">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data: blob:; style-src ${webview.cspSource} 'nonce-${nonce}'; script-src 'nonce-${nonce}'; frame-src 'self' data: blob:; font-src ${webview.cspSource} data:;">
   <title>${this.t('STM32 工程助手')}</title>
   <link rel="stylesheet" href="${resource('workbench.css')}">
 </head>
 <body>
   <header>
     <img src="${resource('chip.svg')}" alt="">
-    <div><h1 id="app-title">${this.t('STM32 工程助手')}</h1><p id="workspace"></p></div>
-    <button id="refresh" class="secondary">${this.t('重新检测')}</button>
+    <div class="workspace-heading"><h1 id="app-title">${this.t('STM32 工程助手')}</h1><p id="workspace"></p></div>
+    <div class="header-tools">
+      <label class="language-picker"><span id="language-label">${this.t('语言')}</span><select id="language">
+        <option value="auto">${this.t('跟随 VS Code')}</option><option value="zh-CN">简体中文</option><option value="en">English</option>
+      </select></label>
+      <button id="refresh" class="secondary">${this.t('重新检测')}</button>
+    </div>
   </header>
   <div class="workspace-layout">
     <nav id="navigation" aria-label="${this.t('工程操作')}"></nav>
     <nav id="subnavigation" aria-label="${this.t('分类功能')}" hidden></nav>
     <div id="status" role="status" aria-live="polite"></div>
     <main id="content"></main>
+    <section id="signals-region" hidden aria-label="${this.t('实时波形')}"></section>
   </div>
   <footer>
     <span id="footer-note">${this.t('STM32 工程助手')}</span>
@@ -906,8 +964,9 @@ class Workbench {
   snapshot() { return { language: this.language, languagePreference: this.languagePreference, root: this.folder?.uri.fsPath, page: this.page, busy: this.busy, ready: !!this.state.inspection && !this.busy, trusted: vscode.workspace.isTrusted, panelOpen: !!this.panel, navigation: PAGES.map(item => this.t(item[1])), state: this.localizeDisplay(JSON.parse(JSON.stringify(this.state))) }; }
 }
 
+let activeWorkbench;
 async function activate(context) {
-  const workbench = new Workbench(context);
+  const workbench = activeWorkbench = new Workbench(context);
   void workbench.updateShortcutContext(vscode.window.activeTextEditor);
   context.subscriptions.push({ dispose() { workbench.cancelSource?.cancel(); clearTimeout(workbench.progressTimer); workbench.bridge.dispose(); workbench.previewDocuments.clear(); workbench.projectCandidates.clear(); workbench.panel?.dispose(); } });
   if (vscode.workspace.isTrusted && process.platform === 'win32' && process.arch === 'x64' && !vscode.env.remoteName) {
@@ -922,7 +981,8 @@ async function activate(context) {
     else if (candidates.length > 1) { workbench.state.status = workbench.t('检测到多个 STM32 工程，请选择当前工程。'); await workbench.open(); await workbench.pickWorkspace(); }
   }
   return { getSnapshot: () => workbench.snapshot(), openPage: page => workbench.open(page), request: (command, payload) => workbench.operation(command === 'inspect' ? 'refresh' : command, payload),
+    registerDecoder: (name, factory) => workbench.signalDock().registerDecoder(name, factory),
     snapshot: () => workbench.snapshot(), open: page => workbench.open(page), operation: (action, payload) => workbench.operation(action, payload) };
 }
-function deactivate() {}
+async function deactivate() { await activeWorkbench?.signals?.dispose(); }
 module.exports = { activate, deactivate };
