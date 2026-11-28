@@ -4,9 +4,9 @@
 
 STM32 Project Helper provides toolchain detection, CMake build and DAPLink flash task configuration, source management, STM32CubeMX MDK-ARM/CMake conversion, and change restoration inside VS Code. It operates on the current local workspace and does not upload projects.
 
-## VS Code v1.5.1
+## VS Code v1.6.8
 
-[Download the Windows x64 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.1/stm32-project-helper-1.5.1-win32-x64.vsix) · [Release notes](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.1)
+[Download the Windows x64 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.6.8/stm32-project-helper-1.6.8-win32-x64.vsix) · [Release notes](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.6.8)
 
 **The desktop EXE is no longer maintained.** Future updates ship as VSIX. Desktop [v1.7.1](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.1) remains available as an archived release.
 
@@ -14,7 +14,19 @@ Version 1.5.1 replaces earlier settings managed by the extension when you reconf
 
 Use the workbench buttons or press **F8** to build, **F7** to flash, or **F6** to debug from the workbench or a detected STM32 project editor. All three actions run immediately. In the default debug mode, F6 builds the selected target, flashes the resulting ELF, and starts Cortex-Debug. A failed build stops the launch. If the project produces multiple firmware targets, select a target before running it. VS Code retains its existing F5 binding.
 
-**Project** groups build and flash settings, source registration, file import, conversion and sync, and restoration. **Development environment** contains toolchains, code intelligence, and language and privacy settings. **Debug and diagnostics** contains probe settings, firmware analysis, and the serial terminal.
+**Project** groups build and flash settings, source registration, file import, conversion and sync, and restoration. **Development environment** contains toolchains, code intelligence, and privacy settings. **Debug and diagnostics** contains probe settings, firmware analysis, and the serial terminal.
+
+### Live Signals
+
+Select **Live Signals** in the workbench navigation and click **Run demo** to see four example channels. For live hardware, choose a serial, TCP, or UDP connection and select JustFloat, FireWater, or RawData. Use the waveform, XY/FFT views, gauges, 3D attitude instruments, and data terminal. The **File** menu imports VOFA+ 1.3 configurations and CSV samples, and exports captures. Capture continues when you switch categories and disconnects when you close the workbench. Layouts and commands are saved per workspace.
+
+The **Language** control at the top of the workbench applies to all categories. For an extension development session, run `npm ci` and `npm run build:signals` first.
+
+### Live Variables
+
+Open **Live Variables** from the workbench or the **STM32 Project Helper** activity bar. The view opens in the sidebar alongside the editor. It uses the active Cortex-Debug session’s OpenOCD Tcl port or detects a standalone local OpenOCD server. If several servers are running, set the port under **Options → Connection and tool settings**.
+
+Enter a global or static variable, a member such as `motor.speed`, an array element such as `samples[0]`, or a pointer expression such as `ptr->speed`. Expand composite values, change the display format from the context menu, or double-click a writable RAM scalar to edit it. In the toolbar, **Refresh rate** defaults to **5 Hz (200 ms)**. Select 2, 5, 10, 20, 30.3, 50, 100, 200, or 1000 Hz, or choose **Unlimited**. A preset sets the minimum time between polling rounds. Actual throughput depends on OpenOCD and the probe. Unlimited starts the next round as soon as the preceding one finishes. Hiding the view or pausing refresh stops sampling. Use a firmware ELF with debug symbols that matches the target. For an extension development session, run `npm run build:live-watch` first.
 
 Open **Development environment → Code intelligence** to apply or restore the global fix. It uses clangd as the IntelliSense provider, clears project-specific database arguments from VS Code User settings, and turns off clangd conflict prompts in the active VS Code profile. Workspace settings can override the user settings. Use **Configure clangd for this project** for headers and macros from the selected CMake configuration.
 
@@ -122,11 +134,11 @@ Packaging and Chinese/English UI viewing were completed before delivery. Functio
 | .NET | Included in the VSIX; no separate runtime installation |
 | Build tools | CMake, Ninja and ARM GCC; OpenOCD for script checks and flash tasks |
 
-Download the [v1.5.1 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.1/stm32-project-helper-1.5.1-win32-x64.vsix) (about 9 MB) from the [release page](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.1). The local build output is `artifacts/vsix/stm32-project-helper-1.5.1-win32-x64.vsix`. The package includes a trimmed, self-contained backend and the complete bundled OpenOCD scripts.
+Download the [v1.6.8 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.6.8/stm32-project-helper-1.6.8-win32-x64.vsix) (about 10 MB) from the [release page](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.6.8). The local build output is `artifacts/vsix/stm32-project-helper-1.6.8-win32-x64.vsix`. The package includes a trimmed, self-contained backend and the complete bundled OpenOCD scripts.
 
 ## Installation and updating
 
-1. Download `stm32-project-helper-1.5.1-win32-x64.vsix`.
+1. Download `stm32-project-helper-1.6.8-win32-x64.vsix`.
 2. Press `Ctrl+Shift+X` in VS Code to open Extensions.
 3. Open the Extensions panel's `…` menu and select **Install from VSIX…**.
 4. Select the downloaded file and reload the window. If no prompt appears, run **Developer: Reload Window** from the Command Palette or restart VS Code.

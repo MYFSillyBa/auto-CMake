@@ -4,9 +4,9 @@
 
 STM32 Project Helper 为本地 Windows 工程提供 STM32 工具链检测、VS Code 编译与 DAPLink 烧录任务配置、源文件管理、STM32CubeMX MDK-ARM/CMake 双向转换和修改恢复。扩展直接使用当前工作区，无需启动桌面程序，不上传工程。
 
-## VS Code 插件 v1.5.1
+## VS Code 插件 v1.6.8
 
-[下载 Windows x64 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.1/stm32-project-helper-1.5.1-win32-x64.vsix) · [发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.1)
+[下载 Windows x64 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.6.8/stm32-project-helper-1.6.8-win32-x64.vsix) · [发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.6.8)
 
 **桌面 EXE 已停止维护，后续仅发布 VSIX。** [桌面 v1.7.1](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.1) 作为历史版本提供下载。
 
@@ -14,7 +14,7 @@ v1.5.1 重新写入时会替换当前工程的助手配置，清理重复的调�
 
 在工作台点击按钮，或在工作台与已识别的 STM32 工程编辑器中按 **F8** 编译、**F7** 烧录、**F6** 调试。三项操作直接执行。默认 F6 先编译所选目标，再下载本次生成的 ELF 并启动 Cortex-Debug。编译失败会停止启动。工程有多个未绑定的固件目标时，请先选择目标。F5 继续使用 VS Code 的原有绑定。
 
-**工程管理**包含构建与烧录设置、源码注册、文件导入、转换与同步、变更与还原。**开发环境**包含工具链、代码提示和语言与隐私。**调试诊断**包含调试与探针设置、固件与故障分析及串口终端。
+**工程管理**包含构建与烧录设置、源码注册、文件导入、转换与同步、变更与还原。**开发环境**包含工具链、代码提示和隐私设置。**调试诊断**包含调试与探针设置、固件与故障分析及串口终端。
 
 在 **开发环境 → 代码提示修复** 应用或恢复全局设置。一键修复让 clangd 负责代码提示，清理用户设置里固定的编译数据库路径，并关闭 clangd 的冲突提示。作用范围是当前 VS Code 用户配置文件内的所有工程。工作区覆盖项会在页面标出。头文件和宏不匹配时，可一键配置当前工程的 clangd 编译数据库。
 
@@ -122,11 +122,11 @@ v1.5.1 重新写入时会替换当前工程的助手配置，清理重复的调�
 | .NET | VSIX 自带后台运行时，无需另行安装 |
 | 构建工具 | CMake、Ninja、ARM GCC；OpenOCD 用于脚本检查和烧录任务 |
 
-从 [v1.5.1 发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.5.1) 下载 [VSIX 安装包](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.5.1/stm32-project-helper-1.5.1-win32-x64.vsix)（约 9 MB）。本地打包路径为 `artifacts/vsix/stm32-project-helper-1.5.1-win32-x64.vsix`。安装包使用经过裁剪的后台运行库，保留全部功能代码、JSON 协议模型与内置 OpenOCD 脚本。
+从 [v1.6.8 发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.6.8) 下载 [VSIX 安装包](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.6.8/stm32-project-helper-1.6.8-win32-x64.vsix)（约 10 MB）。本地打包路径为 `artifacts/vsix/stm32-project-helper-1.6.8-win32-x64.vsix`。安装包使用经过裁剪的后台运行库，保留全部功能代码、JSON 协议模型与内置 OpenOCD 脚本。
 
 ## 安装
 
-1. 下载 `stm32-project-helper-1.5.1-win32-x64.vsix` 安装包。
+1. 下载 `stm32-project-helper-1.6.8-win32-x64.vsix` 安装包。
 2. 在 VS Code 中按 `Ctrl+Shift+X` 打开扩展面板。
 3. 点击扩展面板右上角的 `…`，选择“从 VSIX 安装…”，选中下载的文件。
 4. 安装完成后重新加载 VS Code 窗口。若未出现提示，可通过命令面板执行“Developer: Reload Window”，或关闭并重新打开 VS Code。
@@ -142,7 +142,19 @@ v1.5.1 重新写入时会替换当前工程的助手配置，清理重复的调�
 
 ## 界面语言
 
-界面默认跟随 VS Code 的显示语言。打开 **开发环境 → 语言与隐私** 切换“跟随 VS Code / 简体中文 / English”，也可设置 `stm32ProjectHelper.language`。
+工作台顶部的 **语言** 下拉框适用于所有分类，可选择「跟随 VS Code / 简体中文 / English」，也可设置 `stm32ProjectHelper.language`。
+
+### 实时波形
+
+从工作台顶部选择 **实时波形**。点击 **运行示例** 即可查看四路数据，也可选择串口、TCP 或 UDP，再选择 JustFloat、FireWater 或 RawData 协议后连接。可使用波形、XY、FFT、仪表、3D 姿态和数据终端，从「文件」导入 VOFA+ 1.3 配置或 CSV，也可导出采样。切换工作台分类时继续采集，关闭工作台后断开。布局和命令随当前 VS Code 工作区保存。
+
+使用扩展开发主机时，先执行 `npm ci` 和 `npm run build:signals` 生成实时波形的前端资源。
+
+### 实时变量查看
+
+在工作台或活动栏的 **STM32 工程助手** 中选择 **实时变量查看**。侧栏可以和代码编辑器同时显示。启动使用 OpenOCD 的 Cortex-Debug 会话后，侧栏自动使用该会话的 Tcl 端口。本机独立运行的 OpenOCD 也可自动连接。如同时运行多个 OpenOCD 实例，可在 **选项 → 连接与工具设置** 里指定端口。
+
+在输入框输入全局或静态变量名，例如 `motor.speed`、`samples[0]` 或 `ptr->speed`。支持展开结构体和数组、右键切换数值格式，以及双击可写的 RAM 标量进行写值。变量在目标继续运行时读取。工具栏的 **刷新率** 默认为 **5 Hz（200 ms）**，可选 2、5、10、20、30.3、50、100、200、1000 Hz 或 **无上限**。固定档位表示两轮采样启动之间的最短间隔，实际速度受 OpenOCD 和探针影响。无上限时读完一轮就开始下一轮。收起侧栏或暂停刷新会停止采样。请使用与目标固件一致且带有调试符号的 ELF。扩展开发主机使用前执行 `npm run build:live-watch`。
 
 语言选择覆盖六个功能页面、侧栏、按钮、确认弹窗、进度、软件生成的检测与兼容性说明、构建结果及问题建议。切换时保留填写的配置和文件选择，不修改工程文件；操作进行中暂不切换，当前操作结束后再应用新的语言。
 
