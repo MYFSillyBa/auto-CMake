@@ -4,9 +4,9 @@
 
 STM32 Project Helper 为本地 Windows 工程提供 STM32 工具链检测、VS Code 编译与 DAPLink 烧录任务配置、源文件管理、STM32CubeMX MDK-ARM/CMake 双向转换和修改恢复。扩展直接使用当前工作区，无需启动桌面程序，不上传工程。
 
-## VS Code 插件 v1.6.8
+## VS Code 插件 v1.6.10
 
-[下载 Windows x64 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.6.8/stm32-project-helper-1.6.8-win32-x64.vsix) · [发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.6.8)
+[下载 Windows x64 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.6.10/stm32-project-helper-1.6.10-win32-x64.vsix) · [发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.6.10)
 
 **桌面 EXE 已停止维护，后续仅发布 VSIX。** [桌面 v1.7.1](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.1) 作为历史版本提供下载。
 
@@ -122,11 +122,11 @@ v1.5.1 重新写入时会替换当前工程的助手配置，清理重复的调�
 | .NET | VSIX 自带后台运行时，无需另行安装 |
 | 构建工具 | CMake、Ninja、ARM GCC；OpenOCD 用于脚本检查和烧录任务 |
 
-从 [v1.6.8 发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.6.8) 下载 [VSIX 安装包](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.6.8/stm32-project-helper-1.6.8-win32-x64.vsix)（约 10 MB）。本地打包路径为 `artifacts/vsix/stm32-project-helper-1.6.8-win32-x64.vsix`。安装包使用经过裁剪的后台运行库，保留全部功能代码、JSON 协议模型与内置 OpenOCD 脚本。
+从 [v1.6.10 发布页](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.6.10) 下载 [VSIX 安装包](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.6.10/stm32-project-helper-1.6.10-win32-x64.vsix)（约 10 MB）。本地打包路径为 `artifacts/vsix/stm32-project-helper-1.6.10-win32-x64.vsix`。安装包使用经过裁剪的后台运行库，保留全部功能代码、JSON 协议模型与内置 OpenOCD 脚本。
 
 ## 安装
 
-1. 下载 `stm32-project-helper-1.6.8-win32-x64.vsix` 安装包。
+1. 下载 `stm32-project-helper-1.6.10-win32-x64.vsix` 安装包。
 2. 在 VS Code 中按 `Ctrl+Shift+X` 打开扩展面板。
 3. 点击扩展面板右上角的 `…`，选择“从 VSIX 安装…”，选中下载的文件。
 4. 安装完成后重新加载 VS Code 窗口。若未出现提示，可通过命令面板执行“Developer: Reload Window”，或关闭并重新打开 VS Code。
@@ -147,6 +147,8 @@ v1.5.1 重新写入时会替换当前工程的助手配置，清理重复的调�
 ### 实时波形
 
 从工作台顶部选择 **实时波形**。点击 **运行示例** 即可查看四路数据，也可选择串口、TCP 或 UDP，再选择 JustFloat、FireWater 或 RawData 协议后连接。可使用波形、XY、FFT、仪表、3D 姿态和数据终端，从「文件」导入 VOFA+ 1.3 配置或 CSV，也可导出采样。切换工作台分类时继续采集，关闭工作台后断开。布局和命令随当前 VS Code 工作区保存。
+
+波形铺满当前 VS Code 编辑区，右侧默认展开「实时通道」，左上角可返回工作台。连接后点击 **开始记录**，再次点击 **正在记录，点击停止并保存** 选择 CSV 保存位置。CSV 只包含这段时间收到的样本，取消保存后可重试。点击顶部的 **清除数据** 清空当前波形采样。
 
 使用扩展开发主机时，先执行 `npm ci` 和 `npm run build:signals` 生成实时波形的前端资源。
 

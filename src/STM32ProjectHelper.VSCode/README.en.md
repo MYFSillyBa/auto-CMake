@@ -4,9 +4,9 @@
 
 STM32 Project Helper provides toolchain detection, CMake build and DAPLink flash task configuration, source management, STM32CubeMX MDK-ARM/CMake conversion, and change restoration inside VS Code. It operates on the current local workspace and does not upload projects.
 
-## VS Code v1.6.8
+## VS Code v1.6.10
 
-[Download the Windows x64 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.6.8/stm32-project-helper-1.6.8-win32-x64.vsix) · [Release notes](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.6.8)
+[Download the Windows x64 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.6.10/stm32-project-helper-1.6.10-win32-x64.vsix) · [Release notes](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.6.10)
 
 **The desktop EXE is no longer maintained.** Future updates ship as VSIX. Desktop [v1.7.1](https://github.com/MYFSillyBa/auto-CMake/releases/tag/v1.7.1) remains available as an archived release.
 
@@ -19,6 +19,8 @@ Use the workbench buttons or press **F8** to build, **F7** to flash, or **F6** t
 ### Live Signals
 
 Select **Live Signals** in the workbench navigation and click **Run demo** to see four example channels. For live hardware, choose a serial, TCP, or UDP connection and select JustFloat, FireWater, or RawData. Use the waveform, XY/FFT views, gauges, 3D attitude instruments, and data terminal. The **File** menu imports VOFA+ 1.3 configurations and CSV samples, and exports captures. Capture continues when you switch categories and disconnects when you close the workbench. Layouts and commands are saved per workspace.
+
+The view fills the current editor. Live channel values open on the right, and **Back to workbench** returns to the project controls. After connecting, select **Start recording**, then **Recording — click to stop and save** to choose a CSV destination. The recording contains only samples from that interval. A canceled save can be retried. **Clear data** clears the current samples.
 
 The **Language** control at the top of the workbench applies to all categories. For an extension development session, run `npm ci` and `npm run build:signals` first.
 
@@ -134,11 +136,11 @@ Packaging and Chinese/English UI viewing were completed before delivery. Functio
 | .NET | Included in the VSIX; no separate runtime installation |
 | Build tools | CMake, Ninja and ARM GCC; OpenOCD for script checks and flash tasks |
 
-Download the [v1.6.8 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.6.8/stm32-project-helper-1.6.8-win32-x64.vsix) (about 10 MB) from the [release page](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.6.8). The local build output is `artifacts/vsix/stm32-project-helper-1.6.8-win32-x64.vsix`. The package includes a trimmed, self-contained backend and the complete bundled OpenOCD scripts.
+Download the [v1.6.10 VSIX](https://github.com/MYFSillyBa/auto-CMake/releases/download/vscode-v1.6.10/stm32-project-helper-1.6.10-win32-x64.vsix) (about 10 MB) from the [release page](https://github.com/MYFSillyBa/auto-CMake/releases/tag/vscode-v1.6.10). The local build output is `artifacts/vsix/stm32-project-helper-1.6.10-win32-x64.vsix`. The package includes a trimmed, self-contained backend and the complete bundled OpenOCD scripts.
 
 ## Installation and updating
 
-1. Download `stm32-project-helper-1.6.8-win32-x64.vsix`.
+1. Download `stm32-project-helper-1.6.10-win32-x64.vsix`.
 2. Press `Ctrl+Shift+X` in VS Code to open Extensions.
 3. Open the Extensions panel's `…` menu and select **Install from VSIX…**.
 4. Select the downloaded file and reload the window. If no prompt appears, run **Developer: Reload Window** from the Command Palette or restart VS Code.
